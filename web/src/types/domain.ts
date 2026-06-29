@@ -21,6 +21,36 @@ export type PieceStatus =
 
 export type ProjectStatus = 'active' | 'closed' | 'on_hold';
 
+export type QCTestType = 'break_7day' | 'break_28day' | 'water_test' | 'other';
+
+export interface QCTest {
+  id: string;
+  piece_id: string | null;
+  batch_no: string | null;
+  test_type: QCTestType;
+  value: number | null;
+  unit: string | null;
+  pass: boolean | null;
+  tested_at: string;
+  tested_by: string | null;
+}
+
+// The forward lifecycle order; index defines the single legal next step.
+export const PIECE_STATUS_ORDER: PieceStatus[] = [
+  'in_production',
+  'curing',
+  'qc',
+  'ready',
+  'staged',
+  'delivered',
+];
+
+export function nextPieceStatus(status: PieceStatus): PieceStatus | null {
+  const index = PIECE_STATUS_ORDER.indexOf(status);
+  if (index < 0 || index >= PIECE_STATUS_ORDER.length - 1) return null;
+  return PIECE_STATUS_ORDER[index + 1];
+}
+
 export interface Project {
   id: string;
   job_number: string;

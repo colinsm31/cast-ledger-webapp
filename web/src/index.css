@@ -1,1 +1,38 @@
 @import "tailwindcss";
+
+/* ---- Print / Save as PDF for traceability documents ---- */
+@media print {
+  /* Hide everything except the active traceability document. */
+  body * {
+    visibility: hidden;
+  }
+  .trace-document,
+  .trace-document * {
+    visibility: visible;
+  }
+  .trace-document {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    max-width: none;
+  }
+
+  /* Drop on-screen chrome (Back / Print buttons) from the printout. */
+  .trace-controls {
+    display: none !important;
+  }
+
+  /* Each piece starts on a fresh page in a project package. */
+  .trace-piece-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .trace-piece-break + .trace-piece-break {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  @page {
+    margin: 0.75in;
+  }
+}

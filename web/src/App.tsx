@@ -10,6 +10,11 @@ import { PieceFamilyPickerPage } from './features/pieces/PieceFamilyPickerPage';
 import { PieceEditorPage } from './features/pieces/PieceEditorPage';
 import { PiecesListPage } from './features/pieces/PiecesListPage';
 import { PieceDetailPage } from './features/pieces/PieceDetailPage';
+import { ProjectsListPage } from './features/projects/ProjectsListPage';
+import { CreateProjectPage } from './features/projects/CreateProjectPage';
+import { ProjectDetailPage } from './features/projects/ProjectDetailPage';
+import { PieceTracePage } from './features/traceability/PieceTracePage';
+import { ProjectTracePage } from './features/traceability/ProjectTracePage';
 
 function SetupNeeded() {
   return (
@@ -41,6 +46,11 @@ function Gate() {
         <Route path="/pieces/new" element={<PieceFamilyPickerPage />} />
         <Route path="/pieces/new/:designId" element={<PieceEditorPage />} />
         <Route path="/pieces/:pieceId" element={<PieceDetailPage />} />
+        <Route path="/pieces/:pieceId/trace" element={<PieceTracePage />} />
+        <Route path="/projects" element={<ProjectsListPage />} />
+        <Route path="/projects/new" element={<CreateProjectPage />} />
+        <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+        <Route path="/projects/:projectId/trace" element={<ProjectTracePage />} />
         <Route path="*" element={<Navigate to="/families" replace />} />
       </Route>
     </Routes>

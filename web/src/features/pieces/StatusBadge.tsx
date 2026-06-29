@@ -9,6 +9,10 @@ const META: Record<PieceStatus, { label: string; classes: string }> = {
   delivered: { label: 'Delivered', classes: 'bg-slate-100 text-slate-700' },
 };
 
+export function statusLabel(status: PieceStatus): string {
+  return META[status]?.label ?? status;
+}
+
 export function StatusBadge({ status }: { status: PieceStatus }) {
   const meta = META[status] ?? { label: status, classes: 'bg-slate-100 text-slate-700' };
   return (
