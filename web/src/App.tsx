@@ -4,17 +4,8 @@ import { SignInPage } from './auth/SignInPage';
 import { AppShell } from './app/AppShell';
 import { Spinner } from './components/Spinner';
 import { isSupabaseConfigured } from './lib/supabase';
-import { TemplateListPage } from './features/templates/TemplateListPage';
-import { TemplateDefinerPage } from './features/templates/TemplateDefinerPage';
-import { PieceFamilyPickerPage } from './features/pieces/PieceFamilyPickerPage';
-import { PieceEditorPage } from './features/pieces/PieceEditorPage';
-import { PiecesListPage } from './features/pieces/PiecesListPage';
-import { PieceDetailPage } from './features/pieces/PieceDetailPage';
-import { ProjectsListPage } from './features/projects/ProjectsListPage';
-import { CreateProjectPage } from './features/projects/CreateProjectPage';
-import { ProjectDetailPage } from './features/projects/ProjectDetailPage';
-import { PieceTracePage } from './features/traceability/PieceTracePage';
-import { ProjectTracePage } from './features/traceability/ProjectTracePage';
+import { HomePage } from './features/home/HomePage';
+import { ComingSoon } from './features/home/ComingSoon';
 
 function SetupNeeded() {
   return (
@@ -39,19 +30,13 @@ function Gate() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<Navigate to="/families" replace />} />
-        <Route path="/families" element={<TemplateListPage />} />
-        <Route path="/families/new" element={<TemplateDefinerPage />} />
-        <Route path="/pieces" element={<PiecesListPage />} />
-        <Route path="/pieces/new" element={<PieceFamilyPickerPage />} />
-        <Route path="/pieces/new/:designId" element={<PieceEditorPage />} />
-        <Route path="/pieces/:pieceId" element={<PieceDetailPage />} />
-        <Route path="/pieces/:pieceId/trace" element={<PieceTracePage />} />
-        <Route path="/projects" element={<ProjectsListPage />} />
-        <Route path="/projects/new" element={<CreateProjectPage />} />
-        <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
-        <Route path="/projects/:projectId/trace" element={<ProjectTracePage />} />
-        <Route path="*" element={<Navigate to="/families" replace />} />
+        <Route index element={<HomePage />} />
+        {/* Retail screens — filled in over the next build steps. */}
+        <Route path="/products" element={<ComingSoon title="Products" />} />
+        <Route path="/sales" element={<ComingSoon title="Sales" />} />
+        <Route path="/sales/new" element={<ComingSoon title="New sale" />} />
+        <Route path="/categories" element={<ComingSoon title="Categories" />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );

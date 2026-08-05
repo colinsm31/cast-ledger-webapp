@@ -14,19 +14,21 @@ export function AppShell() {
       <header className="bg-white border-b border-slate-200">
         <div className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span className="font-bold text-slate-900">CastLedger</span>
+            <NavLink to="/" className="font-bold text-slate-900 hover:text-blue-700">
+              AceStock
+            </NavLink>
             <nav className="flex gap-1">
-              <NavLink to="/families" className={navLinkClass}>
-                Product families
+              <NavLink to="/products" className={navLinkClass}>
+                Products
               </NavLink>
-              <NavLink to="/pieces/new" className={navLinkClass}>
-                New piece
+              <NavLink to="/sales/new" className={navLinkClass}>
+                New sale
               </NavLink>
-              <NavLink to="/pieces" end className={navLinkClass}>
-                Pieces
+              <NavLink to="/sales" end className={navLinkClass}>
+                Sales
               </NavLink>
-              <NavLink to="/projects" className={navLinkClass}>
-                Projects
+              <NavLink to="/categories" className={navLinkClass}>
+                Categories
               </NavLink>
             </nav>
           </div>
