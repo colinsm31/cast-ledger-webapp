@@ -6,6 +6,12 @@ import { Spinner } from './components/Spinner';
 import { isSupabaseConfigured } from './lib/supabase';
 import { HomePage } from './features/home/HomePage';
 import { ComingSoon } from './features/home/ComingSoon';
+import { CategoriesPage } from './features/categories/CategoriesPage';
+import { CategoryDetailPage } from './features/categories/CategoryDetailPage';
+import { ProductsListPage } from './features/products/ProductsListPage';
+import { ProductFormPage } from './features/products/ProductFormPage';
+import { ProductDetailPage } from './features/products/ProductDetailPage';
+import { VariantDetailPage } from './features/products/VariantDetailPage';
 
 function SetupNeeded() {
   return (
@@ -32,10 +38,15 @@ function Gate() {
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
         {/* Retail screens — filled in over the next build steps. */}
-        <Route path="/products" element={<ComingSoon title="Products" />} />
+        <Route path="/products" element={<ProductsListPage />} />
+        <Route path="/products/new" element={<ProductFormPage />} />
+        <Route path="/products/:productId" element={<ProductDetailPage />} />
+        <Route path="/products/:productId/edit" element={<ProductFormPage />} />
+        <Route path="/variants/:variantId" element={<VariantDetailPage />} />
         <Route path="/sales" element={<ComingSoon title="Sales" />} />
         <Route path="/sales/new" element={<ComingSoon title="New sale" />} />
-        <Route path="/categories" element={<ComingSoon title="Categories" />} />
+        <Route path="/categories" element={<CategoriesPage />} />
+        <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

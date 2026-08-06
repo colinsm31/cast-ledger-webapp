@@ -78,6 +78,23 @@ export interface VariantStock {
   on_hand: number;
 }
 
+// On-hand + low-stock detail per variant (from variant_stock_detail view).
+export interface VariantStockDetail {
+  variant_id: string;
+  product_id: string;
+  on_hand: number;
+  reorder_point: number | null;
+  is_low: boolean;
+}
+
+// Per-product stock roll-up (from product_stock view).
+export interface ProductStock {
+  product_id: string;
+  on_hand: number;
+  variant_count: number;
+  has_low_stock: boolean;
+}
+
 // ---- Inventory ledger ----
 
 export type InventoryTxnType = 'receive' | 'adjust' | 'sell' | 'transfer';
