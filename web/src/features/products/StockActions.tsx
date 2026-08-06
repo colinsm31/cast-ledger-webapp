@@ -2,14 +2,13 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 
-// Per-variant stock actions: Receive (positive) or Adjust (signed) via the RPCs.
-// Shared by the product detail and variant detail pages.
+// Per-product stock actions: Receive (positive) or Adjust (signed) via the RPCs.
 export function StockActions({
-  variantId,
+  productId,
   onDone,
   onError,
 }: {
-  variantId: string;
+  productId: string;
   onDone: () => Promise<void>;
   onError: (message: string) => void;
 }) {
@@ -38,14 +37,14 @@ export function StockActions({
     const { error: err } =
       mode === 'receive'
         ? await supabase.rpc('receive_stock', {
-            p_variant_id: variantId,
+            p_product_id: productId,
             p_qty: n,
             p_unit_cost: null,
             p_location: null,
             p_note: note.trim() || null,
           })
         : await supabase.rpc('adjust_stock', {
-            p_variant_id: variantId,
+            p_product_id: productId,
             p_qty: n,
             p_note: note.trim() || null,
           });

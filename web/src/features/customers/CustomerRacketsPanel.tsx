@@ -1,0 +1,307 @@
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
+import type { CustomerRacket, ProductWithCategory } from '../../types/domain';
+import { errorMessage } from '../../lib/errors';
+
+// Standard tennis grip sizes.
+const GRIP_SIZES = ['4 1/8', '4 1/4', '4 3/8', '4 1/2', '4 5/8'];
+
+const inputClass =
+  'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
+
+interface RacketDraft {
+  productId: string;
+  brand: string;
+  model: string;
+  gripSize: string;
+  label: string;
+  notes: string;
+}
+
+const emptyDraft: RacketDraft = {
+  productId: '',
+  brand: '',
+  model: '',
+  gripSize: '',
+  label: '',
+  notes: '',
+};
+
+export function CustomerRacketsPanel({ customerId }: { customerId: string }) {
+  const navigate = useNavigate();
+  const [rackets, setRackets] = useState<CustomerRacket[] | null>(null);
+  const [catalogRackets, setCatalogRackets] = useState<ProductWithCategory[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const [racketsRes, catalogRes] = await Promise.all([
+      supabase
+        .from('customer_rackets')
+        .select('*')
+        .eq('customer_id', customerId)
+        .order('created_at'),
+      supabase.from('products').select('*, categories(name)').order('brand'),
+    ]);
+    if (racketsRes.error) setError(errorMessage(racketsRes.error));
+    else setRackets((racketsRes.data ?? []) as CustomerRacket[]);
+    // Only catalog products in the Rackets category are pickable.
+    const cat = ((catalogRes.data ?? []) as unknown as ProductWithCategory[]).filter(
+      (p) => p.categories?.name === 'Rackets',
+    );
+    setCatalogRackets(cat);
+  }, [customerId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function remove(id: string) {
+    setError(null);
+    const { error: err } = await supabase.from('customer_rackets').delete().eq('id', id);
+    if (err) setError(errorMessage(err));
+    else await load();
+  }
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-700">Rackets owned</h2>
+        {!adding && (
+          <button
+            onClick={() => setAdding(true)}
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Add racket
+          </button>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {adding && (
+        <RacketForm
+          customerId={customerId}
+          catalogRackets={catalogRackets}
+          onCancel={() => setAdding(false)}
+          onSaved={async () => {
+            setAdding(false);
+            await load();
+          }}
+          onError={setError}
+        />
+      )}
+
+      {rackets && rackets.length === 0 && !adding && (
+        <p className="text-sm text-slate-500">No rackets recorded for this customer yet.</p>
+      )}
+
+      {rackets && rackets.length > 0 && (
+        <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+          {rackets.map((racket) =>
+            editingId === racket.id ? (
+              <li key={racket.id} className="p-3">
+                <RacketForm
+                  customerId={customerId}
+                  catalogRackets={catalogRackets}
+                  existing={racket}
+                  onCancel={() => setEditingId(null)}
+                  onSaved={async () => {
+                    setEditingId(null);
+                    await load();
+                  }}
+                  onError={setError}
+                />
+              </li>
+            ) : (
+              <li key={racket.id} className="flex items-start justify-between gap-3 p-3">
+                <div>
+                  <p className="font-medium text-slate-900">
+                    {racket.brand ? `${racket.brand} ` : ''}
+                    {racket.model}
+                    {racket.label ? <span className="text-slate-400"> · {racket.label}</span> : null}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {racket.grip_size ? `Grip ${racket.grip_size}` : 'Grip —'}
+                  </p>
+                  {racket.notes && <p className="mt-1 text-xs text-slate-500">{racket.notes}</p>}
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <button
+                    onClick={() =>
+                      navigate(`/customers/${customerId}/rackets/${racket.id}/restring`)
+                    }
+                    className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-900"
+                  >
+                    New string job
+                  </button>
+                  <button
+                    onClick={() => setEditingId(racket.id)}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => void remove(racket.id)}
+                    className="text-xs text-red-600 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </li>
+            ),
+          )}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+// MARK: - Add / edit racket form
+
+function RacketForm({
+  customerId,
+  catalogRackets,
+  existing,
+  onCancel,
+  onSaved,
+  onError,
+}: {
+  customerId: string;
+  catalogRackets: ProductWithCategory[];
+  existing?: CustomerRacket;
+  onCancel: () => void;
+  onSaved: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [draft, setDraft] = useState<RacketDraft>(
+    existing
+      ? {
+          productId: existing.product_id ?? '',
+          brand: existing.brand ?? '',
+          model: existing.model,
+          gripSize: existing.grip_size ?? '',
+          label: existing.label ?? '',
+          notes: existing.notes ?? '',
+        }
+      : emptyDraft,
+  );
+  const [saving, setSaving] = useState(false);
+
+  function patch(p: Partial<RacketDraft>) {
+    setDraft((prev) => ({ ...prev, ...p }));
+  }
+
+  // Picking a catalog racket prefills brand + model.
+  function pickCatalog(productId: string) {
+    if (!productId) {
+      patch({ productId: '' });
+      return;
+    }
+    const product = catalogRackets.find((p) => p.id === productId);
+    patch({
+      productId,
+      brand: product?.brand ?? draft.brand,
+      model: product?.name ?? draft.model,
+    });
+  }
+
+  async function save() {
+    if (!draft.model.trim()) {
+      onError('Model is required');
+      return;
+    }
+    setSaving(true);
+    const payload = {
+      customer_id: customerId,
+      product_id: draft.productId || null,
+      brand: draft.brand.trim() || null,
+      model: draft.model.trim(),
+      grip_size: draft.gripSize || null,
+      label: draft.label.trim() || null,
+      notes: draft.notes.trim() || null,
+    };
+    const { error: err } = existing
+      ? await supabase.from('customer_rackets').update(payload).eq('id', existing.id)
+      : await supabase.from('customer_rackets').insert(payload);
+    setSaving(false);
+    if (err) {
+      onError(errorMessage(err));
+      return;
+    }
+    await onSaved();
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+      <p className="text-xs font-medium text-slate-500">{existing ? 'Edit racket' : 'Add racket'}</p>
+
+      <label className="block space-y-1">
+        <span className="text-xs font-medium text-slate-500">From catalog (optional)</span>
+        <select value={draft.productId} onChange={(e) => pickCatalog(e.target.value)} className={inputClass}>
+          <option value="">Not from catalog / enter manually</option>
+          {catalogRackets.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.brand ? `${p.brand} ` : ''}
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="flex gap-2">
+        <label className="block flex-1 space-y-1">
+          <span className="text-xs font-medium text-slate-500">Brand</span>
+          <input value={draft.brand} onChange={(e) => patch({ brand: e.target.value })} className={inputClass} />
+        </label>
+        <label className="block flex-1 space-y-1">
+          <span className="text-xs font-medium text-slate-500">Model *</span>
+          <input value={draft.model} onChange={(e) => patch({ model: e.target.value })} className={inputClass} />
+        </label>
+      </div>
+
+      <div className="flex gap-2">
+        <label className="block flex-1 space-y-1">
+          <span className="text-xs font-medium text-slate-500">Grip size</span>
+          <select value={draft.gripSize} onChange={(e) => patch({ gripSize: e.target.value })} className={inputClass}>
+            <option value="">—</option>
+            {GRIP_SIZES.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block flex-1 space-y-1">
+          <span className="text-xs font-medium text-slate-500">Label / nickname</span>
+          <input
+            value={draft.label}
+            onChange={(e) => patch({ label: e.target.value })}
+            placeholder="e.g. Main, Backup"
+            className={inputClass}
+          />
+        </label>
+      </div>
+
+      <label className="block space-y-1">
+        <span className="text-xs font-medium text-slate-500">Notes</span>
+        <textarea value={draft.notes} onChange={(e) => patch({ notes: e.target.value })} rows={2} className={inputClass} />
+      </label>
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => void save()}
+          disabled={saving}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : existing ? 'Save changes' : 'Add racket'}
+        </button>
+        <button onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}

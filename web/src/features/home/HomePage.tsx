@@ -30,7 +30,7 @@ export function HomePage() {
       const upc = term.replace(/\s+/g, '');
       setResult({ kind: 'searching' });
       const { data, error } = await supabase
-        .from('variants')
+        .from('products')
         .select('id')
         .eq('barcode', upc)
         .maybeSingle();
@@ -39,7 +39,7 @@ export function HomePage() {
         return;
       }
       if (data) {
-        navigate(`/variants/${data.id}`);
+        navigate(`/products/${data.id}`);
       } else {
         setResult({ kind: 'notFoundUpc', upc });
       }

@@ -159,11 +159,6 @@ export function CategoryDetailPage() {
                       {attribute.unit && (
                         <span className="text-xs text-slate-400">({attribute.unit})</span>
                       )}
-                      {attribute.is_variant_dimension && (
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                          variant
-                        </span>
-                      )}
                       {attribute.required && (
                         <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
                           required
@@ -224,7 +219,6 @@ function AddAttributeForm({
   const [valueType, setValueType] = useState<AttributeValueType>('text');
   const [unit, setUnit] = useState('');
   const [required, setRequired] = useState(false);
-  const [isVariant, setIsVariant] = useState(false);
   const [enumRaw, setEnumRaw] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -252,7 +246,6 @@ function AddAttributeForm({
       value_type: valueType,
       unit: unit.trim() || null,
       required,
-      is_variant_dimension: isVariant,
       enum_values: valueType === 'enum' ? parseEnum() : null,
       sort_order: nextSortOrder,
     });
@@ -269,7 +262,6 @@ function AddAttributeForm({
     setUnit('');
     setEnumRaw('');
     setRequired(false);
-    setIsVariant(false);
     setValueType('text');
     await onAdded();
   }
@@ -307,20 +299,10 @@ function AddAttributeForm({
         </label>
       )}
 
-      <div className="flex flex-wrap gap-4">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={isVariant} onChange={(e) => setIsVariant(e.target.checked)} />
-          Variant dimension
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
-          Required
-        </label>
-      </div>
-      <p className="text-xs text-slate-400">
-        “Variant dimension” means this attribute’s values split a product into separately-stocked
-        variants (e.g. size, color, grip size).
-      </p>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
+        Required
+      </label>
 
       <button
         onClick={() => void add()}
@@ -350,7 +332,6 @@ function EditAttributeForm({
   const [valueType, setValueType] = useState<AttributeValueType>(attribute.value_type);
   const [unit, setUnit] = useState(attribute.unit ?? '');
   const [required, setRequired] = useState(attribute.required);
-  const [isVariant, setIsVariant] = useState(attribute.is_variant_dimension);
   const [enumRaw, setEnumRaw] = useState(enumList(attribute).join(', '));
   const [saving, setSaving] = useState(false);
 
@@ -376,7 +357,6 @@ function EditAttributeForm({
         value_type: valueType,
         unit: unit.trim() || null,
         required,
-        is_variant_dimension: isVariant,
         enum_values: valueType === 'enum' ? parseEnum() : null,
       })
       .eq('id', attribute.id);
@@ -420,16 +400,10 @@ function EditAttributeForm({
           <input value={enumRaw} onChange={(e) => setEnumRaw(e.target.value)} className={inputClass} />
         </label>
       )}
-      <div className="flex flex-wrap gap-4">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={isVariant} onChange={(e) => setIsVariant(e.target.checked)} />
-          Variant dimension
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
-          Required
-        </label>
-      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
+        Required
+      </label>
       <div className="flex gap-2">
         <button
           onClick={() => void save()}

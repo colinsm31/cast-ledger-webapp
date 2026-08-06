@@ -23,24 +23,22 @@ export function ProductFormPage() {
 
   const [brand, setBrand] = useState('');
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [cost, setCost] = useState('');
   const [reorderPoint, setReorderPoint] = useState('');
+  const [upc, setUpc] = useState(prefillUpc);
+  const [sku, setSku] = useState('');
   const [attrValues, setAttrValues] = useState<Record<string, string>>({});
 
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Descriptive (non-variant) attribute defs drive the product-level fields.
-  const descriptiveDefs = useMemo(
-    () => attributeDefs.filter((d) => !d.is_variant_dimension),
-    [attributeDefs],
-  );
-  const variantDefs = useMemo(
-    () => attributeDefs.filter((d) => d.is_variant_dimension),
-    [attributeDefs],
+  // Category name scopes the pick-or-add lists so, e.g., racket names and string
+  // names stay in separate dropdowns.
+  const categoryName = useMemo(
+    () => categories.find((c) => c.id === categoryId)?.name ?? '',
+    [categories, categoryId],
   );
 
   // Load categories once.
@@ -84,10 +82,11 @@ export function ProductFormPage() {
       setCategoryId(p.category_id);
       setBrand(p.brand ?? '');
       setName(p.name);
-      setDescription(p.description ?? '');
       setSellPrice(p.sell_price != null ? String(p.sell_price) : '');
       setCost(p.cost != null ? String(p.cost) : '');
       setReorderPoint(p.reorder_point != null ? String(p.reorder_point) : '');
+      setUpc(p.barcode ?? '');
+      setSku(p.sku ?? '');
       const prefilled: Record<string, string> = {};
       for (const [key, value] of Object.entries(p.attributes ?? {})) {
         prefilled[key] = value == null ? '' : String(value);
@@ -102,7 +101,7 @@ export function ProductFormPage() {
     if (!name.trim()) return 'Name is required';
     if (sellPrice && Number.isNaN(Number(sellPrice))) return 'Sell price must be a number';
     if (cost && Number.isNaN(Number(cost))) return 'Cost must be a number';
-    for (const def of descriptiveDefs) {
+    for (const def of attributeDefs) {
       if (def.required && !attrValues[def.name]?.trim()) return `${def.name} is required`;
     }
     return null;
@@ -118,7 +117,7 @@ export function ProductFormPage() {
     setError(null);
 
     const attributes: Record<string, JsonValue> = {};
-    for (const def of descriptiveDefs) {
+    for (const def of attributeDefs) {
       const stored = toStoredValue(def, attrValues[def.name] ?? '');
       if (stored !== undefined) attributes[def.name] = stored;
     }
@@ -127,31 +126,35 @@ export function ProductFormPage() {
       category_id: categoryId,
       brand: brand.trim() || null,
       name: name.trim(),
-      description: description.trim() || null,
       attributes,
       sell_price: sellPrice ? Number(sellPrice) : null,
       cost: cost ? Number(cost) : null,
       reorder_point: reorderPoint ? Number(reorderPoint) : null,
+      barcode: upc.trim() || null,
+      sku: sku.trim() || null,
     };
+
+    const duplicateUpcMessage = (message: string) =>
+      message.includes('duplicate') || message.includes('uq_products_barcode')
+        ? 'That UPC is already used by another product.'
+        : message;
 
     if (isEdit && productId) {
       const { error: err } = await supabase.from('products').update(payload).eq('id', productId);
       setSaving(false);
-      if (err) setError(errorMessage(err));
+      if (err) setError(duplicateUpcMessage(errorMessage(err)));
       else navigate(`/products/${productId}`);
       return;
     }
 
-    // The product is just the model/header. Its stockable item(s) — each with a
-    // required UPC — are added as variants on the product page next.
+    // Each product is a unique, stock-tracked item (its own UPC/price/attributes).
     const { data, error: err } = await supabase.from('products').insert(payload).select('id').single();
     setSaving(false);
     if (err) {
-      setError(errorMessage(err));
+      setError(duplicateUpcMessage(errorMessage(err)));
       return;
     }
-    // Carry a scanned UPC through so the add-item form pre-fills it.
-    navigate(prefillUpc ? `/products/${data.id}?upc=${encodeURIComponent(prefillUpc)}` : `/products/${data.id}`);
+    navigate(`/products/${data.id}`);
   }
 
   if (loading) return <Spinner label="Loading…" />;
@@ -185,15 +188,14 @@ export function ProductFormPage() {
           </div>
         </div>
 
-        <label className="block space-y-1">
+        <div className="space-y-1">
           <span className="text-xs font-medium text-slate-500">Name *</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="Pro Staff 97 v14" />
-        </label>
-
-        <label className="block space-y-1">
-          <span className="text-xs font-medium text-slate-500">Description</span>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
-        </label>
+          {categoryId ? (
+            <PickOrAdd kind={`name:${categoryName}`} value={name} onChange={setName} placeholder="Choose or add a name" />
+          ) : (
+            <p className="text-sm text-slate-400">Choose a category first.</p>
+          )}
+        </div>
 
         <div className="flex gap-2">
           <label className="block flex-1 space-y-1">
@@ -210,37 +212,37 @@ export function ProductFormPage() {
           <span className="text-xs font-medium text-slate-500">Reorder point</span>
           <input value={reorderPoint} onChange={(e) => setReorderPoint(e.target.value)} className={inputClass} inputMode="numeric" />
         </label>
+
+        <div className="flex gap-2">
+          <label className="block flex-1 space-y-1">
+            <span className="text-xs font-medium text-slate-500">UPC</span>
+            <input
+              value={upc}
+              onChange={(e) => setUpc(e.target.value)}
+              placeholder="Scan or type the barcode"
+              className={inputClass}
+            />
+          </label>
+          <label className="block flex-1 space-y-1">
+            <span className="text-xs font-medium text-slate-500">SKU</span>
+            <input value={sku} onChange={(e) => setSku(e.target.value)} className={inputClass} />
+          </label>
+        </div>
       </section>
 
-      {descriptiveDefs.length > 0 && (
+      {attributeDefs.length > 0 && (
         <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="text-sm font-semibold text-slate-700">Attributes</h2>
-          {descriptiveDefs.map((def) => (
+          {attributeDefs.map((def) => (
             <AttributeInput
               key={def.id}
               def={def}
               value={attrValues[def.name] ?? ''}
               onChange={(v) => setAttrValues((prev) => ({ ...prev, [def.name]: v }))}
+              lookupKind={`${categoryName}:${def.name}`}
             />
           ))}
         </section>
-      )}
-
-      {!isEdit && prefillUpc && (
-        <p className="text-sm text-blue-700">
-          UPC <span className="font-mono font-medium">{prefillUpc}</span> will be pre-filled on the
-          first item after you save.
-        </p>
-      )}
-
-      {!isEdit && (
-        <p className="text-sm text-slate-500">
-          {variantDefs.length > 0
-            ? `After saving, add this product's items (${variantDefs
-                .map((d) => d.name)
-                .join(', ')}) — each with its UPC — on the product page.`
-            : 'After saving, add this product’s item and its UPC on the product page.'}
-        </p>
       )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}

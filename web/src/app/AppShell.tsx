@@ -30,6 +30,9 @@ export function AppShell() {
               <NavLink to="/customers" className={navLinkClass}>
                 Customers
               </NavLink>
+              <NavLink to="/string-jobs" className={navLinkClass}>
+                String jobs
+              </NavLink>
               <NavLink to="/categories" className={navLinkClass}>
                 Categories
               </NavLink>

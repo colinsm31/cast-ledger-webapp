@@ -1,4 +1,5 @@
 import type { AttributeDef, JsonValue } from '../../types/domain';
+import { PickOrAdd } from '../lookups/PickOrAdd';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -9,44 +10,38 @@ function enumOptions(def: AttributeDef): string[] {
     : [];
 }
 
-// Renders the right control for one attribute definition. Values are held as
-// strings by the caller (uniform handling); toStoredValue() converts to the
-// typed JSON for saving.
+// Renders the right control for one attribute definition. Every value except a
+// yes/no is a pick-or-add dropdown (choose an existing value or add a new one
+// that's remembered for next time), scoped to `lookupKind`. Values are held as
+// strings by the caller; toStoredValue() converts to typed JSON for saving.
 export function AttributeInput({
   def,
   value,
   onChange,
+  lookupKind,
 }: {
   def: AttributeDef;
   value: string;
   onChange: (value: string) => void;
+  lookupKind: string;
 }) {
   const label = `${def.name}${def.unit ? ` (${def.unit})` : ''}${def.required ? ' *' : ''}`;
 
   return (
     <label className="block space-y-1">
       <span className="text-xs font-medium text-slate-500">{label}</span>
-      {def.value_type === 'enum' && enumOptions(def).length > 0 ? (
-        <select value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
-          <option value="">Choose</option>
-          {enumOptions(def).map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      ) : def.value_type === 'bool' ? (
+      {def.value_type === 'bool' ? (
         <select value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
           <option value="">Choose</option>
           <option value="true">Yes</option>
           <option value="false">No</option>
         </select>
       ) : (
-        <input
+        <PickOrAdd
+          kind={lookupKind}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          inputMode={def.value_type === 'number' ? 'decimal' : 'text'}
-          className={inputClass}
+          onChange={onChange}
+          baseOptions={enumOptions(def)}
         />
       )}
     </label>

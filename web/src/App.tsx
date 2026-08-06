@@ -11,10 +11,11 @@ import { CategoryDetailPage } from './features/categories/CategoryDetailPage';
 import { ProductsListPage } from './features/products/ProductsListPage';
 import { ProductFormPage } from './features/products/ProductFormPage';
 import { ProductDetailPage } from './features/products/ProductDetailPage';
-import { VariantDetailPage } from './features/products/VariantDetailPage';
 import { CustomersListPage } from './features/customers/CustomersListPage';
 import { CreateCustomerPage } from './features/customers/CreateCustomerPage';
 import { CustomerDetailPage } from './features/customers/CustomerDetailPage';
+import { NewStringJobPage } from './features/customers/NewStringJobPage';
+import { StringJobsPage } from './features/stringjobs/StringJobsPage';
 
 function SetupNeeded() {
   return (
@@ -45,7 +46,6 @@ function Gate() {
         <Route path="/products/new" element={<ProductFormPage />} />
         <Route path="/products/:productId" element={<ProductDetailPage />} />
         <Route path="/products/:productId/edit" element={<ProductFormPage />} />
-        <Route path="/variants/:variantId" element={<VariantDetailPage />} />
         <Route path="/sales" element={<ComingSoon title="Sales" />} />
         <Route path="/sales/new" element={<ComingSoon title="New sale" />} />
         <Route path="/categories" element={<CategoriesPage />} />
@@ -53,6 +53,8 @@ function Gate() {
         <Route path="/customers" element={<CustomersListPage />} />
         <Route path="/customers/new" element={<CreateCustomerPage />} />
         <Route path="/customers/:customerId" element={<CustomerDetailPage />} />
+        <Route path="/customers/:customerId/rackets/:racketId/restring" element={<NewStringJobPage />} />
+        <Route path="/string-jobs" element={<StringJobsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

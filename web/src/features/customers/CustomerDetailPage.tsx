@@ -5,6 +5,8 @@ import type { Customer, JsonValue, PurchaseHistoryRow } from '../../types/domain
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
+import { CustomerRacketsPanel } from './CustomerRacketsPanel';
+import { RestringHistoryPanel } from './RestringHistoryPanel';
 
 // Filter sales by customer (top-level column), embedding each sale's lines up to
 // product + category. Flattened into PurchaseHistoryRow client-side.
@@ -12,7 +14,7 @@ const HISTORY_SELECT = `
   id, sold_at,
   sale_lines (
     qty, unit_price,
-    variants ( variant_values, products ( brand, name, categories ( name ) ) )
+    products ( brand, name, attributes, categories ( name ) )
   )
 `;
 
@@ -22,17 +24,22 @@ interface HistorySaleRaw {
   sale_lines: Array<{
     qty: number;
     unit_price: number;
-    variants: {
-      variant_values: Record<string, JsonValue>;
-      products: { brand: string | null; name: string; categories: { name: string } | null } | null;
+    products: {
+      brand: string | null;
+      name: string;
+      attributes: Record<string, JsonValue> | null;
+      categories: { name: string } | null;
     } | null;
   }> | null;
 }
+
+type CustomerTab = 'rackets' | 'restrings' | 'purchases';
 
 export function CustomerDetailPage() {
   const { customerId } = useParams<{ customerId: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [history, setHistory] = useState<PurchaseHistoryRow[]>([]);
+  const [tab, setTab] = useState<CustomerTab>('purchases');
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
 
@@ -60,10 +67,10 @@ export function CustomerDetailPage() {
             sold_at: sale.sold_at,
             qty: line.qty,
             unit_price: line.unit_price,
-            category: line.variants?.products?.categories?.name ?? '—',
-            brand: line.variants?.products?.brand ?? null,
-            product_name: line.variants?.products?.name ?? '—',
-            variant_values: line.variants?.variant_values ?? {},
+            category: line.products?.categories?.name ?? '—',
+            brand: line.products?.brand ?? null,
+            product_name: line.products?.name ?? '—',
+            attributes: line.products?.attributes ?? {},
           });
         }
       }
@@ -109,44 +116,85 @@ export function CustomerDetailPage() {
         />
       )}
 
-      {/* Purchase history */}
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-700">Purchase history</h2>
-          {history.length > 0 && (
-            <span className="text-sm text-slate-500">Total ${totalSpent.toFixed(2)}</span>
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2">
+        <TabButton active={tab === 'rackets'} onClick={() => setTab('rackets')}>
+          Rackets owned
+        </TabButton>
+        <TabButton active={tab === 'restrings'} onClick={() => setTab('restrings')}>
+          Re-stringing history
+        </TabButton>
+        <TabButton active={tab === 'purchases'} onClick={() => setTab('purchases')}>
+          Past purchases
+        </TabButton>
+      </div>
+
+      {tab === 'rackets' && <CustomerRacketsPanel customerId={customer.id} />}
+
+      {tab === 'restrings' && <RestringHistoryPanel customerId={customer.id} />}
+
+      {tab === 'purchases' && (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700">Past purchases</h2>
+            {history.length > 0 && (
+              <span className="text-sm text-slate-500">Total ${totalSpent.toFixed(2)}</span>
+            )}
+          </div>
+          {history.length === 0 ? (
+            <p className="text-sm text-slate-500">No purchases recorded yet.</p>
+          ) : (
+            <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+              {history.map((row, i) => (
+                <li key={`${row.sale_id}-${i}`} className="flex items-center justify-between p-3">
+                  <div>
+                    <p className="font-medium text-slate-800">
+                      {row.brand ? `${row.brand} ` : ''}
+                      {row.product_name}
+                      {attributeSuffix(row.attributes)}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {row.category} · {formatDate(row.sold_at)}
+                    </p>
+                  </div>
+                  <div className="text-right text-sm">
+                    <span className="text-slate-500">×{row.qty}</span>{' '}
+                    <span className="font-medium text-slate-900">${row.unit_price.toFixed(2)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
-        </div>
-        {history.length === 0 ? (
-          <p className="text-sm text-slate-500">No purchases recorded yet.</p>
-        ) : (
-          <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
-            {history.map((row, i) => (
-              <li key={`${row.sale_id}-${i}`} className="flex items-center justify-between p-3">
-                <div>
-                  <p className="font-medium text-slate-800">
-                    {row.brand ? `${row.brand} ` : ''}
-                    {row.product_name}
-                    {variantSuffix(row.variant_values)}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {row.category} · {formatDate(row.sold_at)}
-                  </p>
-                </div>
-                <div className="text-right text-sm">
-                  <span className="text-slate-500">×{row.qty}</span>{' '}
-                  <span className="font-medium text-slate-900">${row.unit_price.toFixed(2)}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
 }
 
-function variantSuffix(values: Record<string, JsonValue>): string {
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-lg px-3 py-2 text-sm font-medium ${
+        active
+          ? 'bg-blue-600 text-white'
+          : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function attributeSuffix(values: Record<string, JsonValue>): string {
   const parts = Object.values(values ?? {})
     .filter((v) => v != null && v !== '')
     .map(String);

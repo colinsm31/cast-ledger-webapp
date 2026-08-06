@@ -28,7 +28,6 @@ export interface AttributeDef {
   value_type: AttributeValueType;
   unit: string | null;
   required: boolean;
-  is_variant_dimension: boolean;
   enum_values: JsonValue | null;
   sort_order: number;
   created_at: string;
@@ -58,41 +57,13 @@ export interface ProductWithCategory extends Product {
   categories: { name: string } | null;
 }
 
-export interface Variant {
-  id: string;
-  product_id: string;
-  variant_values: Record<string, JsonValue>;
-  sku: string | null;
-  barcode: string | null;
-  sell_price: number | null;
-  cost: number | null;
-  reorder_point: number | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-// On-hand quantity per variant (from the variant_stock view).
-export interface VariantStock {
-  variant_id: string;
-  on_hand: number;
-}
-
-// On-hand + low-stock detail per variant (from variant_stock_detail view).
-export interface VariantStockDetail {
-  variant_id: string;
+// On-hand + low-stock per product (from the product_stock view). Products are
+// the stock-tracked items directly — there is no variant layer.
+export interface ProductStock {
   product_id: string;
   on_hand: number;
   reorder_point: number | null;
   is_low: boolean;
-}
-
-// Per-product stock roll-up (from product_stock view).
-export interface ProductStock {
-  product_id: string;
-  on_hand: number;
-  variant_count: number;
-  has_low_stock: boolean;
 }
 
 // ---- Inventory ledger ----
@@ -102,7 +73,7 @@ export type InventoryTxnType = 'receive' | 'adjust' | 'sell' | 'transfer';
 export interface InventoryTxn {
   id: string;
   txn_type: InventoryTxnType;
-  variant_id: string;
+  product_id: string;
   qty: number;
   unit_cost: number | null;
   location: string | null;
@@ -151,13 +122,62 @@ export interface PurchaseHistoryRow {
   category: string;
   brand: string | null;
   product_name: string;
-  variant_values: Record<string, JsonValue>;
+  attributes: Record<string, JsonValue>;
+}
+
+// A racket a customer owns (optionally linked to a catalog racket product).
+export interface CustomerRacket {
+  id: string;
+  customer_id: string;
+  product_id: string | null;
+  brand: string | null;
+  model: string;
+  grip_size: string | null;
+  label: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// A string job for a customer's racket (mains + crosses) with a lifecycle.
+export type StringJobStatus = 'entered' | 'complete' | 'delivered';
+
+export interface StringJob {
+  id: string;
+  customer_racket_id: string;
+  status: StringJobStatus;
+
+  // Optional catalog link to the string product used.
+  main_product_id: string | null;
+  main_brand: string | null;
+  main_string: string | null;
+  // Picked string attribute values keyed by their attribute names
+  // (e.g. { gauge: '16', color: 'Black' }), captured at job time.
+  main_specs: Record<string, JsonValue>;
+  main_tension: number | null;
+
+  cross_product_id: string | null;
+  cross_brand: string | null;
+  cross_string: string | null;
+  cross_specs: Record<string, JsonValue>;
+  cross_tension: number | null;
+
+  price: number | null;
+  strung_by: string | null;
+  notes: string | null;
+
+  entered_at: string;
+  completed_at: string | null;
+  delivered_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SaleLine {
   id: string;
   sale_id: string;
-  variant_id: string;
+  product_id: string;
   qty: number;
   unit_price: number;
   created_at: string;
@@ -177,7 +197,7 @@ export type LookupKind = 'brand' | 'color' | 'unit' | string;
 // ---- RPC param shapes ----
 
 export interface ReceiveStockParams {
-  p_variant_id: string;
+  p_product_id: string;
   p_qty: number;
   p_unit_cost: number | null;
   p_location: string | null;
@@ -185,13 +205,13 @@ export interface ReceiveStockParams {
 }
 
 export interface AdjustStockParams {
-  p_variant_id: string;
+  p_product_id: string;
   p_qty: number;
   p_note: string | null;
 }
 
 export interface SaleLineInput {
-  variant_id: string;
+  product_id: string;
   qty: number;
   unit_price: number;
 }
