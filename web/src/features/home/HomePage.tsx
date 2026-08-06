@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
+import type { Customer } from '../../types/domain';
+import { customerName } from '../../types/domain';
 
 type SearchResult =
   | { kind: 'idle' }
   | { kind: 'searching' }
   | { kind: 'notFoundUpc'; upc: string }
-  | { kind: 'customerStub'; term: string }
+  | { kind: 'customers'; term: string; matches: Customer[] }
   | { kind: 'error'; message: string };
 
 // Treat an all-digits (optionally space-separated) query as a UPC.
@@ -42,8 +44,23 @@ export function HomePage() {
         setResult({ kind: 'notFoundUpc', upc });
       }
     } else {
-      // Text search is reserved for customers (a later feature).
-      setResult({ kind: 'customerStub', term });
+      // Text → search customers by name/phone/email.
+      setResult({ kind: 'searching' });
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .or(
+          `first_name.ilike.%${term}%,last_name.ilike.%${term}%,` +
+            `phone_number.ilike.%${term}%,email.ilike.%${term}%`,
+        )
+        .order('last_name')
+        .order('first_name')
+        .limit(25);
+      if (error) {
+        setResult({ kind: 'error', message: errorMessage(error) });
+        return;
+      }
+      setResult({ kind: 'customers', term, matches: (data ?? []) as Customer[] });
     }
   }
 
@@ -52,7 +69,7 @@ export function HomePage() {
       <div className="space-y-2">
         <h1 className="text-xl font-bold text-slate-900">AceStock</h1>
         <p className="text-sm text-slate-600">
-          Scan or type a UPC to find an item. Type a name to search customers (coming soon).
+          Scan or type a UPC to find an item, or type a name to find a customer.
         </p>
       </div>
 
@@ -78,12 +95,18 @@ export function HomePage() {
         </button>
       </div>
 
-      <SearchOutcome result={result} onCreateProduct={(upc) => navigate(`/products/new?upc=${encodeURIComponent(upc)}`)} />
+      <SearchOutcome
+        result={result}
+        onCreateProduct={(upc) => navigate(`/products/new?upc=${encodeURIComponent(upc)}`)}
+        onOpenCustomer={(id) => navigate(`/customers/${id}`)}
+        onCreateCustomer={() => navigate('/customers/new')}
+      />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <NavCard to="/products" label="Products" />
         <NavCard to="/sales/new" label="New sale" />
         <NavCard to="/sales" label="Sales" />
+        <NavCard to="/customers" label="Customers" />
         <NavCard to="/categories" label="Categories" />
       </div>
     </div>
@@ -93,9 +116,13 @@ export function HomePage() {
 function SearchOutcome({
   result,
   onCreateProduct,
+  onOpenCustomer,
+  onCreateCustomer,
 }: {
   result: SearchResult;
   onCreateProduct: (upc: string) => void;
+  onOpenCustomer: (id: string) => void;
+  onCreateCustomer: () => void;
 }) {
   switch (result.kind) {
     case 'idle':
@@ -104,12 +131,38 @@ function SearchOutcome({
       return <p className="text-sm text-slate-500">Searching…</p>;
     case 'error':
       return <p className="text-sm text-red-600">{result.message}</p>;
-    case 'customerStub':
+    case 'customers':
       return (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-sm text-slate-600">
-            Customer search is coming soon. No customer records yet for “{result.term}”.
-          </p>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-700">
+              {result.matches.length} customer{result.matches.length === 1 ? '' : 's'} matching “
+              {result.term}”
+            </p>
+            <button
+              onClick={onCreateCustomer}
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              New customer
+            </button>
+          </div>
+          {result.matches.length > 0 && (
+            <ul className="divide-y divide-slate-100">
+              {result.matches.map((c) => (
+                <li key={c.id}>
+                  <button
+                    onClick={() => onOpenCustomer(c.id)}
+                    className="flex w-full items-center justify-between py-2 text-left hover:text-blue-700"
+                  >
+                    <span className="font-medium">{customerName(c)}</span>
+                    <span className="text-sm text-slate-500">
+                      {[c.phone_number, c.email].filter(Boolean).join(' · ')}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       );
     case 'notFoundUpc':
@@ -124,20 +177,6 @@ function SearchOutcome({
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
             >
               Create product with this UPC
-            </button>
-            <button
-              disabled
-              title="Coming soon"
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-400"
-            >
-              Create customer
-            </button>
-            <button
-              disabled
-              title="Coming soon"
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-400"
-            >
-              Create other…
             </button>
           </div>
         </div>

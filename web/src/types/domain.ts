@@ -119,8 +119,39 @@ export interface Sale {
   sold_at: string;
   subtotal: number;
   note: string | null;
+  customer_id: string | null;
   user_id: string | null;
   created_at: string;
+}
+
+// ---- Customers ----
+
+export interface Customer {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone_number: string | null;
+  email: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Display helper: "First Last".
+export function customerName(c: Pick<Customer, 'first_name' | 'last_name'>): string {
+  return `${c.first_name} ${c.last_name}`.trim();
+}
+
+// One purchased line for a customer's history (sale_line joined up to product).
+export interface PurchaseHistoryRow {
+  sale_id: string;
+  sold_at: string;
+  qty: number;
+  unit_price: number;
+  category: string;
+  brand: string | null;
+  product_name: string;
+  variant_values: Record<string, JsonValue>;
 }
 
 export interface SaleLine {
@@ -167,5 +198,6 @@ export interface SaleLineInput {
 
 export interface RecordSaleParams {
   p_lines: SaleLineInput[];
+  p_customer_id: string | null;
   p_note: string | null;
 }

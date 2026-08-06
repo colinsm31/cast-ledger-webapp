@@ -77,11 +77,32 @@ export function ProductDetailPage() {
     void load();
   }, [load]);
 
+  async function toggleActive() {
+    if (!product) return;
+    setError(null);
+    const { error: err } = await supabase
+      .from('products')
+      .update({ is_active: !product.is_active })
+      .eq('id', product.id);
+    if (err) setError(errorMessage(err));
+    else await load();
+  }
+
   async function deleteVariant(id: string) {
     setError(null);
     const { error: err } = await supabase.from('variants').delete().eq('id', id);
-    if (err) setError(errorMessage(err));
-    else await load();
+    if (err) {
+      const message = errorMessage(err);
+      // A variant with stock/sales history can't be hard-deleted (FK from the
+      // ledger / sale lines). Surface that clearly instead of a raw error.
+      setError(
+        message.toLowerCase().includes('foreign key') || message.includes('23503')
+          ? "Can't delete an item that has stock or sales history."
+          : message,
+      );
+      return;
+    }
+    await load();
   }
 
   if (error && !product) return <p className="text-sm text-red-600">{error}</p>;
@@ -91,18 +112,33 @@ export function ProductDetailPage() {
     <div className="max-w-2xl space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">
-            {product.brand ? `${product.brand} ` : ''}
-            {product.name}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-slate-900">
+              {product.brand ? `${product.brand} ` : ''}
+              {product.name}
+            </h1>
+            {!product.is_active && (
+              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                inactive
+              </span>
+            )}
+          </div>
           <p className="text-sm text-slate-500">{product.categories?.name ?? '—'}</p>
         </div>
-        <Link
-          to={`/products/${product.id}/edit`}
-          className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
-          Edit
-        </Link>
+        <div className="flex shrink-0 gap-2">
+          <button
+            onClick={() => void toggleActive()}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {product.is_active ? 'Archive' : 'Reactivate'}
+          </button>
+          <Link
+            to={`/products/${product.id}/edit`}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Edit
+          </Link>
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -141,6 +177,11 @@ export function ProductDetailPage() {
                       >
                         {variantLabel(variant, variantDefs)}
                       </Link>
+                      {!variant.is_active && (
+                        <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                          inactive
+                        </span>
+                      )}
                       {variant.barcode && (
                         <p className="text-xs text-slate-500">UPC {variant.barcode}</p>
                       )}
@@ -201,6 +242,9 @@ function AddVariantForm({
   const [values, setValues] = useState<Record<string, string>>({});
   const [upc, setUpc] = useState(initialUpc);
   const [sku, setSku] = useState('');
+  const [sellPrice, setSellPrice] = useState('');
+  const [cost, setCost] = useState('');
+  const [reorderPoint, setReorderPoint] = useState('');
   const [saving, setSaving] = useState(false);
 
   const hasDimensions = variantDefs.length > 0;
@@ -218,6 +262,10 @@ function AddVariantForm({
       onError('UPC is required for each item');
       return;
     }
+    if (sellPrice && Number.isNaN(Number(sellPrice))) {
+      onError('Price must be a number');
+      return;
+    }
     setSaving(true);
     const variantValues: Record<string, JsonValue> = {};
     for (const def of variantDefs) {
@@ -229,6 +277,9 @@ function AddVariantForm({
       variant_values: variantValues,
       barcode: upc.trim(),
       sku: sku.trim() || null,
+      sell_price: sellPrice ? Number(sellPrice) : null,
+      cost: cost ? Number(cost) : null,
+      reorder_point: reorderPoint ? Number(reorderPoint) : null,
     });
     setSaving(false);
     if (err) {
@@ -242,6 +293,9 @@ function AddVariantForm({
     setValues({});
     setUpc('');
     setSku('');
+    setSellPrice('');
+    setCost('');
+    setReorderPoint('');
     await onAdded();
   }
 
@@ -273,6 +327,36 @@ function AddVariantForm({
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </label>
+      <div className="flex flex-wrap gap-2">
+        <label className="block flex-1 min-w-[6rem] space-y-1">
+          <span className="text-xs font-medium text-slate-500">Price (optional)</span>
+          <input
+            value={sellPrice}
+            onChange={(e) => setSellPrice(e.target.value)}
+            inputMode="decimal"
+            placeholder="Overrides product"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </label>
+        <label className="block flex-1 min-w-[6rem] space-y-1">
+          <span className="text-xs font-medium text-slate-500">Cost (optional)</span>
+          <input
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+            inputMode="decimal"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </label>
+        <label className="block flex-1 min-w-[6rem] space-y-1">
+          <span className="text-xs font-medium text-slate-500">Reorder pt (optional)</span>
+          <input
+            value={reorderPoint}
+            onChange={(e) => setReorderPoint(e.target.value)}
+            inputMode="numeric"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </label>
+      </div>
       <button
         onClick={() => void add()}
         disabled={saving}

@@ -12,6 +12,9 @@ import { ProductsListPage } from './features/products/ProductsListPage';
 import { ProductFormPage } from './features/products/ProductFormPage';
 import { ProductDetailPage } from './features/products/ProductDetailPage';
 import { VariantDetailPage } from './features/products/VariantDetailPage';
+import { CustomersListPage } from './features/customers/CustomersListPage';
+import { CreateCustomerPage } from './features/customers/CreateCustomerPage';
+import { CustomerDetailPage } from './features/customers/CustomerDetailPage';
 
 function SetupNeeded() {
   return (
@@ -47,6 +50,9 @@ function Gate() {
         <Route path="/sales/new" element={<ComingSoon title="New sale" />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
+        <Route path="/customers" element={<CustomersListPage />} />
+        <Route path="/customers/new" element={<CreateCustomerPage />} />
+        <Route path="/customers/:customerId" element={<CustomerDetailPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
