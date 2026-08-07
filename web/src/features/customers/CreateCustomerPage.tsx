@@ -1,15 +1,32 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
+import { formatPhone } from '../../lib/phone';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
+// Split a typed name into first/last for prefill. Handles "Last, First",
+// "First Last", or a single token (→ first name).
+function splitName(raw: string): { first: string; last: string } {
+  const s = raw.trim();
+  if (!s) return { first: '', last: '' };
+  if (s.includes(',')) {
+    const [last, first] = s.split(',');
+    return { first: (first ?? '').trim(), last: (last ?? '').trim() };
+  }
+  const parts = s.split(/\s+/);
+  if (parts.length === 1) return { first: parts[0], last: '' };
+  return { first: parts[0], last: parts.slice(1).join(' ') };
+}
+
 export function CreateCustomerPage() {
   const navigate = useNavigate();
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [searchParams] = useSearchParams();
+  const prefill = splitName(searchParams.get('name') ?? '');
+  const [firstName, setFirstName] = useState(prefill.first);
+  const [lastName, setLastName] = useState(prefill.last);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [saving, setSaving] = useState(false);
@@ -54,7 +71,13 @@ export function CreateCustomerPage() {
           </Field>
         </div>
         <Field label="Phone number">
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} inputMode="tel" />
+          <input
+            value={phone}
+            onChange={(e) => setPhone(formatPhone(e.target.value))}
+            className={inputClass}
+            inputMode="tel"
+            placeholder="(555)123-4567"
+          />
         </Field>
         <Field label="Email">
           <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} inputMode="email" />

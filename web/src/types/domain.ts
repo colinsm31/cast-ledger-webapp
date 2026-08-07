@@ -122,6 +122,11 @@ export function customerName(c: Pick<Customer, 'first_name' | 'last_name'>): str
   return `${c.first_name} ${c.last_name}`.trim();
 }
 
+// Display helper: "Last, First" (for name search / directory listings).
+export function customerNameLastFirst(c: Pick<Customer, 'first_name' | 'last_name'>): string {
+  return [c.last_name?.trim(), c.first_name?.trim()].filter(Boolean).join(', ');
+}
+
 // One purchased line for a customer's history (sale_line joined up to product).
 export interface PurchaseHistoryRow {
   sale_id: string;

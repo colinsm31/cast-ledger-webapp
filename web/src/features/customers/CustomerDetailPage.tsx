@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { Customer, JsonValue, PurchaseHistoryRow } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { formatPhone } from '../../lib/phone';
 import { Spinner } from '../../components/Spinner';
 import { CustomerRacketsPanel } from './CustomerRacketsPanel';
 import { RestringHistoryPanel } from './RestringHistoryPanel';
@@ -221,7 +222,7 @@ function EditCustomerForm({
 }) {
   const [firstName, setFirstName] = useState(customer.first_name);
   const [lastName, setLastName] = useState(customer.last_name ?? '');
-  const [phone, setPhone] = useState(customer.phone_number ?? '');
+  const [phone, setPhone] = useState(formatPhone(customer.phone_number ?? ''));
   const [email, setEmail] = useState(customer.email ?? '');
   const [saving, setSaving] = useState(false);
 
@@ -258,7 +259,7 @@ function EditCustomerForm({
         <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" className={inputClass} />
         <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" className={inputClass} />
       </div>
-      <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone number" className={inputClass} />
+      <input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} placeholder="(555)123-4567" className={inputClass} inputMode="tel" />
       <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className={inputClass} />
       <div className="flex gap-2">
         <button
