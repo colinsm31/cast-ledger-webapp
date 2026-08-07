@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { StringJob } from '../../types/domain';
 import { customerName } from '../../types/domain';
@@ -13,69 +13,86 @@ interface JobRow extends StringJob {
   customer_rackets: {
     brand: string | null;
     model: string;
-    label: string | null;
+    barcode: string | null;
     customers: { id: string; first_name: string; last_name: string } | null;
   } | null;
 }
 
 const SELECT = `
   *,
-  customer_rackets ( brand, model, label, customers ( id, first_name, last_name ) )
+  customer_rackets ( brand, model, barcode, customers ( id, first_name, last_name ) )
 `;
 
-export function StringJobsPage() {
+export function StringJobsPage({
+  status,
+  title,
+}: {
+  status: 'entered' | 'complete';
+  title: string;
+}) {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<JobRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    // Active queue = not yet delivered, oldest first.
     const { data, error: err } = await supabase
       .from('string_jobs')
       .select(SELECT)
-      .neq('status', 'delivered')
+      .eq('status', status)
       .order('entered_at', { ascending: true });
     if (err) setError(errorMessage(err));
     else setJobs((data ?? []) as unknown as JobRow[]);
-  }, []);
+  }, [status]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  async function advance(jobId: string, target: 'complete' | 'delivered') {
+  async function markDelivered(jobId: string) {
     setBusyId(jobId);
     setError(null);
     const { error: err } = await supabase.rpc('advance_string_job', {
       p_job_id: jobId,
-      p_target_status: target,
+      p_target_status: 'delivered',
     });
     setBusyId(null);
     if (err) setError(errorMessage(err));
     else await load();
   }
 
+  const emptyMessage =
+    status === 'entered'
+      ? 'Newly entered re-strings appear here. Open one to record the stringer and mark it complete.'
+      : 'Completed re-strings waiting to be picked up appear here.';
+
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-slate-900">String jobs</h1>
+      <h1 className="text-xl font-bold text-slate-900">{title}</h1>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {jobs === null && !error && <Spinner label="Loading…" />}
-      {jobs && jobs.length === 0 && (
-        <EmptyState title="No active jobs" message="Entered and completed string jobs show here until delivered." />
-      )}
+      {jobs && jobs.length === 0 && <EmptyState title="Nothing here" message={emptyMessage} />}
       {jobs && jobs.length > 0 && (
         <ul className="space-y-2">
           {jobs.map((job) => {
             const racket = job.customer_rackets;
             const customer = racket?.customers;
             return (
-              <li key={job.id} className="rounded-xl border border-slate-200 bg-white p-4">
+              <li
+                key={job.id}
+                onClick={() => navigate(`/string-jobs/${job.id}`)}
+                className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-300 hover:bg-blue-50/40"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
                       {customer ? (
-                        <Link to={`/customers/${customer.id}`} className="font-medium text-slate-900 hover:text-blue-700">
+                        <Link
+                          to={`/customers/${customer.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-medium text-slate-900 hover:text-blue-700"
+                        >
                           {customerName(customer)}
                         </Link>
                       ) : (
@@ -85,30 +102,24 @@ export function StringJobsPage() {
                     </div>
                     <p className="text-sm text-slate-500">
                       {racket ? `${racket.brand ? `${racket.brand} ` : ''}${racket.model}` : '—'}
-                      {racket?.label ? ` · ${racket.label}` : ''}
+                      {racket?.barcode ? ` · ${racket.barcode}` : ''}
                     </p>
                     <p className="mt-1 text-sm text-slate-700">{stringSummary(job)}</p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    {job.status === 'entered' && (
+                  {job.status === 'complete' && (
+                    <div className="flex shrink-0 gap-2">
                       <button
-                        onClick={() => void advance(job.id, 'complete')}
-                        disabled={busyId === job.id}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                      >
-                        Mark complete
-                      </button>
-                    )}
-                    {job.status === 'complete' && (
-                      <button
-                        onClick={() => void advance(job.id, 'delivered')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void markDelivered(job.id);
+                        }}
                         disabled={busyId === job.id}
                         className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
                       >
                         Mark delivered
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </li>
             );
@@ -124,6 +135,7 @@ function StatusBadge({ status }: { status: StringJob['status'] }) {
     entered: { label: 'Entered', classes: 'bg-orange-100 text-orange-800' },
     complete: { label: 'Complete', classes: 'bg-blue-100 text-blue-800' },
     delivered: { label: 'Delivered', classes: 'bg-green-100 text-green-800' },
+    cancelled: { label: 'Cancelled', classes: 'bg-slate-200 text-slate-600' },
   };
   const m = meta[status];
   return (

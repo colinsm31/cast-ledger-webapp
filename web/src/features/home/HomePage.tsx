@@ -29,17 +29,35 @@ export function HomePage() {
     if (isUpc(term)) {
       const upc = term.replace(/\s+/g, '');
       setResult({ kind: 'searching' });
-      const { data, error } = await supabase
-        .from('products')
-        .select('id')
-        .eq('barcode', upc)
-        .maybeSingle();
-      if (error) {
-        setResult({ kind: 'error', message: errorMessage(error) });
+      // A barcode may belong to an inventory product or a customer's racket.
+      const [productRes, racketRes] = await Promise.all([
+        supabase.from('products').select('id').eq('barcode', upc).maybeSingle(),
+        supabase.from('customer_rackets').select('id, customer_id').eq('barcode', upc).maybeSingle(),
+      ]);
+      if (productRes.error || racketRes.error) {
+        setResult({ kind: 'error', message: errorMessage(productRes.error ?? racketRes.error) });
         return;
       }
-      if (data) {
-        navigate(`/products/${data.id}`);
+      if (productRes.data) {
+        navigate(`/products/${productRes.data.id}`);
+      } else if (racketRes.data) {
+        const racketId = racketRes.data.id;
+        const customerId = racketRes.data.customer_id;
+        // If the racket already has an open job (entered or complete), reopen it;
+        // otherwise start a new string job.
+        const { data: openJob } = await supabase
+          .from('string_jobs')
+          .select('id')
+          .eq('customer_racket_id', racketId)
+          .in('status', ['entered', 'complete'])
+          .order('entered_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        navigate(
+          openJob
+            ? `/string-jobs/${openJob.id}`
+            : `/customers/${customerId}/rackets/${racketId}/restring`,
+        );
       } else {
         setResult({ kind: 'notFoundUpc', upc });
       }

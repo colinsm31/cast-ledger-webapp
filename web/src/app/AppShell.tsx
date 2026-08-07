@@ -21,17 +21,11 @@ export function AppShell() {
               <NavLink to="/products" className={navLinkClass}>
                 Products
               </NavLink>
-              <NavLink to="/sales/new" className={navLinkClass}>
-                New sale
+              <NavLink to="/string-jobs/open" className={navLinkClass}>
+                Open Re-Strings
               </NavLink>
-              <NavLink to="/sales" end className={navLinkClass}>
-                Sales
-              </NavLink>
-              <NavLink to="/customers" className={navLinkClass}>
-                Customers
-              </NavLink>
-              <NavLink to="/string-jobs" className={navLinkClass}>
-                String jobs
+              <NavLink to="/string-jobs/completed" className={navLinkClass}>
+                Completed Re-Strings
               </NavLink>
               <NavLink to="/categories" className={navLinkClass}>
                 Categories

@@ -7,12 +7,12 @@ import { stringSummary } from '../stringjobs/stringSummary';
 
 // Delivered string jobs for a customer's rackets, newest first.
 interface DeliveredJob extends StringJob {
-  customer_rackets: { brand: string | null; model: string; label: string | null } | null;
+  customer_rackets: { brand: string | null; model: string; barcode: string | null } | null;
 }
 
 const SELECT = `
   *,
-  customer_rackets!inner ( brand, model, label, customer_id )
+  customer_rackets!inner ( brand, model, barcode, customer_id )
 `;
 
 export function RestringHistoryPanel({ customerId }: { customerId: string }) {
@@ -52,8 +52,8 @@ export function RestringHistoryPanel({ customerId }: { customerId: string }) {
                     {job.customer_rackets
                       ? `${job.customer_rackets.brand ? `${job.customer_rackets.brand} ` : ''}${job.customer_rackets.model}`
                       : '—'}
-                    {job.customer_rackets?.label ? (
-                      <span className="text-slate-400"> · {job.customer_rackets.label}</span>
+                    {job.customer_rackets?.barcode ? (
+                      <span className="text-slate-400"> · {job.customer_rackets.barcode}</span>
                     ) : null}
                   </p>
                   <p className="text-sm text-slate-600">{stringSummary(job)}</p>

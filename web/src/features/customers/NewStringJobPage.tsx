@@ -1,45 +1,34 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { CustomerRacket, JsonValue } from '../../types/domain';
+import type { Customer, CustomerRacket } from '../../types/domain';
+import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
+import {
+  cellClass,
+  emptyRow,
+  jobSideToRow,
+  resolveProduct,
+  rowPayload,
+  stringDims,
+  toCatalogStrings,
+  StringJobTable,
+  type AttributeDefRaw,
+  type CatalogString,
+  type RowSel,
+  type StringProductRaw,
+} from '../stringjobs/stringJobForm';
 
-const cellClass =
-  'w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
-
-// A string product from the catalog. Each product is now a unique item, so its
-// own attributes (gauge, color, …) fully describe the string.
-interface CatalogString {
-  id: string;
-  brand: string;
-  name: string;
-  attributes: Record<string, string>;
-}
-
-interface StringProductRaw {
-  id: string;
-  brand: string | null;
-  name: string;
-  attributes: Record<string, JsonValue> | null;
-  categories: { name: string } | null;
-}
-
-// One row's selection (mains or crosses).
-interface RowSel {
-  brand: string;
-  productId: string;
-  tension: string;
-}
-
-const emptyRow: RowSel = { brand: '', productId: '', tension: '' };
-
-// Human-readable attribute summary for a chosen string product (e.g. "16 · Black").
-function attributeSummary(product: CatalogString | undefined): string {
-  if (!product) return '';
-  return Object.values(product.attributes)
-    .filter((v) => v != null && v !== '')
-    .join(' · ');
+interface LastJob {
+  main_brand: string | null;
+  main_string: string | null;
+  main_specs: Record<string, unknown> | null;
+  main_tension: number | null;
+  cross_brand: string | null;
+  cross_string: string | null;
+  cross_specs: Record<string, unknown> | null;
+  cross_tension: number | null;
 }
 
 export function NewStringJobPage() {
@@ -47,105 +36,156 @@ export function NewStringJobPage() {
   const navigate = useNavigate();
 
   const [racket, setRacket] = useState<CustomerRacket | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
   const [catalog, setCatalog] = useState<CatalogString[]>([]);
+  const [dims, setDims] = useState<string[]>([]);
+  const [availableById, setAvailableById] = useState<Record<string, number>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [mains, setMains] = useState<RowSel>(emptyRow);
   const [crosses, setCrosses] = useState<RowSel>(emptyRow);
-  // Crosses mirror the mains string (and tension) until the user edits them —
-  // most jobs use one string, so this saves re-entering it.
+  // Crosses mirror the mains string (and tension) until the user edits them.
   const [crossStringEdited, setCrossStringEdited] = useState(false);
   const [crossTensionEdited, setCrossTensionEdited] = useState(false);
-  const [price, setPrice] = useState('');
-  const [strungBy, setStrungBy] = useState('');
-  const [notes, setNotes] = useState('');
+  const [manualPrice, setManualPrice] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!racketId) return;
     void (async () => {
-      const [racketRes, productsRes] = await Promise.all([
+      const [racketRes, customerRes, productsRes, attrsRes, lastJobRes, availRes] = await Promise.all([
         supabase.from('customer_rackets').select('*').eq('id', racketId).single(),
+        customerId
+          ? supabase.from('customers').select('*').eq('id', customerId).single()
+          : Promise.resolve({ data: null, error: null }),
+        supabase.from('products').select('id, brand, name, attributes, sell_price, categories(name)').order('brand'),
+        supabase.from('attribute_defs').select('name, sort_order, categories(name)').order('sort_order'),
         supabase
-          .from('products')
-          .select('id, brand, name, attributes, categories(name)')
-          .order('brand'),
+          .from('string_jobs')
+          .select('main_brand, main_string, main_specs, main_tension, cross_brand, cross_string, cross_specs, cross_tension')
+          .eq('customer_racket_id', racketId)
+          .order('entered_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase.from('product_available').select('product_id, available'),
       ]);
       if (racketRes.error) {
         setLoadError(errorMessage(racketRes.error));
         return;
       }
       setRacket(racketRes.data as CustomerRacket);
+      if (customerRes.data) setCustomer(customerRes.data as Customer);
+      setDims(stringDims((attrsRes.data ?? []) as unknown as AttributeDefRaw[]));
+      setCatalog(toCatalogStrings((productsRes.data ?? []) as unknown as StringProductRaw[]));
 
-      const strings: CatalogString[] = ((productsRes.data ?? []) as unknown as StringProductRaw[])
-        .filter((p) => p.categories?.name === 'Strings')
-        .map((p) => {
-          const attributes: Record<string, string> = {};
-          for (const [k, v] of Object.entries(p.attributes ?? {})) {
-            if (v != null && v !== '') attributes[k] = String(v);
-          }
-          return { id: p.id, brand: p.brand ?? '', name: p.name, attributes };
-        });
-      setCatalog(strings);
+      const avail: Record<string, number> = {};
+      for (const row of (availRes.data ?? []) as { product_id: string; available: number }[]) {
+        avail[row.product_id] = Number(row.available);
+      }
+      setAvailableById(avail);
+
+      // Preload from the racket's last string job, if any.
+      const last = lastJobRes.data as LastJob | null;
+      if (last) {
+        const mainsDraft = jobSideToRow(last.main_brand, last.main_string, last.main_specs, last.main_tension);
+        const crossesDraft = jobSideToRow(last.cross_brand, last.cross_string, last.cross_specs, last.cross_tension);
+        setMains(mainsDraft);
+        if (!crossesDraft.name) {
+          setCrosses(mainsDraft);
+        } else {
+          setCrosses(crossesDraft);
+          const sameString =
+            mainsDraft.brand === crossesDraft.brand &&
+            mainsDraft.name === crossesDraft.name &&
+            JSON.stringify(mainsDraft.specs) === JSON.stringify(crossesDraft.specs);
+          if (!sameString) setCrossStringEdited(true);
+          if (mainsDraft.tension !== crossesDraft.tension) setCrossTensionEdited(true);
+        }
+      }
     })();
-  }, [racketId]);
+  }, [racketId, customerId]);
 
-  // Distinct string brands (sorted).
   const brands = useMemo(
     () => Array.from(new Set(catalog.map((c) => c.brand).filter(Boolean))).sort(),
     [catalog],
   );
 
   function updateMains(patch: Partial<RowSel>) {
-    const next = { ...mains, ...patch };
+    const next = { ...mains, ...patch, specs: patch.specs ?? mains.specs };
     setMains(next);
-    // Mirror into crosses until each side has been edited independently.
     setCrosses((c) => {
       const nc = { ...c };
       if (!crossStringEdited) {
         nc.brand = next.brand;
-        nc.productId = next.productId;
+        nc.name = next.name;
+        nc.specs = { ...next.specs };
       }
-      if (!crossTensionEdited) {
-        nc.tension = next.tension;
-      }
+      if (!crossTensionEdited) nc.tension = next.tension;
       return nc;
     });
   }
 
   function updateCrosses(patch: Partial<RowSel>) {
     if (patch.tension !== undefined) setCrossTensionEdited(true);
-    if (patch.brand !== undefined || patch.productId !== undefined) {
+    if (patch.brand !== undefined || patch.name !== undefined || patch.specs !== undefined) {
       setCrossStringEdited(true);
     }
     setCrosses((prev) => ({ ...prev, ...patch }));
   }
 
-  function rowPayload(row: RowSel, prefix: 'main' | 'cross') {
-    const product = catalog.find((c) => c.id === row.productId);
-    if (!product) {
-      return {
-        [`${prefix}_product_id`]: null,
-        [`${prefix}_brand`]: null,
-        [`${prefix}_string`]: null,
-        [`${prefix}_specs`]: {},
-        [`${prefix}_tension`]: row.tension ? Number(row.tension) : null,
-      };
+  // Chosen strings whose available stock (on-hand minus committed) is depleted.
+  const unavailable = useMemo(() => {
+    const out: { id: string; label: string }[] = [];
+    for (const row of [mains, crosses]) {
+      if (!row.name) continue;
+      const product = resolveProduct(catalog, dims, row);
+      if (!product) continue;
+      const avail = availableById[product.id] ?? 0;
+      if (avail <= 0 && !out.some((u) => u.id === product.id)) {
+        out.push({ id: product.id, label: `${product.brand ? `${product.brand} ` : ''}${product.name}` });
+      }
     }
-    return {
-      [`${prefix}_product_id`]: product.id,
-      [`${prefix}_brand`]: product.brand || row.brand || null,
-      [`${prefix}_string`]: product.name,
-      [`${prefix}_specs`]: product.attributes,
-      [`${prefix}_tension`]: row.tension ? Number(row.tension) : null,
-    };
-  }
+    return out;
+  }, [mains, crosses, availableById, catalog, dims]);
+
+  // Price is the sum of the distinct string products' own prices (a hybrid uses
+  // one of each). Not manually entered unless a string has no price set.
+  const autoPrice = useMemo(() => {
+    const seen = new Set<string>();
+    let sum = 0;
+    for (const row of [mains, crosses]) {
+      if (!row.name) continue;
+      const product = resolveProduct(catalog, dims, row);
+      if (product && !seen.has(product.id)) {
+        seen.add(product.id);
+        sum += product.sellPrice ?? 0;
+      }
+    }
+    return sum;
+  }, [mains, crosses, catalog, dims]);
+
+  // When the chosen string has no price ($0), the user must enter one.
+  const needsManualPrice = !!mains.name && autoPrice <= 0;
+  const manualPriceValid = Number(manualPrice) > 0;
+  const price = needsManualPrice ? (manualPriceValid ? Number(manualPrice) : 0) : autoPrice;
 
   async function save() {
     if (!racketId) return;
-    if (!mains.productId) {
+    if (!mains.name) {
       setError('Choose the mains string');
+      return;
+    }
+    if (unavailable.length > 0) {
+      setError(
+        `${unavailable.map((u) => u.label).join(' and ')} ${
+          unavailable.length > 1 ? 'are' : 'is'
+        } currently unavailable — select a different string.`,
+      );
+      return;
+    }
+    if (needsManualPrice && !manualPriceValid) {
+      setError('This string has no set price — enter a price before entering the stringing.');
       return;
     }
     setSaving(true);
@@ -154,11 +194,9 @@ export function NewStringJobPage() {
     const { error: err } = await supabase.from('string_jobs').insert({
       customer_racket_id: racketId,
       status: 'entered',
-      ...rowPayload(mains, 'main'),
-      ...rowPayload(crosses, 'cross'),
-      price: price ? Number(price) : null,
-      strung_by: strungBy.trim() || null,
-      notes: notes.trim() || null,
+      ...rowPayload(catalog, dims, mains, 'main'),
+      ...rowPayload(catalog, dims, crosses, 'cross'),
+      price: price > 0 ? price : null,
     });
     setSaving(false);
     if (err) {
@@ -174,50 +212,62 @@ export function NewStringJobPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">New string job</h1>
+        <h1 className="text-xl font-bold text-slate-900">
+          {customer ? customerName(customer) : 'New string job'}
+        </h1>
         <p className="text-sm text-slate-500">
           {racket.brand ? `${racket.brand} ` : ''}
           {racket.model}
           {racket.grip_size ? ` · grip ${racket.grip_size}` : ''}
-          {racket.label ? ` · ${racket.label}` : ''}
+          {racket.barcode ? ` · ${racket.barcode}` : ''}
         </p>
       </div>
 
       <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4">
-        <table className="w-full border-separate border-spacing-x-2 border-spacing-y-2 text-sm">
-          <thead>
-            <tr className="text-left text-xs font-semibold uppercase text-slate-500">
-              <th></th>
-              <th>Brand</th>
-              <th>String</th>
-              <th>Details</th>
-              <th>Tension</th>
-            </tr>
-          </thead>
-          <tbody>
-            <StringRowInputs label="Mains" row={mains} onChange={updateMains} brands={brands} catalog={catalog} />
-            <StringRowInputs label="Crosses" row={crosses} onChange={updateCrosses} brands={brands} catalog={catalog} />
-          </tbody>
-        </table>
+        <StringJobTable
+          dims={dims}
+          brands={brands}
+          catalog={catalog}
+          mains={mains}
+          crosses={crosses}
+          onMains={updateMains}
+          onCrosses={updateCrosses}
+        />
         <p className="mt-2 text-xs text-slate-400">
           Pick a string from the catalog. Crosses copy the mains string and tension automatically —
           change the crosses row only for a hybrid or a different cross tension.
         </p>
+        {unavailable.length > 0 && (
+          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            {unavailable.map((u) => u.label).join(' and ')}{' '}
+            {unavailable.length > 1 ? 'are' : 'is'} currently unavailable (none in stock or all
+            committed to other jobs). Select a different string.
+          </div>
+        )}
       </section>
 
-      <section className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-4">
-        <label className="block flex-1 min-w-[8rem] space-y-1">
-          <span className="text-xs font-medium text-slate-500">Price</span>
-          <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" className={cellClass} />
-        </label>
-        <label className="block flex-1 min-w-[8rem] space-y-1">
-          <span className="text-xs font-medium text-slate-500">Strung by</span>
-          <input value={strungBy} onChange={(e) => setStrungBy(e.target.value)} className={cellClass} />
-        </label>
-        <label className="block w-full space-y-1">
-          <span className="text-xs font-medium text-slate-500">Notes</span>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={cellClass} />
-        </label>
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-slate-500">
+            {needsManualPrice ? 'Price' : 'Price (from string)'}
+          </span>
+          {needsManualPrice ? (
+            <input
+              value={manualPrice}
+              onChange={(e) => setManualPrice(e.target.value)}
+              inputMode="decimal"
+              placeholder="0.00"
+              className={`${cellClass} w-28 text-right`}
+            />
+          ) : (
+            <span className="text-lg font-semibold text-slate-900">${price.toFixed(2)}</span>
+          )}
+        </div>
+        {needsManualPrice && (
+          <p className="mt-2 text-xs text-amber-700">
+            This string has no set price — enter a price to continue.
+          </p>
+        )}
       </section>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -225,7 +275,7 @@ export function NewStringJobPage() {
       <div className="flex gap-2">
         <button
           onClick={() => void save()}
-          disabled={saving}
+          disabled={saving || unavailable.length > 0 || (needsManualPrice && !manualPriceValid)}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Enter string job'}
@@ -235,71 +285,5 @@ export function NewStringJobPage() {
         </button>
       </div>
     </div>
-  );
-}
-
-function StringRowInputs({
-  label,
-  row,
-  onChange,
-  brands,
-  catalog,
-}: {
-  label: string;
-  row: RowSel;
-  onChange: (patch: Partial<RowSel>) => void;
-  brands: string[];
-  catalog: CatalogString[];
-}) {
-  // Strings of the chosen brand.
-  const products = useMemo(
-    () => catalog.filter((c) => c.brand === row.brand),
-    [catalog, row.brand],
-  );
-  const product = useMemo(() => catalog.find((c) => c.id === row.productId), [catalog, row.productId]);
-
-  return (
-    <tr>
-      <td className="pr-2 text-sm font-semibold text-slate-700">{label}</td>
-      <td>
-        <select
-          value={row.brand}
-          onChange={(e) => onChange({ brand: e.target.value, productId: '' })}
-          className={`${cellClass} min-w-[8rem]`}
-        >
-          <option value="">—</option>
-          {brands.map((b) => (
-            <option key={b} value={b}>
-              {b}
-            </option>
-          ))}
-        </select>
-      </td>
-      <td>
-        <select
-          value={row.productId}
-          onChange={(e) => onChange({ productId: e.target.value })}
-          disabled={!row.brand}
-          className={`${cellClass} min-w-[10rem] disabled:opacity-50`}
-        >
-          <option value="">—</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </td>
-      <td className="min-w-[7rem] text-sm text-slate-500">{attributeSummary(product) || '—'}</td>
-      <td>
-        <input
-          value={row.tension}
-          onChange={(e) => onChange({ tension: e.target.value })}
-          inputMode="decimal"
-          placeholder="lb"
-          className={`${cellClass} w-20`}
-        />
-      </td>
-    </tr>
   );
 }

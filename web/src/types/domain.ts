@@ -66,6 +66,15 @@ export interface ProductStock {
   is_low: boolean;
 }
 
+// On-hand, committed (reserved by entered string jobs), and available on-hand
+// minus committed (from the product_available view).
+export interface ProductAvailable {
+  product_id: string;
+  on_hand: number;
+  committed: number;
+  available: number;
+}
+
 // ---- Inventory ledger ----
 
 export type InventoryTxnType = 'receive' | 'adjust' | 'sell' | 'transfer';
@@ -133,7 +142,7 @@ export interface CustomerRacket {
   brand: string | null;
   model: string;
   grip_size: string | null;
-  label: string | null;
+  barcode: string | null;
   notes: string | null;
   is_active: boolean;
   created_at: string;
@@ -141,7 +150,7 @@ export interface CustomerRacket {
 }
 
 // A string job for a customer's racket (mains + crosses) with a lifecycle.
-export type StringJobStatus = 'entered' | 'complete' | 'delivered';
+export type StringJobStatus = 'entered' | 'complete' | 'delivered' | 'cancelled';
 
 export interface StringJob {
   id: string;

@@ -15,7 +15,7 @@ interface RacketDraft {
   brand: string;
   model: string;
   gripSize: string;
-  label: string;
+  barcode: string;
   notes: string;
 }
 
@@ -24,7 +24,7 @@ const emptyDraft: RacketDraft = {
   brand: '',
   model: '',
   gripSize: '',
-  label: '',
+  barcode: '',
   notes: '',
 };
 
@@ -32,18 +32,26 @@ export function CustomerRacketsPanel({ customerId }: { customerId: string }) {
   const navigate = useNavigate();
   const [rackets, setRackets] = useState<CustomerRacket[] | null>(null);
   const [catalogRackets, setCatalogRackets] = useState<ProductWithCategory[]>([]);
+  // racket id → id of its open (entered/complete) string job, if any.
+  const [openJobByRacket, setOpenJobByRacket] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [racketsRes, catalogRes] = await Promise.all([
+    const [racketsRes, catalogRes, jobsRes] = await Promise.all([
       supabase
         .from('customer_rackets')
         .select('*')
         .eq('customer_id', customerId)
         .order('created_at'),
       supabase.from('products').select('*, categories(name)').order('brand'),
+      supabase
+        .from('string_jobs')
+        .select('id, customer_racket_id, customer_rackets!inner(customer_id)')
+        .eq('customer_rackets.customer_id', customerId)
+        .in('status', ['entered', 'complete'])
+        .order('entered_at', { ascending: false }),
     ]);
     if (racketsRes.error) setError(errorMessage(racketsRes.error));
     else setRackets((racketsRes.data ?? []) as CustomerRacket[]);
@@ -52,6 +60,13 @@ export function CustomerRacketsPanel({ customerId }: { customerId: string }) {
       (p) => p.categories?.name === 'Rackets',
     );
     setCatalogRackets(cat);
+
+    // Latest open job per racket (rows arrive newest-first).
+    const openJobs: Record<string, string> = {};
+    for (const j of (jobsRes.data ?? []) as { id: string; customer_racket_id: string }[]) {
+      if (!openJobs[j.customer_racket_id]) openJobs[j.customer_racket_id] = j.id;
+    }
+    setOpenJobByRacket(openJobs);
   }, [customerId]);
 
   useEffect(() => {
@@ -121,7 +136,7 @@ export function CustomerRacketsPanel({ customerId }: { customerId: string }) {
                   <p className="font-medium text-slate-900">
                     {racket.brand ? `${racket.brand} ` : ''}
                     {racket.model}
-                    {racket.label ? <span className="text-slate-400"> · {racket.label}</span> : null}
+                    {racket.barcode ? <span className="text-slate-400"> · {racket.barcode}</span> : null}
                   </p>
                   <p className="text-xs text-slate-500">
                     {racket.grip_size ? `Grip ${racket.grip_size}` : 'Grip —'}
@@ -129,14 +144,23 @@ export function CustomerRacketsPanel({ customerId }: { customerId: string }) {
                   {racket.notes && <p className="mt-1 text-xs text-slate-500">{racket.notes}</p>}
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <button
-                    onClick={() =>
-                      navigate(`/customers/${customerId}/rackets/${racket.id}/restring`)
-                    }
-                    className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-900"
-                  >
-                    New string job
-                  </button>
+                  {openJobByRacket[racket.id] ? (
+                    <button
+                      onClick={() => navigate(`/string-jobs/${openJobByRacket[racket.id]}`)}
+                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                    >
+                      View string job
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        navigate(`/customers/${customerId}/rackets/${racket.id}/restring`)
+                      }
+                      className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-900"
+                    >
+                      New string job
+                    </button>
+                  )}
                   <button
                     onClick={() => setEditingId(racket.id)}
                     className="text-xs text-blue-600 hover:underline"
@@ -183,7 +207,7 @@ function RacketForm({
           brand: existing.brand ?? '',
           model: existing.model,
           gripSize: existing.grip_size ?? '',
-          label: existing.label ?? '',
+          barcode: existing.barcode ?? '',
           notes: existing.notes ?? '',
         }
       : emptyDraft,
@@ -220,7 +244,7 @@ function RacketForm({
       brand: draft.brand.trim() || null,
       model: draft.model.trim(),
       grip_size: draft.gripSize || null,
-      label: draft.label.trim() || null,
+      barcode: draft.barcode.trim() || null,
       notes: draft.notes.trim() || null,
     };
     const { error: err } = existing
@@ -228,7 +252,11 @@ function RacketForm({
       : await supabase.from('customer_rackets').insert(payload);
     setSaving(false);
     if (err) {
-      onError(errorMessage(err));
+      onError(
+        errorMessage(err).includes('duplicate') || errorMessage(err).includes('uq_customer_rackets_barcode')
+          ? 'That barcode is already assigned to another racket.'
+          : errorMessage(err),
+      );
       return;
     }
     await onSaved();
@@ -275,11 +303,11 @@ function RacketForm({
           </select>
         </label>
         <label className="block flex-1 space-y-1">
-          <span className="text-xs font-medium text-slate-500">Label / nickname</span>
+          <span className="text-xs font-medium text-slate-500">Barcode</span>
           <input
-            value={draft.label}
-            onChange={(e) => patch({ label: e.target.value })}
-            placeholder="e.g. Main, Backup"
+            value={draft.barcode}
+            onChange={(e) => patch({ barcode: e.target.value })}
+            placeholder="Scan or type the barcode"
             className={inputClass}
           />
         </label>

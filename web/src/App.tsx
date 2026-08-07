@@ -16,6 +16,7 @@ import { CreateCustomerPage } from './features/customers/CreateCustomerPage';
 import { CustomerDetailPage } from './features/customers/CustomerDetailPage';
 import { NewStringJobPage } from './features/customers/NewStringJobPage';
 import { StringJobsPage } from './features/stringjobs/StringJobsPage';
+import { StringJobDetailPage } from './features/stringjobs/StringJobDetailPage';
 
 function SetupNeeded() {
   return (
@@ -54,7 +55,10 @@ function Gate() {
         <Route path="/customers/new" element={<CreateCustomerPage />} />
         <Route path="/customers/:customerId" element={<CustomerDetailPage />} />
         <Route path="/customers/:customerId/rackets/:racketId/restring" element={<NewStringJobPage />} />
-        <Route path="/string-jobs" element={<StringJobsPage />} />
+        <Route path="/string-jobs" element={<Navigate to="/string-jobs/open" replace />} />
+        <Route path="/string-jobs/open" element={<StringJobsPage status="entered" title="Open Re-Strings" />} />
+        <Route path="/string-jobs/completed" element={<StringJobsPage status="complete" title="Completed Re-Strings" />} />
+        <Route path="/string-jobs/:jobId" element={<StringJobDetailPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

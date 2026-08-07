@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { ProductStock, ProductWithCategory } from '../../types/domain';
+import type { ProductAvailable, ProductStock, ProductWithCategory } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { displayStored } from './AttributeInput';
@@ -11,6 +11,7 @@ export function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const [product, setProduct] = useState<ProductWithCategory | null>(null);
   const [stock, setStock] = useState<ProductStock | null>(null);
+  const [availability, setAvailability] = useState<ProductAvailable | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -26,13 +27,13 @@ export function ProductDetailPage() {
     }
     setProduct(prod as unknown as ProductWithCategory);
 
-    // On-hand + low-stock for this product from the product_stock view.
-    const { data: stockRow } = await supabase
-      .from('product_stock')
-      .select('*')
-      .eq('product_id', productId)
-      .maybeSingle();
-    setStock((stockRow as ProductStock) ?? null);
+    // On-hand + low-stock + committed/available for this product.
+    const [stockRes, availRes] = await Promise.all([
+      supabase.from('product_stock').select('*').eq('product_id', productId).maybeSingle(),
+      supabase.from('product_available').select('*').eq('product_id', productId).maybeSingle(),
+    ]);
+    setStock((stockRes.data as ProductStock) ?? null);
+    setAvailability((availRes.data as ProductAvailable) ?? null);
   }, [productId]);
 
   useEffect(() => {
@@ -106,6 +107,12 @@ export function ProductDetailPage() {
             )}
           </div>
         </div>
+        {availability && Number(availability.committed) > 0 && (
+          <p className="text-xs text-slate-500">
+            <span className="font-medium text-slate-700">{Number(availability.committed)}</span> committed to string jobs ·{' '}
+            <span className="font-medium text-slate-700">{Number(availability.available)}</span> available
+          </p>
+        )}
         <StockActions productId={product.id} onDone={load} onError={setError} />
       </section>
 
