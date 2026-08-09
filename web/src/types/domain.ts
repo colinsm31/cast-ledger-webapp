@@ -100,11 +100,29 @@ export interface Sale {
   id: string;
   sold_at: string;
   subtotal: number;
-  payment_method: PaymentMethod | null;
+  payment_method: PaymentMethod | 'split' | null;
   note: string | null;
   customer_id: string | null;
   user_id: string | null;
   created_at: string;
+}
+
+// One tender on a sale (split payment).
+export interface SalePayment {
+  id: string;
+  sale_id: string;
+  method: PaymentMethod;
+  amount: number;
+  gift_card_id: string | null;
+  created_at: string;
+}
+
+// A gift card's current balance (from the gift_card_balance view).
+export interface GiftCardBalance {
+  gift_card_id: string;
+  code: string;
+  customer_id: string | null;
+  balance: number;
 }
 
 // ---- Customers ----

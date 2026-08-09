@@ -13,25 +13,32 @@ const PAYMENT_LABEL: Record<string, string> = {
   store_credit: 'Store Credit',
 };
 
+interface SaleLineRaw {
+  qty: number;
+  unit_price: number;
+  products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
+  gift_cards: { code: string } | null;
+}
+
 interface SaleDetail {
   id: string;
   sold_at: string;
   subtotal: number;
   payment_method: string | null;
   customers: { first_name: string; last_name: string } | null;
-  sale_lines: Array<{
-    qty: number;
-    unit_price: number;
-    products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
-  }>;
+  sale_lines: SaleLineRaw[];
+  sale_payments: Array<{ method: string; amount: number }>;
 }
 
-function lineLabel(p: SaleDetail['sale_lines'][number]['products']): string {
-  if (!p) return 'Stringing'; // service line (no product)
-  const attrs = Object.values(p.attributes ?? {})
-    .filter((v) => v != null && v !== '')
-    .map(String);
-  return [p.brand, p.name, ...attrs].filter(Boolean).join(' ');
+function lineLabel(line: SaleLineRaw): string {
+  if (line.products) {
+    const attrs = Object.values(line.products.attributes ?? {})
+      .filter((v) => v != null && v !== '')
+      .map(String);
+    return [line.products.brand, line.products.name, ...attrs].filter(Boolean).join(' ');
+  }
+  if (line.gift_cards) return `Gift card ${line.gift_cards.code}`;
+  return 'Stringing'; // string-job service line
 }
 
 export function SaleDetailPage() {
@@ -45,7 +52,7 @@ export function SaleDetailPage() {
       const { data, error: err } = await supabase
         .from('sales')
         .select(
-          'id, sold_at, subtotal, payment_method, customers ( first_name, last_name ), sale_lines ( qty, unit_price, products ( brand, name, attributes ) )',
+          'id, sold_at, subtotal, payment_method, customers ( first_name, last_name ), sale_lines ( qty, unit_price, products ( brand, name, attributes ), gift_cards ( code ) ), sale_payments ( method, amount )',
         )
         .eq('id', saleId)
         .single();
@@ -82,7 +89,7 @@ export function SaleDetailPage() {
           {sale.sale_lines.map((line, i) => (
             <li key={i} className="flex items-center justify-between p-3">
               <div>
-                <p className="font-medium text-slate-900">{lineLabel(line.products)}</p>
+                <p className="font-medium text-slate-900">{lineLabel(line)}</p>
                 <p className="text-xs text-slate-500">
                   {line.qty} × ${Number(line.unit_price).toFixed(2)}
                 </p>
@@ -94,17 +101,25 @@ export function SaleDetailPage() {
           ))}
         </ul>
         <div className="flex items-center justify-between border-t border-slate-200 p-4">
-          <div>
-            <span className="text-sm font-medium text-slate-500">Subtotal</span>
-            {sale.payment_method && (
-              <p className="text-xs text-slate-500">
-                Paid by {PAYMENT_LABEL[sale.payment_method] ?? sale.payment_method}
-              </p>
-            )}
-          </div>
+          <span className="text-sm font-medium text-slate-500">Total</span>
           <span className="text-xl font-bold text-slate-900">${Number(sale.subtotal).toFixed(2)}</span>
         </div>
       </section>
+
+      {/* Payment breakdown */}
+      {sale.sale_payments.length > 0 && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="mb-2 text-sm font-semibold text-slate-700">Payment</h2>
+          <ul className="space-y-1">
+            {sale.sale_payments.map((p, i) => (
+              <li key={i} className="flex justify-between text-sm">
+                <span className="text-slate-600">{PAYMENT_LABEL[p.method] ?? p.method}</span>
+                <span className="font-medium text-slate-900">${Number(p.amount).toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

@@ -68,7 +68,9 @@ export function HomePage() {
     }
     if (productRes.data) {
       navigate(`/products/${productRes.data.id}`);
-    } else if (racketRes.data) {
+      return;
+    }
+    if (racketRes.data) {
       const racketId = racketRes.data.id;
       const customerId = racketRes.data.customer_id;
       // Reopen the racket's open job (entered/complete) or start a new one.
@@ -83,9 +85,19 @@ export function HomePage() {
       navigate(
         openJob ? `/string-jobs/${openJob.id}` : `/customers/${customerId}/rackets/${racketId}/restring`,
       );
-    } else {
-      setUpcResult({ kind: 'notFoundUpc', upc });
+      return;
     }
+    // A gift card? Show its balance.
+    const { data: gc } = await supabase
+      .from('gift_card_balance')
+      .select('code')
+      .eq('code', upc)
+      .maybeSingle();
+    if (gc) {
+      navigate(`/gift-cards?code=${encodeURIComponent(upc)}`);
+      return;
+    }
+    setUpcResult({ kind: 'notFoundUpc', upc });
   }
 
   const createCustomerUrl = `/customers/new?name=${encodeURIComponent(term)}`;
@@ -191,6 +203,7 @@ export function HomePage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <NavCard to="/products" label="Products" />
         <NavCard to="/customers" label="Customers" />
+        <NavCard to="/gift-cards" label="Gift Cards" />
         <NavCard to="/string-jobs/open" label="Open Re-Strings" />
         <NavCard to="/string-jobs/completed" label="Completed Re-Strings" />
         <NavCard to="/categories" label="Categories" />

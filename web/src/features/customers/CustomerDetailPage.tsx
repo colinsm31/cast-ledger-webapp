@@ -15,7 +15,8 @@ const HISTORY_SELECT = `
   id, sold_at,
   sale_lines (
     qty, unit_price,
-    products ( brand, name, attributes, categories ( name ) )
+    products ( brand, name, attributes, categories ( name ) ),
+    gift_cards ( code )
   )
 `;
 
@@ -31,6 +32,7 @@ interface HistorySaleRaw {
       attributes: Record<string, JsonValue> | null;
       categories: { name: string } | null;
     } | null;
+    gift_cards: { code: string } | null;
   }> | null;
 }
 
@@ -40,6 +42,8 @@ export function CustomerDetailPage() {
   const { customerId } = useParams<{ customerId: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [history, setHistory] = useState<PurchaseHistoryRow[]>([]);
+  const [storeCredit, setStoreCredit] = useState(0);
+  const [giftCards, setGiftCards] = useState<{ code: string; balance: number }[]>([]);
   const [tab, setTab] = useState<CustomerTab>('purchases');
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -53,6 +57,19 @@ export function CustomerDetailPage() {
     }
     setCustomer(custRes.data as Customer);
 
+    // Account balances: store credit + this customer's gift cards.
+    const [scRes, gcRes] = await Promise.all([
+      supabase.from('customer_store_credit').select('balance').eq('customer_id', customerId).maybeSingle(),
+      supabase.from('gift_card_balance').select('code, balance').eq('customer_id', customerId),
+    ]);
+    setStoreCredit(scRes.data ? Number((scRes.data as { balance: number }).balance) : 0);
+    setGiftCards(
+      ((gcRes.data ?? []) as { code: string; balance: number }[]).map((g) => ({
+        code: g.code,
+        balance: Number(g.balance),
+      })),
+    );
+
     // Purchase history: this customer's sales, each with its lines → product.
     const histRes = await supabase
       .from('sales')
@@ -63,16 +80,20 @@ export function CustomerDetailPage() {
       const rows: PurchaseHistoryRow[] = [];
       for (const sale of histRes.data as unknown as HistorySaleRaw[]) {
         for (const line of sale.sale_lines ?? []) {
-          const isStringing = !line.products;
+          const label = line.products
+            ? { category: line.products.categories?.name ?? '—', brand: line.products.brand, name: line.products.name, attributes: line.products.attributes ?? {} }
+            : line.gift_cards
+              ? { category: 'Gift card', brand: null, name: `Gift card ${line.gift_cards.code}`, attributes: {} }
+              : { category: 'Stringing', brand: null, name: 'Stringing', attributes: {} };
           rows.push({
             sale_id: sale.id,
             sold_at: sale.sold_at,
             qty: line.qty,
             unit_price: line.unit_price,
-            category: isStringing ? 'Stringing' : line.products?.categories?.name ?? '—',
-            brand: line.products?.brand ?? null,
-            product_name: isStringing ? 'Stringing' : line.products?.name ?? '—',
-            attributes: line.products?.attributes ?? {},
+            category: label.category,
+            brand: label.brand,
+            product_name: label.name,
+            attributes: label.attributes,
           });
         }
       }
@@ -117,6 +138,14 @@ export function CustomerDetailPage() {
           onError={setError}
         />
       )}
+
+      <AccountPanel
+        customerId={customer.id}
+        storeCredit={storeCredit}
+        giftCards={giftCards}
+        onChanged={load}
+        onError={setError}
+      />
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2">
@@ -201,6 +230,104 @@ function attributeSuffix(values: Record<string, JsonValue>): string {
     .filter((v) => v != null && v !== '')
     .map(String);
   return parts.length ? ` (${parts.join(', ')})` : '';
+}
+
+// MARK: - Account (store credit + gift cards)
+
+function AccountPanel({
+  customerId,
+  storeCredit,
+  giftCards,
+  onChanged,
+  onError,
+}: {
+  customerId: string;
+  storeCredit: number;
+  giftCards: { code: string; balance: number }[];
+  onChanged: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function addCredit() {
+    const amt = Number(amount);
+    if (!amt || amt <= 0) {
+      onError('Enter a positive store credit amount.');
+      return;
+    }
+    setSaving(true);
+    const { error: err } = await supabase.rpc('add_store_credit', {
+      p_customer_id: customerId,
+      p_amount: amt,
+      p_reason: reason.trim() || null,
+    });
+    setSaving(false);
+    if (err) {
+      onError(errorMessage(err));
+      return;
+    }
+    setAdding(false);
+    setAmount('');
+    setReason('');
+    await onChanged();
+  }
+
+  const activeCards = giftCards.filter((g) => g.balance > 0);
+
+  return (
+    <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-700">Store credit</h2>
+          <p className="text-lg font-bold text-slate-900">${storeCredit.toFixed(2)}</p>
+        </div>
+        {!adding && (
+          <button
+            onClick={() => setAdding(true)}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Add store credit
+          </button>
+        )}
+      </div>
+
+      {adding && (
+        <div className="flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
+          <label className="w-28 space-y-1">
+            <span className="text-xs font-medium text-slate-500">Amount</span>
+            <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </label>
+          <label className="flex-1 min-w-[8rem] space-y-1">
+            <span className="text-xs font-medium text-slate-500">Reason (optional)</span>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </label>
+          <button onClick={() => void addCredit()} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+            {saving ? 'Adding…' : 'Add'}
+          </button>
+          <button onClick={() => setAdding(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {activeCards.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold uppercase text-slate-500">Gift cards</h3>
+          <ul className="mt-1 divide-y divide-slate-100">
+            {activeCards.map((g) => (
+              <li key={g.code} className="flex justify-between py-1.5 text-sm">
+                <span className="text-slate-700">{g.code}</span>
+                <span className="font-medium text-slate-900">${g.balance.toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
 }
 
 function formatDate(iso: string): string {

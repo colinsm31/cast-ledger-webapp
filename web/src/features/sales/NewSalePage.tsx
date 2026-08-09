@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { Customer, JsonValue, PaymentMethod } from '../../types/domain';
+import type { Customer, JsonValue } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
+import { PaymentScreen, type Tender } from './PaymentScreen';
 
 interface ScannedProduct {
   id: string;
@@ -18,6 +19,7 @@ interface CartLine {
   key: string;
   productId?: string;
   stringJobId?: string;
+  giftCardId?: string;
   label: string;
   price: string; // editable
   qty: number;
@@ -45,6 +47,9 @@ export function NewSalePage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [choosingPayment, setChoosingPayment] = useState(false);
+  const [gcForm, setGcForm] = useState(false);
+  const [gcCode, setGcCode] = useState('');
+  const [gcAmount, setGcAmount] = useState('');
   const scanRef = useRef<HTMLInputElement>(null);
 
   const focusScan = () => scanRef.current?.focus();
@@ -174,6 +179,47 @@ export function NewSalePage() {
     });
   }
 
+  // Sell a gift card: ensure a card exists for the code, then add a load line.
+  async function addGiftCardLine() {
+    const code = gcCode.replace(/\s+/g, '').trim();
+    const amt = Number(gcAmount);
+    if (!code) {
+      setScanMsg('Enter a gift card code.');
+      return;
+    }
+    if (!amt || amt <= 0) {
+      setScanMsg('Enter a load amount.');
+      return;
+    }
+    // If the card already carries a balance, confirm this is an intentional reload.
+    const { data: existing } = await supabase
+      .from('gift_card_balance')
+      .select('balance')
+      .eq('code', code)
+      .maybeSingle();
+    const existingBalance = existing ? Number((existing as { balance: number }).balance) : 0;
+    if (existingBalance > 0 && !window.confirm(`Card ${code} already has $${existingBalance.toFixed(2)}. Add $${amt.toFixed(2)} to it?`)) {
+      return;
+    }
+    const { data, error: err } = await supabase.rpc('ensure_gift_card', {
+      p_code: code,
+      p_customer_id: customer?.id ?? null,
+    });
+    if (err) {
+      setScanMsg(errorMessage(err));
+      return;
+    }
+    const gcId = data as string;
+    setLines((prev) => [
+      ...prev,
+      { key: `gc:${gcId}:${crypto.randomUUID()}`, giftCardId: gcId, label: `Gift card ${code}`, price: String(amt), qty: 1 },
+    ]);
+    setGcForm(false);
+    setGcCode('');
+    setGcAmount('');
+    setScanMsg(null);
+  }
+
   function setQty(key: string, qty: number) {
     if (qty <= 0) {
       setLines((prev) => prev.filter((l) => l.key !== key));
@@ -212,17 +258,22 @@ export function NewSalePage() {
     navigate('/');
   }
 
-  async function completeSale(method: PaymentMethod) {
+  async function completeSale(tenders: Tender[]) {
     setSaving(true);
     setError(null);
     const { data, error: err } = await supabase.rpc('record_sale', {
-      p_lines: lines.map((l) =>
-        l.stringJobId
-          ? { string_job_id: l.stringJobId, qty: l.qty, unit_price: Number(l.price) || 0 }
-          : { product_id: l.productId, qty: l.qty, unit_price: Number(l.price) || 0 },
-      ),
+      p_lines: lines.map((l) => {
+        const unit_price = Number(l.price) || 0;
+        if (l.stringJobId) return { string_job_id: l.stringJobId, qty: l.qty, unit_price };
+        if (l.giftCardId) return { gift_card_id: l.giftCardId, qty: l.qty, unit_price };
+        return { product_id: l.productId, qty: l.qty, unit_price };
+      }),
       p_customer_id: customer?.id ?? null,
-      p_payment_method: method,
+      p_payments: tenders.map((t) => ({
+        method: t.method,
+        amount: t.amount,
+        gift_card_id: t.giftCardId ?? null,
+      })),
       p_note: null,
     });
     if (err) {
@@ -251,10 +302,11 @@ export function NewSalePage() {
     return (
       <PaymentScreen
         total={subtotal}
+        customerId={customer?.id ?? null}
         busy={saving}
         error={error}
         onBack={() => setChoosingPayment(false)}
-        onPick={(m) => void completeSale(m)}
+        onComplete={(tenders) => void completeSale(tenders)}
       />
     );
   }
@@ -289,7 +341,46 @@ export function NewSalePage() {
           >
             Add item
           </button>
+          <button
+            onClick={() => {
+              setGcForm((v) => !v);
+              setScanMsg(null);
+            }}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Sell gift card
+          </button>
         </div>
+        {gcForm && (
+          <div className="flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
+            <label className="flex-1 min-w-[10rem] space-y-1">
+              <span className="text-xs font-medium text-slate-500">Gift card code</span>
+              <input
+                autoFocus
+                value={gcCode}
+                onChange={(e) => setGcCode(e.target.value)}
+                placeholder="Scan or type"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="w-28 space-y-1">
+              <span className="text-xs font-medium text-slate-500">Amount</span>
+              <input
+                value={gcAmount}
+                onChange={(e) => setGcAmount(e.target.value)}
+                inputMode="decimal"
+                placeholder="0.00"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <button
+              onClick={() => void addGiftCardLine()}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Add to ticket
+            </button>
+          </div>
+        )}
         {scanMsg && <p className="text-sm text-red-600">{scanMsg}</p>}
       </section>
 
@@ -364,57 +455,6 @@ export function NewSalePage() {
           Cancel Sale
         </button>
       </div>
-    </div>
-  );
-}
-
-const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
-  { value: 'credit', label: 'Credit' },
-  { value: 'cash', label: 'Cash' },
-  { value: 'gift_card', label: 'Gift Card' },
-  { value: 'store_credit', label: 'Store Credit' },
-];
-
-function PaymentScreen({
-  total,
-  busy,
-  error,
-  onBack,
-  onPick,
-}: {
-  total: number;
-  busy: boolean;
-  error: string | null;
-  onBack: () => void;
-  onPick: (method: PaymentMethod) => void;
-}) {
-  return (
-    <div className="max-w-2xl space-y-5">
-      <div>
-        <button onClick={onBack} className="text-sm text-blue-600 hover:underline" disabled={busy}>
-          ‹ Back to ticket
-        </button>
-        <h1 className="text-xl font-bold text-slate-900">Payment</h1>
-        <p className="text-sm text-slate-500">Total due</p>
-        <p className="text-3xl font-bold text-slate-900">${total.toFixed(2)}</p>
-      </div>
-
-      <p className="text-sm font-medium text-slate-500">Select payment type</p>
-      <div className="grid grid-cols-2 gap-3">
-        {PAYMENT_METHODS.map((m) => (
-          <button
-            key={m.value}
-            onClick={() => onPick(m.value)}
-            disabled={busy}
-            className="rounded-xl border border-slate-200 bg-white p-6 text-lg font-semibold text-slate-900 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
-
-      {busy && <p className="text-sm text-slate-500">Completing sale…</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
 }
