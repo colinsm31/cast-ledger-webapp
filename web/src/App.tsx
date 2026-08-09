@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import { SignInPage } from './auth/SignInPage';
 import { AppShell } from './app/AppShell';
 import { Spinner } from './components/Spinner';
+import { DialogProvider } from './components/Dialog';
 import { isSupabaseConfigured } from './lib/supabase';
 import { HomePage } from './features/home/HomePage';
 import { NewSalePage } from './features/sales/NewSalePage';
@@ -75,7 +76,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Gate />
+        <DialogProvider>
+          <Gate />
+        </DialogProvider>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -5,6 +5,7 @@ import type { Customer, JsonValue } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
+import { useDialog } from '../../components/Dialog';
 import { PaymentScreen, type Tender } from './PaymentScreen';
 
 interface ScannedProduct {
@@ -34,6 +35,7 @@ function productLabel(p: ScannedProduct): string {
 
 export function NewSalePage() {
   const navigate = useNavigate();
+  const { confirm } = useDialog();
   const [searchParams] = useSearchParams();
 
   const [lines, setLines] = useState<CartLine[]>([]);
@@ -198,8 +200,13 @@ export function NewSalePage() {
       .eq('code', code)
       .maybeSingle();
     const existingBalance = existing ? Number((existing as { balance: number }).balance) : 0;
-    if (existingBalance > 0 && !window.confirm(`Card ${code} already has $${existingBalance.toFixed(2)}. Add $${amt.toFixed(2)} to it?`)) {
-      return;
+    if (existingBalance > 0) {
+      const ok = await confirm({
+        title: 'Card already active',
+        message: `Card ${code} already has $${existingBalance.toFixed(2)}. Add $${amt.toFixed(2)} to it?`,
+        confirmLabel: 'Add to card',
+      });
+      if (!ok) return;
     }
     const { data, error: err } = await supabase.rpc('ensure_gift_card', {
       p_code: code,
@@ -252,8 +259,17 @@ export function NewSalePage() {
     setChoosingPayment(true);
   }
 
-  function cancelSale() {
-    if (lines.length > 0 && !window.confirm('Cancel this sale and discard the ticket?')) return;
+  async function cancelSale() {
+    if (lines.length > 0) {
+      const ok = await confirm({
+        title: 'Cancel sale?',
+        message: 'This will discard the current ticket.',
+        confirmLabel: 'Cancel sale',
+        cancelLabel: 'Keep ticket',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
     clearHeldSale();
     navigate('/');
   }
@@ -449,7 +465,7 @@ export function NewSalePage() {
           Payment Type · ${subtotal.toFixed(2)}
         </button>
         <button
-          onClick={cancelSale}
+          onClick={() => void cancelSale()}
           className="rounded-lg border border-red-300 px-4 py-3 text-base font-medium text-red-700 hover:bg-red-50"
         >
           Cancel Sale
