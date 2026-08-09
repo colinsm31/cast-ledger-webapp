@@ -63,14 +63,15 @@ export function CustomerDetailPage() {
       const rows: PurchaseHistoryRow[] = [];
       for (const sale of histRes.data as unknown as HistorySaleRaw[]) {
         for (const line of sale.sale_lines ?? []) {
+          const isStringing = !line.products;
           rows.push({
             sale_id: sale.id,
             sold_at: sale.sold_at,
             qty: line.qty,
             unit_price: line.unit_price,
-            category: line.products?.categories?.name ?? '—',
+            category: isStringing ? 'Stringing' : line.products?.categories?.name ?? '—',
             brand: line.products?.brand ?? null,
-            product_name: line.products?.name ?? '—',
+            product_name: isStringing ? 'Stringing' : line.products?.name ?? '—',
             attributes: line.products?.attributes ?? {},
           });
         }

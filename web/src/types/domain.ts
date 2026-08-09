@@ -94,10 +94,13 @@ export interface InventoryTxn {
 
 // ---- Sales (light POS) ----
 
+export type PaymentMethod = 'credit' | 'cash' | 'gift_card' | 'store_credit';
+
 export interface Sale {
   id: string;
   sold_at: string;
   subtotal: number;
+  payment_method: PaymentMethod | null;
   note: string | null;
   customer_id: string | null;
   user_id: string | null;
@@ -180,6 +183,8 @@ export interface StringJob {
   price: number | null;
   strung_by: string | null;
   notes: string | null;
+  // The sale that paid for this job, if any (null = unpaid).
+  paid_sale_id: string | null;
 
   entered_at: string;
   completed_at: string | null;
@@ -191,7 +196,9 @@ export interface StringJob {
 export interface SaleLine {
   id: string;
   sale_id: string;
-  product_id: string;
+  // Exactly one of product_id / string_job_id is set (product sale vs stringing).
+  product_id: string | null;
+  string_job_id: string | null;
   qty: number;
   unit_price: number;
   created_at: string;
@@ -224,8 +231,10 @@ export interface AdjustStockParams {
   p_note: string | null;
 }
 
+// A sale line references exactly one of a product or a string job (service).
 export interface SaleLineInput {
-  product_id: string;
+  product_id?: string | null;
+  string_job_id?: string | null;
   qty: number;
   unit_price: number;
 }

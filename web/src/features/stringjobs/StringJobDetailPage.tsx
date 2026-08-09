@@ -188,6 +188,15 @@ export function StringJobDetailPage() {
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold text-slate-900">{customer ? customerName(customer) : 'String job'}</h1>
           <StatusBadge status={status} />
+          {status !== 'cancelled' && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                job.paid_sale_id ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+              }`}
+            >
+              {job.paid_sale_id ? 'Paid' : 'Unpaid'}
+            </span>
+          )}
         </div>
         <p className="text-sm text-slate-500">
           {racket?.brand ? `${racket.brand} ` : ''}
@@ -294,11 +303,15 @@ export function StringJobDetailPage() {
           )}
           {status === 'complete' && (
             <button
-              onClick={() => void advance('delivered')}
+              onClick={() =>
+                job.paid_sale_id
+                  ? void advance('delivered')
+                  : navigate(`/sales/new?stringJob=${job.id}&deliver=1`)
+              }
               disabled={busy}
               className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
             >
-              Mark delivered
+              {job.paid_sale_id ? 'Mark delivered' : 'Take payment & deliver'}
             </button>
           )}
           {(status === 'delivered' || cancelled) && (

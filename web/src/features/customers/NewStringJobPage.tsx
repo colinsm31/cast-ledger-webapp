@@ -48,6 +48,7 @@ export function NewStringJobPage() {
   const [crossStringEdited, setCrossStringEdited] = useState(false);
   const [crossTensionEdited, setCrossTensionEdited] = useState(false);
   const [manualPrice, setManualPrice] = useState('');
+  const [payNow, setPayNow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -191,19 +192,28 @@ export function NewStringJobPage() {
     setSaving(true);
     setError(null);
 
-    const { error: err } = await supabase.from('string_jobs').insert({
-      customer_racket_id: racketId,
-      status: 'entered',
-      ...rowPayload(catalog, dims, mains, 'main'),
-      ...rowPayload(catalog, dims, crosses, 'cross'),
-      price: price > 0 ? price : null,
-    });
+    const { data, error: err } = await supabase
+      .from('string_jobs')
+      .insert({
+        customer_racket_id: racketId,
+        status: 'entered',
+        ...rowPayload(catalog, dims, mains, 'main'),
+        ...rowPayload(catalog, dims, crosses, 'cross'),
+        price: price > 0 ? price : null,
+      })
+      .select('id')
+      .single();
     setSaving(false);
     if (err) {
       setError(errorMessage(err));
       return;
     }
-    navigate(`/customers/${customerId}`);
+    // Pay now → open a sales ticket for the stringing in the customer's name.
+    if (payNow && data) {
+      navigate(`/sales/new?stringJob=${data.id}`);
+    } else {
+      navigate(`/customers/${customerId}`);
+    }
   }
 
   if (loadError) return <p className="text-sm text-red-600">{loadError}</p>;
@@ -269,6 +279,11 @@ export function NewStringJobPage() {
           </p>
         )}
       </section>
+
+      <label className="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" checked={payNow} onChange={(e) => setPayNow(e.target.checked)} />
+        Pay now (open a sales ticket after entering)
+      </label>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

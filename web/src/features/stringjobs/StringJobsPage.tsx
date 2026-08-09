@@ -111,12 +111,13 @@ export function StringJobsPage({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          void markDelivered(job.id);
+                          if (job.paid_sale_id) void markDelivered(job.id);
+                          else navigate(`/sales/new?stringJob=${job.id}&deliver=1`);
                         }}
                         disabled={busyId === job.id}
                         className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
                       >
-                        Mark delivered
+                        {job.paid_sale_id ? 'Mark delivered' : 'Take payment & deliver'}
                       </button>
                     </div>
                   )}

@@ -5,7 +5,9 @@ import { AppShell } from './app/AppShell';
 import { Spinner } from './components/Spinner';
 import { isSupabaseConfigured } from './lib/supabase';
 import { HomePage } from './features/home/HomePage';
-import { ComingSoon } from './features/home/ComingSoon';
+import { NewSalePage } from './features/sales/NewSalePage';
+import { SalesListPage } from './features/sales/SalesListPage';
+import { SaleDetailPage } from './features/sales/SaleDetailPage';
 import { CategoriesPage } from './features/categories/CategoriesPage';
 import { CategoryDetailPage } from './features/categories/CategoryDetailPage';
 import { ProductsListPage } from './features/products/ProductsListPage';
@@ -47,8 +49,9 @@ function Gate() {
         <Route path="/products/new" element={<ProductFormPage />} />
         <Route path="/products/:productId" element={<ProductDetailPage />} />
         <Route path="/products/:productId/edit" element={<ProductFormPage />} />
-        <Route path="/sales" element={<ComingSoon title="Sales" />} />
-        <Route path="/sales/new" element={<ComingSoon title="New sale" />} />
+        <Route path="/sales" element={<SalesListPage />} />
+        <Route path="/sales/new" element={<NewSalePage />} />
+        <Route path="/sales/:saleId" element={<SaleDetailPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
         <Route path="/customers" element={<CustomersListPage />} />
