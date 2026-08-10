@@ -6,17 +6,33 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-blue-100 text-blue-800' : 'text-slate-600 hover:bg-slate-100'
   }`;
 
+// Show a striped bar only on the test build (set VITE_APP_ENV=test in that
+// environment's .env). Production leaves the var unset → plain white navbar.
+const isTestEnv = import.meta.env.VITE_APP_ENV === 'test';
+const testStripe = {
+  backgroundImage:
+    'repeating-linear-gradient(45deg, #fef3c7, #fef3c7 12px, #fde68a 12px, #fde68a 24px)',
+};
+
 export function AppShell() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
+      <header
+        className={`border-b ${isTestEnv ? 'border-amber-300' : 'bg-white border-slate-200'}`}
+        style={isTestEnv ? testStripe : undefined}
+      >
         <div className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <NavLink to="/" className="font-bold text-slate-900 hover:text-blue-700">
               AceStock
             </NavLink>
+            {isTestEnv && (
+              <span className="rounded-full bg-amber-800 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-amber-50">
+                Test
+              </span>
+            )}
             <nav className="flex gap-1">
               <NavLink to="/sales/new" className={navLinkClass}>
                 New Sale
@@ -33,9 +49,19 @@ export function AppShell() {
               <NavLink to="/string-jobs/completed" className={navLinkClass}>
                 Completed Re-Strings
               </NavLink>
-              <NavLink to="/categories" className={navLinkClass}>
-                Categories
-              </NavLink>
+              {isAdmin && (
+                <>
+                  <NavLink to="/categories" className={navLinkClass}>
+                    Categories
+                  </NavLink>
+                  <NavLink to="/users" className={navLinkClass}>
+                    Users
+                  </NavLink>
+                  <NavLink to="/settings" className={navLinkClass}>
+                    Settings
+                  </NavLink>
+                </>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-3">

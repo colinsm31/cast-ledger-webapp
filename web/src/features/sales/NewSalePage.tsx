@@ -5,6 +5,7 @@ import type { Customer, JsonValue } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
+import { useSettings } from '../../lib/settings';
 import { useDialog } from '../../components/Dialog';
 import { PaymentScreen, type Tender } from './PaymentScreen';
 
@@ -36,6 +37,7 @@ function productLabel(p: ScannedProduct): string {
 export function NewSalePage() {
   const navigate = useNavigate();
   const { confirm } = useDialog();
+  const settings = useSettings();
   const [searchParams] = useSearchParams();
 
   const [lines, setLines] = useState<CartLine[]>([]);
@@ -244,6 +246,20 @@ export function NewSalePage() {
     [lines],
   );
 
+  // Tax: products always taxed; stringing optionally; gift-card loads never.
+  const taxRate = settings?.tax_rate ?? 0;
+  const taxStringing = settings?.tax_stringing ?? false;
+  const tax = useMemo(() => {
+    const taxable = lines.reduce((sum, l) => {
+      const lt = l.qty * (Number(l.price) || 0);
+      if (l.giftCardId) return sum;
+      if (l.stringJobId) return sum + (taxStringing ? lt : 0);
+      return sum + lt;
+    }, 0);
+    return Math.round((taxable * taxRate) / 100 * 100) / 100;
+  }, [lines, taxRate, taxStringing]);
+  const total = Math.round((subtotal + tax) * 100) / 100;
+
   function openPayment() {
     if (lines.length === 0) {
       setError('Scan at least one item.');
@@ -317,7 +333,7 @@ export function NewSalePage() {
   if (choosingPayment) {
     return (
       <PaymentScreen
-        total={subtotal}
+        total={total}
         customerId={customer?.id ?? null}
         busy={saving}
         error={error}
@@ -448,10 +464,22 @@ export function NewSalePage() {
         )}
       </section>
 
-      {/* Total + complete */}
-      <section className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
-        <span className="text-sm font-medium text-slate-500">Subtotal</span>
-        <span className="text-2xl font-bold text-slate-900">${subtotal.toFixed(2)}</span>
+      {/* Totals */}
+      <section className="space-y-1 rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between text-sm text-slate-600">
+          <span>Subtotal</span>
+          <span className="font-medium text-slate-900">${subtotal.toFixed(2)}</span>
+        </div>
+        {tax > 0 && (
+          <div className="flex items-center justify-between text-sm text-slate-600">
+            <span>Tax{taxRate ? ` (${taxRate}%)` : ''}</span>
+            <span className="font-medium text-slate-900">${tax.toFixed(2)}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between border-t border-slate-100 pt-1">
+          <span className="text-sm font-semibold text-slate-700">Total</span>
+          <span className="text-2xl font-bold text-slate-900">${total.toFixed(2)}</span>
+        </div>
       </section>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -462,7 +490,7 @@ export function NewSalePage() {
           disabled={lines.length === 0}
           className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-base font-semibold text-white hover:bg-green-700 disabled:opacity-50"
         >
-          Payment Type · ${subtotal.toFixed(2)}
+          Payment Type · ${total.toFixed(2)}
         </button>
         <button
           onClick={() => void cancelSale()}

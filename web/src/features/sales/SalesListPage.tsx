@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { customerNameLastFirst } from '../../types/domain';
+import { useSettings } from '../../lib/settings';
 import { Spinner } from '../../components/Spinner';
 
 type Period = 'today' | 'wtd' | 'mtd' | 'ytd' | 'custom';
@@ -18,6 +19,7 @@ const PERIODS: { value: Period; label: string }[] = [
 
 interface Summary {
   gross: number;
+  tax: number;
   refunds: number;
   net: number;
   card: number;
@@ -56,6 +58,8 @@ const money = (v: number) => `$${Number(v).toFixed(2)}`;
 
 export function SalesListPage() {
   const navigate = useNavigate();
+  const settings = useSettings();
+  const weekStartsMonday = settings?.week_starts_monday ?? false;
   const [period, setPeriod] = useState<Period>('today');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
@@ -69,7 +73,12 @@ export function SalesListPage() {
   const range = useMemo(() => {
     const now = new Date();
     if (period === 'today') return { from: startOfDay(now), to: now };
-    if (period === 'wtd') return { from: addDays(startOfDay(now), -now.getDay()), to: now };
+    if (period === 'wtd') {
+      // Offset back to the start of the week (Sunday or Monday).
+      const dow = now.getDay(); // 0=Sun
+      const back = weekStartsMonday ? (dow + 6) % 7 : dow;
+      return { from: addDays(startOfDay(now), -back), to: now };
+    }
     if (period === 'mtd') return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: now };
     if (period === 'ytd') return { from: new Date(now.getFullYear(), 0, 1), to: now };
     // custom
@@ -77,7 +86,7 @@ export function SalesListPage() {
     const t = parseLocalDate(customTo);
     if (!f || !t) return null;
     return { from: f, to: addDays(t, 1) }; // end date inclusive
-  }, [period, customFrom, customTo]);
+  }, [period, customFrom, customTo, weekStartsMonday]);
 
   useEffect(() => {
     if (!range) {
@@ -167,6 +176,7 @@ export function SalesListPage() {
         ) : summary ? (
           <section className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
             <MoneyRow label="Gross receipts" value={summary.gross} />
+            <MoneyRow label="Sales tax collected" value={summary.tax} />
             <MoneyRow label="Total refunds issued" value={summary.refunds} />
             <MoneyRow label="Total net receipts" value={summary.net} strong />
             <MoneyRow label="Net credit/debit card receipts" value={summary.card} />
@@ -215,6 +225,7 @@ function normalizeSummary(r: Record<string, unknown>): Summary {
   const n = (k: string) => Number(r[k] ?? 0);
   return {
     gross: n('gross'),
+    tax: n('tax'),
     refunds: n('refunds'),
     net: n('net'),
     card: n('card'),

@@ -5,6 +5,7 @@ import type { AttributeDef, Category, JsonValue, Product } from '../../types/dom
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { PickOrAdd } from '../lookups/PickOrAdd';
+import { useSettings } from '../../lib/settings';
 import { AttributeInput, toStoredValue } from './AttributeInput';
 
 const inputClass =
@@ -14,6 +15,7 @@ export function ProductFormPage() {
   const { productId } = useParams<{ productId: string }>();
   const isEdit = Boolean(productId);
   const navigate = useNavigate();
+  const settings = useSettings();
   const [searchParams] = useSearchParams();
   const prefillUpc = searchParams.get('upc') ?? '';
 
@@ -67,6 +69,13 @@ export function ProductFormPage() {
   useEffect(() => {
     void loadAttrDefs(categoryId);
   }, [categoryId, loadAttrDefs]);
+
+  // Prefill the reorder point with the shop default for new products.
+  useEffect(() => {
+    if (!isEdit && settings?.default_reorder_point != null) {
+      setReorderPoint((cur) => (cur === '' ? String(settings.default_reorder_point) : cur));
+    }
+  }, [isEdit, settings]);
 
   // In edit mode, load the existing product and prefill.
   useEffect(() => {

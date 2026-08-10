@@ -24,6 +24,7 @@ interface SaleDetail {
   id: string;
   sold_at: string;
   subtotal: number;
+  tax: number;
   payment_method: string | null;
   customers: { first_name: string; last_name: string } | null;
   sale_lines: SaleLineRaw[];
@@ -52,7 +53,7 @@ export function SaleDetailPage() {
       const { data, error: err } = await supabase
         .from('sales')
         .select(
-          'id, sold_at, subtotal, payment_method, customers ( first_name, last_name ), sale_lines ( qty, unit_price, products ( brand, name, attributes ), gift_cards ( code ) ), sale_payments ( method, amount )',
+          'id, sold_at, subtotal, tax, payment_method, customers ( first_name, last_name ), sale_lines ( qty, unit_price, products ( brand, name, attributes ), gift_cards ( code ) ), sale_payments ( method, amount )',
         )
         .eq('id', saleId)
         .single();
@@ -100,9 +101,23 @@ export function SaleDetailPage() {
             </li>
           ))}
         </ul>
-        <div className="flex items-center justify-between border-t border-slate-200 p-4">
-          <span className="text-sm font-medium text-slate-500">Total</span>
-          <span className="text-xl font-bold text-slate-900">${Number(sale.subtotal).toFixed(2)}</span>
+        <div className="space-y-1 border-t border-slate-200 p-4">
+          <div className="flex justify-between text-sm text-slate-600">
+            <span>Subtotal</span>
+            <span className="font-medium text-slate-900">${Number(sale.subtotal).toFixed(2)}</span>
+          </div>
+          {Number(sale.tax) > 0 && (
+            <div className="flex justify-between text-sm text-slate-600">
+              <span>Tax</span>
+              <span className="font-medium text-slate-900">${Number(sale.tax).toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t border-slate-100 pt-1">
+            <span className="text-sm font-semibold text-slate-700">Total</span>
+            <span className="text-xl font-bold text-slate-900">
+              ${(Number(sale.subtotal) + Number(sale.tax)).toFixed(2)}
+            </span>
+          </div>
         </div>
       </section>
 

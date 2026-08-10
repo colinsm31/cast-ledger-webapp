@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { SignInPage } from './auth/SignInPage';
@@ -10,6 +11,8 @@ import { NewSalePage } from './features/sales/NewSalePage';
 import { SalesListPage } from './features/sales/SalesListPage';
 import { SaleDetailPage } from './features/sales/SaleDetailPage';
 import { GiftCardLookupPage } from './features/sales/GiftCardLookupPage';
+import { UsersPage } from './features/admin/UsersPage';
+import { SettingsPage } from './features/admin/SettingsPage';
 import { CategoriesPage } from './features/categories/CategoriesPage';
 import { CategoryDetailPage } from './features/categories/CategoryDetailPage';
 import { ProductsListPage } from './features/products/ProductsListPage';
@@ -37,6 +40,14 @@ function SetupNeeded() {
   );
 }
 
+function RequireAdmin({ children }: { children: ReactNode }) {
+  const { session, role, isAdmin } = useAuth();
+  // Wait for the role to load before deciding.
+  if (session && role === null) return <Spinner label="Loading…" />;
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 function Gate() {
   const { loading, session } = useAuth();
   if (loading) return <Spinner label="Loading…" />;
@@ -55,8 +66,10 @@ function Gate() {
         <Route path="/sales/new" element={<NewSalePage />} />
         <Route path="/sales/:saleId" element={<SaleDetailPage />} />
         <Route path="/gift-cards" element={<GiftCardLookupPage />} />
-        <Route path="/categories" element={<CategoriesPage />} />
-        <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
+        <Route path="/categories" element={<RequireAdmin><CategoriesPage /></RequireAdmin>} />
+        <Route path="/categories/:categoryId" element={<RequireAdmin><CategoryDetailPage /></RequireAdmin>} />
+        <Route path="/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
+        <Route path="/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
         <Route path="/customers" element={<CustomersListPage />} />
         <Route path="/customers/new" element={<CreateCustomerPage />} />
         <Route path="/customers/:customerId" element={<CustomerDetailPage />} />

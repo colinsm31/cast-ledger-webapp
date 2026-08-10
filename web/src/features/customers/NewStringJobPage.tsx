@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { Customer, CustomerRacket } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { useSettings } from '../../lib/settings';
 import { Spinner } from '../../components/Spinner';
 import {
   cellClass,
@@ -34,6 +35,7 @@ interface LastJob {
 export function NewStringJobPage() {
   const { customerId, racketId } = useParams<{ customerId: string; racketId: string }>();
   const navigate = useNavigate();
+  const settings = useSettings();
 
   const [racket, setRacket] = useState<CustomerRacket | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -150,11 +152,11 @@ export function NewStringJobPage() {
     return out;
   }, [mains, crosses, availableById, catalog, dims]);
 
-  // Price is the sum of the distinct string products' own prices (a hybrid uses
-  // one of each). Not manually entered unless a string has no price set.
+  // Price = base labor charge + the distinct string products' own prices (a
+  // hybrid uses one of each). Not manually entered unless it comes to $0.
   const autoPrice = useMemo(() => {
     const seen = new Set<string>();
-    let sum = 0;
+    let sum = settings?.stringing_labor ?? 0;
     for (const row of [mains, crosses]) {
       if (!row.name) continue;
       const product = resolveProduct(catalog, dims, row);
@@ -164,7 +166,7 @@ export function NewStringJobPage() {
       }
     }
     return sum;
-  }, [mains, crosses, catalog, dims]);
+  }, [mains, crosses, catalog, dims, settings]);
 
   // When the chosen string has no price ($0), the user must enter one.
   const needsManualPrice = !!mains.name && autoPrice <= 0;
