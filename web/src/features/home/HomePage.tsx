@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import type { Customer } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
+import { useHeldSale } from '../../lib/heldSale';
 
 type UpcResult =
   | { kind: 'idle' }
@@ -18,6 +19,8 @@ function isUpc(query: string): boolean {
 
 export function HomePage() {
   const navigate = useNavigate();
+  const heldSale = useHeldSale();
+  const heldCount = heldSale?.lines.reduce((n, l) => n + l.qty, 0) ?? 0;
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState<Customer[]>([]);
   const [searchingNames, setSearchingNames] = useState(false);
@@ -117,6 +120,16 @@ export function HomePage() {
 
   return (
     <div className="space-y-6">
+      {heldSale && (
+        <button
+          onClick={() => navigate('/sales/new')}
+          className="flex items-center gap-2 rounded-lg bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-200"
+        >
+          <span className="h-2 w-2 rounded-full bg-amber-500" />
+          Return to sale in progress{heldCount > 0 ? ` · ${heldCount} item${heldCount === 1 ? '' : 's'}` : ''}
+        </button>
+      )}
+
       <div className="space-y-2">
         <h1 className="text-xl font-bold text-slate-900">AceStock</h1>
         <p className="text-sm text-slate-600">

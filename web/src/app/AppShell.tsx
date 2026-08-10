@@ -1,6 +1,5 @@
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { useHeldSale } from '../lib/heldSale';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `px-3 py-2 rounded-lg text-sm font-medium ${
@@ -9,8 +8,6 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 export function AppShell() {
   const { user, signOut } = useAuth();
-  const heldSale = useHeldSale();
-  const heldCount = heldSale?.lines.reduce((n, l) => n + l.qty, 0) ?? 0;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -42,15 +39,6 @@ export function AppShell() {
             </nav>
           </div>
           <div className="flex items-center gap-3">
-            {heldSale && (
-              <Link
-                to="/sales/new"
-                className="flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-800 hover:bg-amber-200"
-              >
-                <span className="h-2 w-2 rounded-full bg-amber-500" />
-                Sale in progress{heldCount > 0 ? ` · ${heldCount}` : ''}
-              </Link>
-            )}
             <span className="text-sm text-slate-500 hidden sm:inline">{user?.email}</span>
             <button
               onClick={() => void signOut()}
