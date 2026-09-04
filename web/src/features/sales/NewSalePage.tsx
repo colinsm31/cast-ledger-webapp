@@ -1,25 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { Customer, JsonValue } from '../../types/domain';
+import type { Customer } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
 import { useSettings } from '../../lib/settings';
 import { useDialog } from '../../components/Dialog';
+import { resolveBarcode, type ScannedProduct } from '../scan/resolveBarcode';
+import { useScannerCapture } from '../scan/useScannerCapture';
+import { ScanFlowParams, withParams } from '../scan/scanFlow';
 import { PaymentScreen, type Tender } from './PaymentScreen';
 
-interface ScannedProduct {
-  id: string;
-  brand: string | null;
-  name: string;
-  attributes: Record<string, JsonValue> | null;
-  sell_price: number | null;
-}
+const NEW_SALE_PATH = '/sales/new';
 
 interface CartLine {
   key: string;
   productId?: string;
+  // For a serialized product line: the specific physical unit being sold.
+  productUnitId?: string;
+  serialized?: boolean;
   stringJobId?: string;
   giftCardId?: string;
   label: string;
@@ -38,7 +38,7 @@ export function NewSalePage() {
   const navigate = useNavigate();
   const { confirm } = useDialog();
   const settings = useSettings();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [lines, setLines] = useState<CartLine[]>([]);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -48,6 +48,8 @@ export function NewSalePage() {
   const [restored, setRestored] = useState(false);
   const [scan, setScan] = useState('');
   const [scanMsg, setScanMsg] = useState<string | null>(null);
+  // A scanned code that matched nothing — offered for creation as a product.
+  const [unknownCode, setUnknownCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [choosingPayment, setChoosingPayment] = useState(false);
@@ -62,9 +64,16 @@ export function NewSalePage() {
   }, []);
 
   // On open: prefill from a string job (URL params), else resume a held ticket.
+  // A scanned code the home screen couldn't place can arrive as a new gift
+  // card to sell — open that form with the code already filled in.
   useEffect(() => {
     const urlJob = searchParams.get('stringJob');
     const urlDeliver = searchParams.get('deliver') === '1';
+    const urlGiftCardCode = searchParams.get(ScanFlowParams.giftCardCode);
+    if (urlGiftCardCode) {
+      setGcCode(urlGiftCardCode);
+      setGcForm(true);
+    }
     if (urlJob) {
       setJobCtx({ id: urlJob, deliver: urlDeliver });
       void (async () => {
@@ -114,25 +123,110 @@ export function NewSalePage() {
     );
   }, [restored, lines, customer, jobCtx]);
 
+  // Arrived with a product to ring up — from a home-screen scan ("Sell this
+  // item") or back from the product form after creating one. The ticket has
+  // already been restored from the held sale, so this adds to it rather than
+  // replacing it. The param is dropped so a refresh doesn't add it again.
+  useEffect(() => {
+    if (!restored) return;
+    const productIdToAdd = searchParams.get(ScanFlowParams.addProduct);
+    if (!productIdToAdd) return;
+    void (async () => {
+      const { data, error: err } = await supabase
+        .from('products')
+        .select('id, brand, name, attributes, sell_price, is_serialized')
+        .eq('id', productIdToAdd)
+        .maybeSingle();
+      if (err) setScanMsg(errorMessage(err));
+      else if (data) addProduct(data as ScannedProduct);
+      const next = new URLSearchParams(searchParams);
+      next.delete(ScanFlowParams.addProduct);
+      setSearchParams(next, { replace: true });
+      focusScan();
+    })();
+    // addProduct is a stable function declaration; only the params matter here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restored, searchParams, setSearchParams]);
+
+  // Arrived with a specific unit to ring up (from a unit's "Sell" link).
+  useEffect(() => {
+    if (!restored) return;
+    const unitIdToAdd = searchParams.get(ScanFlowParams.addUnit);
+    if (!unitIdToAdd) return;
+    void (async () => {
+      const { data, error: err } = await supabase
+        .from('product_units')
+        .select('id, barcode, status, products ( id, brand, name, attributes, sell_price )')
+        .eq('id', unitIdToAdd)
+        .maybeSingle();
+      if (err) setScanMsg(errorMessage(err));
+      else if (data) {
+        const row = data as unknown as {
+          id: string;
+          barcode: string | null;
+          status: string;
+          products: ScannedProduct | null;
+        };
+        if (row.products) {
+          addUnit({
+            unitId: row.id,
+            code: row.barcode,
+            status: row.status,
+            product: { ...row.products, is_serialized: true },
+          });
+        }
+      }
+      const next = new URLSearchParams(searchParams);
+      next.delete(ScanFlowParams.addUnit);
+      setSearchParams(next, { replace: true });
+      focusScan();
+    })();
+    // addUnit is a stable function declaration; only the params matter here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restored, searchParams, setSearchParams]);
+
+  // Only products can be rung up from a scan; a racket or gift-card code is
+  // reported so the cashier knows the scan worked but isn't a sellable item.
   async function addByBarcode(raw: string) {
-    const code = raw.replace(/\s+/g, '').trim();
     setScanMsg(null);
-    if (!code) return;
-    const { data, error: err } = await supabase
-      .from('products')
-      .select('id, brand, name, attributes, sell_price')
-      .eq('barcode', code)
-      .maybeSingle();
-    if (err) {
+    setUnknownCode(null);
+    try {
+      const match = await resolveBarcode(raw);
+      switch (match.kind) {
+        case 'product':
+          if (match.product.is_serialized) {
+            setScanMsg(`${match.product.name} is tracked by unit — scan the racket’s own barcode to sell a specific one.`);
+            return;
+          }
+          addProduct(match.product);
+          focusScan();
+          return;
+        case 'unit':
+          addUnit({ unitId: match.unitId, code: match.code, status: match.status, product: match.product });
+          focusScan();
+          return;
+        case 'racket':
+          setScanMsg(`${match.code} is a customer's racket, not a product.`);
+          return;
+        case 'gift_card':
+          setScanMsg(`${match.code} is a gift card — use “Sell gift card” or redeem it at payment.`);
+          return;
+        default:
+          if (match.code) {
+            setScanMsg(`No product found for UPC ${match.code}.`);
+            setUnknownCode(match.code);
+          }
+      }
+    } catch (err) {
       setScanMsg(errorMessage(err));
-      return;
     }
-    if (!data) {
-      setScanMsg(`No product found for UPC ${code}.`);
-      return;
-    }
-    addProduct(data as ScannedProduct);
-    focusScan();
+  }
+
+  // Open the product form for the unknown code; it returns here with the
+  // new product id and the ticket is resumed from the held sale.
+  function createUnknownProduct() {
+    if (!unknownCode) return;
+    navigate(withParams('/products/new', { upc: unknownCode, [ScanFlowParams.returnTo]: NEW_SALE_PATH }));
   }
 
   function handleScan() {
@@ -141,44 +235,51 @@ export function NewSalePage() {
     void addByBarcode(raw);
   }
 
-  // Capture hardware-scanner input anywhere on this screen (scanner types fast
-  // then sends Enter). Buffer global keystrokes unless typing in a field.
-  const scanHandlerRef = useRef<(code: string) => void>(() => {});
-  scanHandlerRef.current = (code) => void addByBarcode(code);
-  useEffect(() => {
-    const buffer = { text: '', last: 0 };
-    function onKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null;
-      if (target === scanRef.current) return;
-      const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
-      const now = Date.now();
-      if (now - buffer.last > 100) buffer.text = '';
-      buffer.last = now;
-      if (e.key === 'Enter') {
-        const code = buffer.text;
-        buffer.text = '';
-        if (code) {
-          e.preventDefault();
-          scanHandlerRef.current(code);
-        }
-        return;
-      }
-      if (e.key.length === 1) buffer.text += e.key;
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, []);
+  // Hardware scanner fired while focus was off the scan box.
+  useScannerCapture((code) => void addByBarcode(code), scanRef);
 
   function addProduct(p: ScannedProduct) {
+    // Serialized products are sold by scanning a specific unit, not the model.
+    if (p.is_serialized) {
+      setScanMsg(`${p.name} is tracked by unit — scan the racket’s own barcode to sell a specific one.`);
+      return;
+    }
     setLines((prev) => {
-      const existing = prev.find((l) => l.productId === p.id);
+      const existing = prev.find((l) => l.productId === p.id && !l.serialized);
       if (existing) {
-        return prev.map((l) => (l.productId === p.id ? { ...l, qty: l.qty + 1 } : l));
+        return prev.map((l) => (l.productId === p.id && !l.serialized ? { ...l, qty: l.qty + 1 } : l));
       }
       return [
         ...prev,
         { key: p.id, productId: p.id, label: productLabel(p), price: String(p.sell_price ?? 0), qty: 1 },
+      ];
+    });
+  }
+
+  // Add a specific serialized unit (racket) to the ticket. Only in-stock units,
+  // one line per unit, qty locked to 1.
+  function addUnit(u: { unitId: string; code: string | null; status: string; product: ScannedProduct }) {
+    if (u.status !== 'in_stock') {
+      setScanMsg(`That racket isn’t available to sell (status: ${u.status}).`);
+      return;
+    }
+    setLines((prev) => {
+      if (prev.some((l) => l.productUnitId === u.unitId)) {
+        setScanMsg('That racket is already on the ticket.');
+        return prev;
+      }
+      const label = `${productLabel(u.product)}${u.code ? ` · ${u.code}` : ''}`;
+      return [
+        ...prev,
+        {
+          key: `unit:${u.unitId}`,
+          productId: u.product.id,
+          productUnitId: u.unitId,
+          serialized: true,
+          label,
+          price: String(u.product.sell_price ?? 0),
+          qty: 1,
+        },
       ];
     });
   }
@@ -298,6 +399,8 @@ export function NewSalePage() {
         const unit_price = Number(l.price) || 0;
         if (l.stringJobId) return { string_job_id: l.stringJobId, qty: l.qty, unit_price };
         if (l.giftCardId) return { gift_card_id: l.giftCardId, qty: l.qty, unit_price };
+        if (l.productUnitId)
+          return { product_id: l.productId, product_unit_id: l.productUnitId, qty: 1, unit_price };
         return { product_id: l.productId, qty: l.qty, unit_price };
       }),
       p_customer_id: customer?.id ?? null,
@@ -413,7 +516,19 @@ export function NewSalePage() {
             </button>
           </div>
         )}
-        {scanMsg && <p className="text-sm text-red-600">{scanMsg}</p>}
+        {scanMsg && (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm text-red-600">{scanMsg}</p>
+            {unknownCode && (
+              <button
+                onClick={createUnknownProduct}
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Create product with this UPC
+              </button>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Cart */}
@@ -438,19 +553,26 @@ export function NewSalePage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setQty(l.key, l.qty - 1)}
-                    className="h-7 w-7 rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
-                  >
-                    −
-                  </button>
-                  <span className="w-8 text-center text-sm font-medium">{l.qty}</span>
-                  <button
-                    onClick={() => setQty(l.key, l.qty + 1)}
-                    className="h-7 w-7 rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
-                  >
-                    +
-                  </button>
+                  {l.serialized ? (
+                    // A serialized unit is a single physical item — qty is always 1.
+                    <span className="w-8 text-center text-sm font-medium text-slate-400">1</span>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setQty(l.key, l.qty - 1)}
+                        className="h-7 w-7 rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
+                      >
+                        −
+                      </button>
+                      <span className="w-8 text-center text-sm font-medium">{l.qty}</span>
+                      <button
+                        onClick={() => setQty(l.key, l.qty + 1)}
+                        className="h-7 w-7 rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
+                      >
+                        +
+                      </button>
+                    </>
+                  )}
                 </div>
                 <div className="w-20 text-right text-sm font-semibold text-slate-900">
                   ${(l.qty * (Number(l.price) || 0)).toFixed(2)}

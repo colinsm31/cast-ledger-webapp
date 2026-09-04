@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { Customer, JsonValue, PurchaseHistoryRow } from '../../types/domain';
 import { customerName } from '../../types/domain';
@@ -8,6 +8,8 @@ import { formatPhone } from '../../lib/phone';
 import { Spinner } from '../../components/Spinner';
 import { CustomerRacketsPanel } from './CustomerRacketsPanel';
 import { RestringHistoryPanel } from './RestringHistoryPanel';
+import { useBack } from '../../app/BackContext';
+import { ScanFlowParams } from '../scan/scanFlow';
 
 // Filter sales by customer (top-level column), embedding each sale's lines up to
 // product + category. Flattened into PurchaseHistoryRow client-side.
@@ -44,9 +46,21 @@ export function CustomerDetailPage() {
   const [history, setHistory] = useState<PurchaseHistoryRow[]>([]);
   const [storeCredit, setStoreCredit] = useState(0);
   const [giftCards, setGiftCards] = useState<{ code: string; balance: number }[]>([]);
-  const [tab, setTab] = useState<CustomerTab>('purchases');
+  const [searchParams, setSearchParams] = useSearchParams();
+  // A scanned racket barcode to register for this customer. Read once, then
+  // dropped from the URL so a refresh doesn't reopen the add form.
+  const [prefillRacketBarcode] = useState(() => searchParams.get(ScanFlowParams.racketBarcode));
+  const [tab, setTab] = useState<CustomerTab>(prefillRacketBarcode ? 'rackets' : 'purchases');
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  useBack('/customers');
+
+  useEffect(() => {
+    if (!searchParams.has(ScanFlowParams.racketBarcode)) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete(ScanFlowParams.racketBarcode);
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const load = useCallback(async () => {
     if (!customerId) return;
@@ -160,7 +174,9 @@ export function CustomerDetailPage() {
         </TabButton>
       </div>
 
-      {tab === 'rackets' && <CustomerRacketsPanel customerId={customer.id} />}
+      {tab === 'rackets' && (
+        <CustomerRacketsPanel customerId={customer.id} prefillBarcode={prefillRacketBarcode ?? undefined} />
+      )}
 
       {tab === 'restrings' && <RestringHistoryPanel customerId={customer.id} />}
 

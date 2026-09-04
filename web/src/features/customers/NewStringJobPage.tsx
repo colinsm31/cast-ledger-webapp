@@ -5,6 +5,7 @@ import type { Customer, CustomerRacket } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useSettings } from '../../lib/settings';
+import { useBack } from '../../app/BackContext';
 import { Spinner } from '../../components/Spinner';
 import {
   cellClass,
@@ -36,6 +37,7 @@ export function NewStringJobPage() {
   const { customerId, racketId } = useParams<{ customerId: string; racketId: string }>();
   const navigate = useNavigate();
   const settings = useSettings();
+  useBack(customerId ? `/customers/${customerId}` : '/customers');
 
   const [racket, setRacket] = useState<CustomerRacket | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);

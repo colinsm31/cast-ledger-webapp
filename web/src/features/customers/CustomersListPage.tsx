@@ -1,16 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { Customer } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { EmptyState } from '../../components/EmptyState';
+import { useBack } from '../../app/BackContext';
+import { ScanFlowParams, withParams } from '../scan/scanFlow';
 
 export function CustomersListPage() {
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  useBack('/');
+  const [searchParams] = useSearchParams();
+  // Arrived from a home-screen scan: we're picking who owns this racket, so
+  // every customer link (and "New customer") carries the barcode along.
+  const racketBarcode = searchParams.get(ScanFlowParams.racketBarcode);
+  const carryBarcode = (path: string) => withParams(path, { [ScanFlowParams.racketBarcode]: racketBarcode });
 
   async function load() {
     const { data, error: err } = await supabase
@@ -43,12 +51,19 @@ export function CustomersListPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-slate-900">Customers</h1>
         <Link
-          to="/customers/new"
+          to={carryBarcode('/customers/new')}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
         >
           New customer
         </Link>
       </div>
+
+      {racketBarcode && (
+        <p className="rounded-lg bg-amber-100 px-4 py-2 text-sm text-amber-800">
+          Who owns racket <span className="font-mono font-medium">{racketBarcode}</span>? Pick the customer
+          (or create one) and the racket will be added with this barcode.
+        </p>
+      )}
 
       <input
         value={search}
@@ -69,7 +84,7 @@ export function CustomersListPage() {
         <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
           {filtered.map((customer) => (
             <li key={customer.id}>
-              <Link to={`/customers/${customer.id}`} className="block p-4 hover:bg-slate-50">
+              <Link to={carryBarcode(`/customers/${customer.id}`)} className="block p-4 hover:bg-slate-50">
                 <p className="font-medium text-slate-900">{customerName(customer)}</p>
                 <p className="text-sm text-slate-500">
                   {[customer.phone_number, customer.email].filter(Boolean).join(' · ') || '—'}

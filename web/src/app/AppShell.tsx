@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { useBackTarget } from './BackContext';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `px-3 py-2 rounded-lg text-sm font-medium ${
@@ -15,7 +16,11 @@ const testStripe = {
 };
 
 export function AppShell() {
-  const { user, signOut, isAdmin } = useAuth();
+  const { signOut, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const backTarget = useBackTarget();
+  const showBack = location.pathname !== '/';
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -50,32 +55,29 @@ export function AppShell() {
                 Completed Re-Strings
               </NavLink>
               {isAdmin && (
-                <>
-                  <NavLink to="/categories" className={navLinkClass}>
-                    Categories
-                  </NavLink>
-                  <NavLink to="/users" className={navLinkClass}>
-                    Users
-                  </NavLink>
-                  <NavLink to="/settings" className={navLinkClass}>
-                    Settings
-                  </NavLink>
-                </>
+                <NavLink to="/settings" className={navLinkClass}>
+                  Settings
+                </NavLink>
               )}
             </nav>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-500 hidden sm:inline">{user?.email}</span>
-            <button
-              onClick={() => void signOut()}
-              className="text-sm text-slate-600 hover:text-red-600"
-            >
-              Sign out
-            </button>
-          </div>
+          <button
+            onClick={() => void signOut()}
+            className="text-sm text-slate-600 hover:text-red-600"
+          >
+            Sign out
+          </button>
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6">
+        {showBack && (
+          <button
+            onClick={() => (backTarget ? navigate(backTarget) : navigate(-1))}
+            className="mb-4 flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-blue-700"
+          >
+            <span aria-hidden>‹</span> Back
+          </button>
+        )}
         <Outlet />
       </main>
     </div>

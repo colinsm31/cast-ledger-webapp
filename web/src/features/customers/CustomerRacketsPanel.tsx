@@ -28,14 +28,23 @@ const emptyDraft: RacketDraft = {
   notes: '',
 };
 
-export function CustomerRacketsPanel({ customerId }: { customerId: string }) {
+export function CustomerRacketsPanel({
+  customerId,
+  prefillBarcode,
+}: {
+  customerId: string;
+  /** A scanned barcode to register: opens the add form with it filled in. */
+  prefillBarcode?: string;
+}) {
   const navigate = useNavigate();
   const [rackets, setRackets] = useState<CustomerRacket[] | null>(null);
   const [catalogRackets, setCatalogRackets] = useState<ProductWithCategory[]>([]);
   // racket id → id of its open (entered/complete) string job, if any.
   const [openJobByRacket, setOpenJobByRacket] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(Boolean(prefillBarcode));
+  // Consumed once the racket is saved so a second "Add racket" starts blank.
+  const [pendingBarcode, setPendingBarcode] = useState(prefillBarcode ?? '');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -100,9 +109,11 @@ export function CustomerRacketsPanel({ customerId }: { customerId: string }) {
         <RacketForm
           customerId={customerId}
           catalogRackets={catalogRackets}
+          initialBarcode={pendingBarcode}
           onCancel={() => setAdding(false)}
           onSaved={async () => {
             setAdding(false);
+            setPendingBarcode('');
             await load();
           }}
           onError={setError}
@@ -189,6 +200,7 @@ function RacketForm({
   customerId,
   catalogRackets,
   existing,
+  initialBarcode,
   onCancel,
   onSaved,
   onError,
@@ -196,6 +208,8 @@ function RacketForm({
   customerId: string;
   catalogRackets: ProductWithCategory[];
   existing?: CustomerRacket;
+  /** Prefilled barcode for a new racket (from a scan). */
+  initialBarcode?: string;
   onCancel: () => void;
   onSaved: () => Promise<void>;
   onError: (message: string) => void;
@@ -210,7 +224,7 @@ function RacketForm({
           barcode: existing.barcode ?? '',
           notes: existing.notes ?? '',
         }
-      : emptyDraft,
+      : { ...emptyDraft, barcode: initialBarcode ?? '' },
   );
   const [saving, setSaving] = useState(false);
 

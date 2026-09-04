@@ -18,6 +18,8 @@ export interface Category {
   id: string;
   name: string;
   sort_order: number;
+  // Products in this category are tracked as individual serialized units (rackets).
+  serialized_default: boolean;
   created_at: string;
 }
 
@@ -47,6 +49,9 @@ export interface Product {
   reorder_point: number | null;
   sku: string | null;
   barcode: string | null;
+  // True when this product is tracked as individual serialized units (rackets):
+  // stock is the count of in_stock units and each unit has its own barcode.
+  is_serialized: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -55,6 +60,21 @@ export interface Product {
 // A product joined with its category (PostgREST embedded select).
 export interface ProductWithCategory extends Product {
   categories: { name: string } | null;
+}
+
+// One physical serialized item (e.g. an individual racket) under a product.
+export type ProductUnitStatus = 'in_stock' | 'sold' | 'demo' | 'assigned' | 'retired';
+
+export interface ProductUnit {
+  id: string;
+  product_id: string;
+  barcode: string | null;
+  status: ProductUnitStatus;
+  customer_id: string | null;
+  sale_id: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // On-hand + low-stock per product (from the product_stock view). Products are
@@ -252,6 +272,8 @@ export interface AdjustStockParams {
 // A sale line references exactly one of a product or a string job (service).
 export interface SaleLineInput {
   product_id?: string | null;
+  // For a serialized product line, the specific physical unit being sold.
+  product_unit_id?: string | null;
   string_job_id?: string | null;
   qty: number;
   unit_price: number;

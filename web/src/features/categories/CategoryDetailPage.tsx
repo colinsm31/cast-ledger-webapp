@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { AttributeDef, AttributeValueType, Category } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
+import { useBack } from '../../app/BackContext';
 
 const VALUE_TYPES: { value: AttributeValueType; label: string }[] = [
   { value: 'number', label: 'Number' },
@@ -23,6 +24,7 @@ function enumList(def: AttributeDef): string[] {
 
 export function CategoryDetailPage() {
   const { categoryId } = useParams<{ categoryId: string }>();
+  useBack('/categories');
   const [category, setCategory] = useState<Category | null>(null);
   const [attributes, setAttributes] = useState<AttributeDef[]>([]);
   const [error, setError] = useState<string | null>(null);

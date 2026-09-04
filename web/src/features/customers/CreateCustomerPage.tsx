@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { formatPhone } from '../../lib/phone';
+import { useBack } from '../../app/BackContext';
+import { ScanFlowParams, withParams } from '../scan/scanFlow';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -23,8 +25,11 @@ function splitName(raw: string): { first: string; last: string } {
 
 export function CreateCustomerPage() {
   const navigate = useNavigate();
+  useBack('/customers');
   const [searchParams] = useSearchParams();
   const prefill = splitName(searchParams.get('name') ?? '');
+  // Carried through from a scan so the new customer's page opens on "add racket".
+  const racketBarcode = searchParams.get(ScanFlowParams.racketBarcode);
   const [firstName, setFirstName] = useState(prefill.first);
   const [lastName, setLastName] = useState(prefill.last);
   const [phone, setPhone] = useState('');
@@ -54,7 +59,7 @@ export function CreateCustomerPage() {
       setError(errorMessage(err));
       return;
     }
-    navigate(`/customers/${data.id}`);
+    navigate(withParams(`/customers/${data.id}`, { [ScanFlowParams.racketBarcode]: racketBarcode }));
   }
 
   return (

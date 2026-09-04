@@ -6,7 +6,9 @@ import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { PickOrAdd } from '../lookups/PickOrAdd';
 import { useSettings } from '../../lib/settings';
+import { useBack } from '../../app/BackContext';
 import { AttributeInput, toStoredValue } from './AttributeInput';
+import { ScanFlowParams, safeReturnTo, withParams } from '../scan/scanFlow';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -18,6 +20,11 @@ export function ProductFormPage() {
   const settings = useSettings();
   const [searchParams] = useSearchParams();
   const prefillUpc = searchParams.get('upc') ?? '';
+  // When opened mid-flow (e.g. from a scan on the POS), Back / Cancel / save all
+  // return to the caller instead of the product list or detail page.
+  const returnTo = safeReturnTo(searchParams.get(ScanFlowParams.returnTo));
+  const cancelTarget = returnTo ?? (isEdit && productId ? `/products/${productId}` : '/products');
+  useBack(cancelTarget);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState('');
@@ -30,6 +37,7 @@ export function ProductFormPage() {
   const [reorderPoint, setReorderPoint] = useState('');
   const [upc, setUpc] = useState(prefillUpc);
   const [sku, setSku] = useState('');
+  const [isSerialized, setIsSerialized] = useState(false);
   const [attrValues, setAttrValues] = useState<Record<string, string>>({});
 
   const [loading, setLoading] = useState(isEdit);
@@ -38,10 +46,19 @@ export function ProductFormPage() {
 
   // Category name scopes the pick-or-add lists so, e.g., racket names and string
   // names stay in separate dropdowns.
-  const categoryName = useMemo(
-    () => categories.find((c) => c.id === categoryId)?.name ?? '',
+  const selectedCategory = useMemo(
+    () => categories.find((c) => c.id === categoryId),
     [categories, categoryId],
   );
+  const categoryName = selectedCategory?.name ?? '';
+  // Rackets (and any category flagged serialized_default) are always unit-tracked.
+  const forcesSerialized = selectedCategory?.serialized_default ?? false;
+
+  // New products inherit their category's serialization default as the toggle
+  // starts; a forced category (rackets) stays on and locked.
+  useEffect(() => {
+    if (!isEdit) setIsSerialized(forcesSerialized);
+  }, [isEdit, forcesSerialized, categoryId]);
 
   // Load categories once.
   useEffect(() => {
@@ -96,6 +113,7 @@ export function ProductFormPage() {
       setReorderPoint(p.reorder_point != null ? String(p.reorder_point) : '');
       setUpc(p.barcode ?? '');
       setSku(p.sku ?? '');
+      setIsSerialized(p.is_serialized);
       const prefilled: Record<string, string> = {};
       for (const [key, value] of Object.entries(p.attributes ?? {})) {
         prefilled[key] = value == null ? '' : String(value);
@@ -141,6 +159,7 @@ export function ProductFormPage() {
       reorder_point: reorderPoint ? Number(reorderPoint) : null,
       barcode: upc.trim() || null,
       sku: sku.trim() || null,
+      is_serialized: isSerialized,
     };
 
     const duplicateUpcMessage = (message: string) =>
@@ -163,7 +182,11 @@ export function ProductFormPage() {
       setError(duplicateUpcMessage(errorMessage(err)));
       return;
     }
-    navigate(`/products/${data.id}`);
+    navigate(
+      returnTo
+        ? withParams(returnTo, { [ScanFlowParams.addProduct]: data.id })
+        : withParams(`/products/${data.id}`, { [ScanFlowParams.created]: '1' }),
+    );
   }
 
   if (loading) return <Spinner label="Loading…" />;
@@ -237,6 +260,24 @@ export function ProductFormPage() {
             <input value={sku} onChange={(e) => setSku(e.target.value)} className={inputClass} />
           </label>
         </div>
+
+        <label className="flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={isSerialized}
+            disabled={forcesSerialized}
+            onChange={(e) => setIsSerialized(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            Track individual units (rackets)
+            <span className="block text-xs text-slate-500">
+              {forcesSerialized
+                ? `${categoryName} are always tracked as individual units — each with its own barcode.`
+                : 'Stock is the count of scanned-in units, each with its own barcode. The UPC above is the shared model code.'}
+            </span>
+          </span>
+        </label>
       </section>
 
       {attributeDefs.length > 0 && (
@@ -264,7 +305,7 @@ export function ProductFormPage() {
         >
           {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
         </button>
-        <button onClick={() => navigate('/products')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+        <button onClick={() => navigate(cancelTarget)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
           Cancel
         </button>
       </div>

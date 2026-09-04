@@ -5,14 +5,17 @@ import { SignInPage } from './auth/SignInPage';
 import { AppShell } from './app/AppShell';
 import { Spinner } from './components/Spinner';
 import { DialogProvider } from './components/Dialog';
+import { BackProvider } from './app/BackContext';
 import { isSupabaseConfigured } from './lib/supabase';
 import { HomePage } from './features/home/HomePage';
 import { NewSalePage } from './features/sales/NewSalePage';
 import { SalesListPage } from './features/sales/SalesListPage';
 import { SaleDetailPage } from './features/sales/SaleDetailPage';
+import { RefundPage } from './features/sales/RefundPage';
 import { GiftCardLookupPage } from './features/sales/GiftCardLookupPage';
 import { UsersPage } from './features/admin/UsersPage';
 import { SettingsPage } from './features/admin/SettingsPage';
+import { SettingsLayout } from './features/admin/SettingsLayout';
 import { CategoriesPage } from './features/categories/CategoriesPage';
 import { CategoryDetailPage } from './features/categories/CategoryDetailPage';
 import { ProductsListPage } from './features/products/ProductsListPage';
@@ -65,11 +68,14 @@ function Gate() {
         <Route path="/sales" element={<SalesListPage />} />
         <Route path="/sales/new" element={<NewSalePage />} />
         <Route path="/sales/:saleId" element={<SaleDetailPage />} />
+        <Route path="/sales/:saleId/refund" element={<RefundPage />} />
         <Route path="/gift-cards" element={<GiftCardLookupPage />} />
-        <Route path="/categories" element={<RequireAdmin><CategoriesPage /></RequireAdmin>} />
-        <Route path="/categories/:categoryId" element={<RequireAdmin><CategoryDetailPage /></RequireAdmin>} />
-        <Route path="/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
-        <Route path="/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
+        <Route element={<RequireAdmin><SettingsLayout /></RequireAdmin>}>
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/categories/:categoryId" element={<CategoryDetailPage />} />
+          <Route path="/users" element={<UsersPage />} />
+        </Route>
         <Route path="/customers" element={<CustomersListPage />} />
         <Route path="/customers/new" element={<CreateCustomerPage />} />
         <Route path="/customers/:customerId" element={<CustomerDetailPage />} />
@@ -90,7 +96,9 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <DialogProvider>
-          <Gate />
+          <BackProvider>
+            <Gate />
+          </BackProvider>
         </DialogProvider>
       </AuthProvider>
     </BrowserRouter>

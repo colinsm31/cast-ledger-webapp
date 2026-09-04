@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { customerNameLastFirst } from '../../types/domain';
 import { useSettings } from '../../lib/settings';
+import { useBack } from '../../app/BackContext';
 import { Spinner } from '../../components/Spinner';
 
 type Period = 'today' | 'wtd' | 'mtd' | 'ytd' | 'custom';
@@ -60,6 +61,7 @@ export function SalesListPage() {
   const navigate = useNavigate();
   const settings = useSettings();
   const weekStartsMonday = settings?.week_starts_monday ?? false;
+  useBack('/');
   const [period, setPeriod] = useState<Period>('today');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');

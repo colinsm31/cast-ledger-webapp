@@ -3,11 +3,13 @@ import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { fetchSettings } from '../../lib/settings';
 import { Spinner } from '../../components/Spinner';
+import { useBack } from '../../app/BackContext';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
 export function SettingsPage() {
+  useBack('/');
   const [loading, setLoading] = useState(true);
   const [taxRate, setTaxRate] = useState('');
   const [taxStringing, setTaxStringing] = useState(false);

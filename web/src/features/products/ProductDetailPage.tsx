@@ -1,18 +1,34 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { ProductAvailable, ProductStock, ProductWithCategory } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { displayStored } from './AttributeInput';
 import { StockActions } from './StockActions';
+import { UnitsSection } from './UnitsSection';
+import { useBack } from '../../app/BackContext';
+import { ScanFlowParams, sellProductPath } from '../scan/scanFlow';
 
 export function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>();
+  const [searchParams] = useSearchParams();
+  // Just created (usually from a scan): the next step is almost always
+  // receiving the stock in hand, so point at it.
+  const justCreated = searchParams.get(ScanFlowParams.created) === '1';
+  // Arriving from a scan of a serialized product's UPC opens the receive sheet.
+  const autoReceive = searchParams.get(ScanFlowParams.receiveUnits) === '1';
   const [product, setProduct] = useState<ProductWithCategory | null>(null);
   const [stock, setStock] = useState<ProductStock | null>(null);
   const [availability, setAvailability] = useState<ProductAvailable | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Back goes to this product's brand list within its category.
+  useBack(
+    product
+      ? `/products?category=${product.category_id}&brand=${encodeURIComponent(product.brand ?? '')}`
+      : '/products',
+  );
 
   const load = useCallback(async () => {
     if (!productId) return;
@@ -74,6 +90,14 @@ export function ProductDetailPage() {
           <p className="text-sm text-slate-500">{product.categories?.name ?? '—'}</p>
         </div>
         <div className="flex shrink-0 gap-2">
+          {product.is_active && !product.is_serialized && (
+            <Link
+              to={sellProductPath(product.id)}
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Sell
+            </Link>
+          )}
           <button
             onClick={() => void toggleActive()}
             className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -91,30 +115,47 @@ export function ProductDetailPage() {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {/* Stock */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-700">Stock</h2>
-          <div className="flex items-center gap-2">
-            <span className="text-sm">
-              <span className="font-semibold">{onHand}</span>{' '}
-              <span className="text-slate-400">on hand</span>
-            </span>
-            {stock?.is_low && (
-              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-                low
+      {justCreated && onHand === 0 && (
+        <p className="rounded-lg bg-green-100 px-4 py-2 text-sm text-green-800">
+          {product.is_serialized
+            ? 'Product created. Use “Receive rackets” below to scan in each unit.'
+            : 'Product created. Use the stock actions below to receive the quantity you have on hand.'}
+        </p>
+      )}
+
+      {product.is_serialized ? (
+        /* Serialized (rackets): individual units instead of a quantity ledger. */
+        <UnitsSection
+          productId={product.id}
+          productLabel={`${product.brand ? `${product.brand} ` : ''}${product.name}`}
+          autoReceive={autoReceive}
+        />
+      ) : (
+        /* Stock */
+        <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700">Stock</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">
+                <span className="font-semibold">{onHand}</span>{' '}
+                <span className="text-slate-400">on hand</span>
               </span>
-            )}
+              {stock?.is_low && (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
+                  low
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-        {availability && Number(availability.committed) > 0 && (
-          <p className="text-xs text-slate-500">
-            <span className="font-medium text-slate-700">{Number(availability.committed)}</span> committed to string jobs ·{' '}
-            <span className="font-medium text-slate-700">{Number(availability.available)}</span> available
-          </p>
-        )}
-        <StockActions productId={product.id} onDone={load} onError={setError} />
-      </section>
+          {availability && Number(availability.committed) > 0 && (
+            <p className="text-xs text-slate-500">
+              <span className="font-medium text-slate-700">{Number(availability.committed)}</span> committed to string jobs ·{' '}
+              <span className="font-medium text-slate-700">{Number(availability.available)}</span> available
+            </p>
+          )}
+          <StockActions productId={product.id} onDone={load} onError={setError} />
+        </section>
+      )}
 
       {/* Details */}
       <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">

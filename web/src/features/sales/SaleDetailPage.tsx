@@ -5,6 +5,7 @@ import type { JsonValue } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
+import { useBack } from '../../app/BackContext';
 
 const PAYMENT_LABEL: Record<string, string> = {
   credit: 'Credit',
@@ -29,6 +30,7 @@ interface SaleDetail {
   customers: { first_name: string; last_name: string } | null;
   sale_lines: SaleLineRaw[];
   sale_payments: Array<{ method: string; amount: number }>;
+  refunds: Array<{ subtotal: number; tax: number; refunded_at: string; refund_lines: { qty: number }[] }>;
 }
 
 function lineLabel(line: SaleLineRaw): string {
@@ -46,6 +48,7 @@ export function SaleDetailPage() {
   const { saleId } = useParams<{ saleId: string }>();
   const [sale, setSale] = useState<SaleDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useBack('/sales');
 
   useEffect(() => {
     if (!saleId) return;
@@ -53,7 +56,7 @@ export function SaleDetailPage() {
       const { data, error: err } = await supabase
         .from('sales')
         .select(
-          'id, sold_at, subtotal, tax, payment_method, customers ( first_name, last_name ), sale_lines ( qty, unit_price, products ( brand, name, attributes ), gift_cards ( code ) ), sale_payments ( method, amount )',
+          'id, sold_at, subtotal, tax, payment_method, customers ( first_name, last_name ), sale_lines ( qty, unit_price, products ( brand, name, attributes ), gift_cards ( code ) ), sale_payments ( method, amount ), refunds ( subtotal, tax, refunded_at, refund_lines ( qty ) )',
         )
         .eq('id', saleId)
         .single();
@@ -64,6 +67,11 @@ export function SaleDetailPage() {
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
   if (!sale) return <Spinner label="Loading…" />;
+
+  const soldProductQty = sale.sale_lines.filter((l) => l.products).reduce((s, l) => s + l.qty, 0);
+  const refundedQty = sale.refunds.reduce((s, r) => s + r.refund_lines.reduce((a, x) => a + x.qty, 0), 0);
+  const refundedTotal = sale.refunds.reduce((s, r) => s + Number(r.subtotal) + Number(r.tax), 0);
+  const canRefund = soldProductQty - refundedQty > 0;
 
   return (
     <div className="max-w-2xl space-y-5">
@@ -77,12 +85,22 @@ export function SaleDetailPage() {
           </h1>
           <p className="text-sm text-slate-500">{new Date(sale.sold_at).toLocaleString()}</p>
         </div>
-        <Link
-          to="/sales/new"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-        >
-          New sale
-        </Link>
+        <div className="flex shrink-0 gap-2">
+          {canRefund && (
+            <Link
+              to={`/sales/${sale.id}/refund`}
+              className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+            >
+              Return / Refund
+            </Link>
+          )}
+          <Link
+            to="/sales/new"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            New sale
+          </Link>
+        </div>
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white">
@@ -118,6 +136,20 @@ export function SaleDetailPage() {
               ${(Number(sale.subtotal) + Number(sale.tax)).toFixed(2)}
             </span>
           </div>
+          {refundedTotal > 0 && (
+            <>
+              <div className="flex justify-between text-sm text-red-600">
+                <span>Refunded</span>
+                <span className="font-medium">−${refundedTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-semibold text-slate-700">
+                <span>Net</span>
+                <span>
+                  ${(Number(sale.subtotal) + Number(sale.tax) - refundedTotal).toFixed(2)}
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </section>
 

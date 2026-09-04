@@ -7,6 +7,7 @@ import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { EmptyState } from '../../components/EmptyState';
 import { stringSummary } from './stringSummary';
+import { useBack } from '../../app/BackContext';
 
 // String job joined up to racket + customer for display in the queue.
 interface JobRow extends StringJob {
@@ -31,6 +32,7 @@ export function StringJobsPage({
   title: string;
 }) {
   const navigate = useNavigate();
+  useBack('/');
   const [jobs, setJobs] = useState<JobRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);

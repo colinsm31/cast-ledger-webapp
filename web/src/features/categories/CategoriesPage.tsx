@@ -5,12 +5,14 @@ import type { Category } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { EmptyState } from '../../components/EmptyState';
+import { useBack } from '../../app/BackContext';
 
 interface CategoryRow extends Category {
   attribute_defs: { count: number }[];
 }
 
 export function CategoriesPage() {
+  useBack('/');
   const [categories, setCategories] = useState<CategoryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState('');

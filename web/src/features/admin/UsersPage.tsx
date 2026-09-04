@@ -4,6 +4,7 @@ import { supabase, supabaseAnonKey, supabaseUrl } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { useAuth, type Role } from '../../auth/AuthContext';
 import { Spinner } from '../../components/Spinner';
+import { useBack } from '../../app/BackContext';
 
 interface Profile {
   id: string;
@@ -13,6 +14,7 @@ interface Profile {
 
 export function UsersPage() {
   const { user } = useAuth();
+  useBack('/');
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);

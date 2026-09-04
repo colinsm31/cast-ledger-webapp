@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { GiftCardBalance } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { useBack } from '../../app/BackContext';
 
 interface CardTxn {
   id: string;
@@ -34,6 +35,7 @@ function formatDateTime(iso: string): string {
 
 export function GiftCardLookupPage() {
   const [searchParams] = useSearchParams();
+  useBack('/');
   const [code, setCode] = useState(searchParams.get('code') ?? '');
   const [result, setResult] = useState<Result | null>(null);
   const [notFound, setNotFound] = useState<string | null>(null);

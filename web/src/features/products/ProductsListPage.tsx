@@ -6,6 +6,8 @@ import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { EmptyState } from '../../components/EmptyState';
 import { displayStored } from './AttributeInput';
+import { useBack } from '../../app/BackContext';
+import { fetchAllRows } from '../../lib/paging';
 
 const NO_BRAND = '(No brand)';
 
@@ -49,33 +51,30 @@ export function ProductsListPage() {
 
   useEffect(() => {
     void (async () => {
-      const [productsRes, categoriesRes, attrsRes] = await Promise.all([
-        supabase.from('products').select('*, categories(name)').order('created_at', { ascending: false }),
-        supabase.from('categories').select('*').order('sort_order').order('name'),
-        supabase.from('attribute_defs').select('category_id, name, sort_order').order('sort_order'),
-      ]);
-      if (productsRes.error) {
-        setError(errorMessage(productsRes.error));
-        return;
-      }
-      const loaded = (productsRes.data ?? []) as unknown as ProductWithCategory[];
-      setProducts(loaded);
-      setCategories((categoriesRes.data ?? []) as Category[]);
+      try {
+        // Products can exceed PostgREST's 1000-row cap, so page through all of
+        // them (and all stock rows) by a stable key — otherwise brands/products
+        // go missing from the in-memory grouping.
+        const [loaded, categoriesRes, attrsRes, stock] = await Promise.all([
+          fetchAllRows<ProductWithCategory>('products', '*, categories(name)', 'id'),
+          supabase.from('categories').select('*').order('sort_order').order('name'),
+          supabase.from('attribute_defs').select('category_id, name, sort_order').order('sort_order'),
+          fetchAllRows<ProductStock>('product_stock', '*', 'product_id'),
+        ]);
+        setProducts(loaded);
+        setCategories((categoriesRes.data ?? []) as Category[]);
 
-      const order: Record<string, string[]> = {};
-      for (const row of (attrsRes.data ?? []) as { category_id: string; name: string }[]) {
-        (order[row.category_id] ??= []).push(row.name);
-      }
-      setAttrOrderByCategory(order);
+        const order: Record<string, string[]> = {};
+        for (const row of (attrsRes.data ?? []) as { category_id: string; name: string }[]) {
+          (order[row.category_id] ??= []).push(row.name);
+        }
+        setAttrOrderByCategory(order);
 
-      if (loaded.length > 0) {
-        const { data: stock } = await supabase
-          .from('product_stock')
-          .select('*')
-          .in('product_id', loaded.map((p) => p.id));
         const map: Record<string, ProductStock> = {};
-        for (const row of (stock ?? []) as ProductStock[]) map[row.product_id] = row;
+        for (const row of stock) map[row.product_id] = row;
         setStockByProduct(map);
+      } catch (err) {
+        setError(errorMessage(err));
       }
     })();
   }, []);
@@ -123,14 +122,9 @@ export function ProductsListPage() {
     setSearch('');
     setSearchParams({ category: categoryId, brand: b });
   }
-  function backToCategories() {
-    setSearch('');
-    setSearchParams({});
-  }
-  function backToBrands() {
-    setSearch('');
-    setSearchParams({ category: categoryId });
-  }
+
+  // Back walks up the cascade: products → brands → categories → home.
+  useBack(!categoryId ? '/' : !brandSelected ? '/products' : `/products?category=${categoryId}`);
 
   const newProductButton = (
     <Link
@@ -177,12 +171,7 @@ export function ProductsListPage() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <button onClick={backToCategories} className="text-sm text-blue-600 hover:underline">
-              ‹ All categories
-            </button>
-            <h1 className="text-xl font-bold text-slate-900">{selectedCategory?.name ?? 'Products'}</h1>
-          </div>
+          <h1 className="text-xl font-bold text-slate-900">{selectedCategory?.name ?? 'Products'}</h1>
           {newProductButton}
         </div>
 
@@ -214,12 +203,10 @@ export function ProductsListPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <button onClick={backToBrands} className="text-sm text-blue-600 hover:underline">
-            ‹ {selectedCategory?.name ?? 'Brands'}
-          </button>
-          <h1 className="text-xl font-bold text-slate-900">{brand || NO_BRAND}</h1>
-        </div>
+        <h1 className="text-xl font-bold text-slate-900">
+          {selectedCategory?.name ? `${selectedCategory.name} · ` : ''}
+          {brand || NO_BRAND}
+        </h1>
         {newProductButton}
       </div>
 
