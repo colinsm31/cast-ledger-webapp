@@ -121,7 +121,8 @@ export function StringJobDetailPage() {
       .update({
         ...rowPayload(catalog, dims, mains, 'main'),
         ...rowPayload(catalog, dims, crosses, 'cross'),
-        price: price ? Number(price) : null,
+        // A paid job's price is locked (the database refuses changes).
+        ...(job.paid_sale_id ? {} : { price: price ? Number(price) : null }),
         notes: notes.trim() || null,
       })
       .eq('id', jobId);
@@ -245,7 +246,13 @@ export function StringJobDetailPage() {
           <div className="mt-3 flex flex-wrap gap-2">
             <label className="block flex-1 min-w-[8rem] space-y-1">
               <span className="text-xs font-medium text-slate-500">Price</span>
-              <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" className={cellClass} />
+              {job.paid_sale_id ? (
+                <p className="py-2 text-sm text-slate-700">
+                  ${job.price != null ? job.price.toFixed(2) : '0.00'} · paid, so the price is locked
+                </p>
+              ) : (
+                <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" className={cellClass} />
+              )}
             </label>
             <label className="block w-full space-y-1">
               <span className="text-xs font-medium text-slate-500">Notes</span>

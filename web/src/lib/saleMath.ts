@@ -79,3 +79,97 @@ export function computeSaleTotals(lines: PricedLine[], rules: TaxRules): SaleTot
     total: fromCents(subtotalCents + tax),
   };
 }
+
+// MARK: - Refunds (mirror record_refund)
+
+export interface RefundTaxInput {
+  /** Subtotal and tax of earlier refunds of the same sale, in cents. */
+  previousSubtotalCents: number;
+  previousTaxCents: number;
+  /** Tax the original sale charged, in cents. */
+  saleTaxCents: number;
+  /** Subtotal of the refund being built, in cents. */
+  refundSubtotalCents: number;
+  /** The rate the sale was charged at (percent). */
+  taxRate: number;
+}
+
+/**
+ * Tax for a refund: tax on everything refunded so far (rounded once), minus
+ * tax already refunded, never beyond what the sale charged. Refunding items one
+ * at a time therefore gives back exactly the tax the sale charged.
+ */
+export function refundTaxCents(input: RefundTaxInput): number {
+  const cumulative = taxCents(input.previousSubtotalCents + input.refundSubtotalCents, input.taxRate);
+  return Math.max(0, Math.min(cumulative, input.saleTaxCents) - input.previousTaxCents);
+}
+
+export interface MethodAmount<M extends string> {
+  method: M;
+  /** Dollars. */
+  amount: number;
+}
+
+/** Dollars per payment method, summed and kept in whole cents. */
+export function centsByMethod<M extends string>(amounts: MethodAmount<M>[]): Map<M, number> {
+  const totals = new Map<M, number>();
+  for (const { method, amount } of amounts) {
+    totals.set(method, (totals.get(method) ?? 0) + toCents(amount));
+  }
+  return totals;
+}
+
+/**
+ * How much each payment type can still give back without a payment-type
+ * change: what the sale took that way minus what earlier refunds returned that way.
+ */
+export function refundableByMethod<M extends string>(
+  salePayments: MethodAmount<M>[],
+  earlierRefundPayments: MethodAmount<M>[],
+): Map<M, number> {
+  const taken = centsByMethod(salePayments);
+  const givenBack = centsByMethod(earlierRefundPayments);
+  const refundable = new Map<M, number>();
+  for (const [method, cents] of taken) {
+    refundable.set(method, Math.max(0, cents - (givenBack.get(method) ?? 0)));
+  }
+  return refundable;
+}
+
+/** Payment types this refund sends more to than they can give back. */
+export function paymentTypeChanges<M extends string>(
+  refundable: Map<M, number>,
+  tenders: MethodAmount<M>[],
+): M[] {
+  const changes: M[] = [];
+  for (const [method, cents] of centsByMethod(tenders)) {
+    if (cents > (refundable.get(method) ?? 0)) changes.push(method);
+  }
+  return changes;
+}
+
+/**
+ * Split a refund total back across the payment types the sale used, in their
+ * original order, up to what each can still give back. Whatever is left over
+ * (nothing, unless earlier refunds already used other types) is returned as
+ * `unallocatedCents` for the cashier to place.
+ */
+export function allocateToOriginalPayments<P extends MethodAmount<string>>(
+  totalCents: number,
+  salePayments: P[],
+  refundable: Map<string, number>,
+): { allocations: { payment: P; cents: number }[]; unallocatedCents: number } {
+  const remainingByMethod = new Map(refundable);
+  const allocations: { payment: P; cents: number }[] = [];
+  let left = totalCents;
+  for (const payment of salePayments) {
+    if (left <= 0) break;
+    const available = Math.min(toCents(payment.amount), remainingByMethod.get(payment.method) ?? 0);
+    const cents = Math.min(available, left);
+    if (cents <= 0) continue;
+    allocations.push({ payment, cents });
+    remainingByMethod.set(payment.method, (remainingByMethod.get(payment.method) ?? 0) - cents);
+    left -= cents;
+  }
+  return { allocations, unallocatedCents: left };
+}

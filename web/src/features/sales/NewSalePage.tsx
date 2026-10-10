@@ -65,6 +65,19 @@ export function NewSalePage() {
     focusScan();
   }, []);
 
+  // Resume the ticket saved when the register was last left.
+  function restoreHeldSale() {
+    const held = getHeldSale();
+    if (held) {
+      setLines(held.lines as CartLine[]);
+      setCustomer(held.customer);
+      setJobCtx(held.stringJobId ? { id: held.stringJobId, deliver: held.deliverAfter } : null);
+    } else {
+      setJobCtx(null);
+    }
+    setRestored(true);
+  }
+
   // On open: prefill from a string job (URL params), else resume a held ticket.
   // A scanned code the home screen couldn't place can arrive as a new gift
   // card to sell — open that form with the code already filled in.
@@ -81,14 +94,27 @@ export function NewSalePage() {
       void (async () => {
         const { data, error: err } = await supabase
           .from('string_jobs')
-          .select('id, price, customer_rackets ( brand, model, customers ( * ) )')
+          .select('id, price, status, paid_sale_id, customer_rackets ( brand, model, customers ( * ) )')
           .eq('id', urlJob)
           .single();
         if (!err && data) {
           const job = data as unknown as {
             price: number | null;
+            status: string;
+            paid_sale_id: string | null;
             customer_rackets: { brand: string | null; model: string; customers: Customer | null } | null;
           };
+          // A job is charged once; the server refuses a second charge, so say so up front.
+          if (job.paid_sale_id || job.status === 'cancelled') {
+            setScanMsg(
+              job.paid_sale_id
+                ? 'That string job is already paid, so it wasn’t added to this ticket.'
+                : 'That string job was cancelled, so it can’t be charged.',
+            );
+            // Nothing to add — carry on with whatever ticket was held.
+            restoreHeldSale();
+            return;
+          }
           const racket = job.customer_rackets;
           if (racket?.customers) setCustomer(racket.customers);
           const label = `Stringing — ${racket?.brand ? `${racket.brand} ` : ''}${racket?.model ?? ''}`.trim();
@@ -102,13 +128,7 @@ export function NewSalePage() {
         setRestored(true);
       })();
     } else {
-      const held = getHeldSale();
-      if (held) {
-        setLines(held.lines as CartLine[]);
-        setCustomer(held.customer);
-        setJobCtx(held.stringJobId ? { id: held.stringJobId, deliver: held.deliverAfter } : null);
-      }
-      setRestored(true);
+      restoreHeldSale();
     }
     // Once, on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
