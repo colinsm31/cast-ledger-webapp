@@ -6,6 +6,7 @@ import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
+import { staffLabel, type StaffRef } from '../../lib/staff';
 
 const PAYMENT_LABEL: Record<string, string> = {
   credit: 'Credit',
@@ -28,9 +29,17 @@ interface SaleDetail {
   tax: number;
   payment_method: string | null;
   customers: { first_name: string; last_name: string } | null;
+  rung_by: StaffRef | null;
   sale_lines: SaleLineRaw[];
   sale_payments: Array<{ method: string; amount: number }>;
-  refunds: Array<{ subtotal: number; tax: number; refunded_at: string; refund_lines: { qty: number }[] }>;
+  refunds: Array<{
+    id: string;
+    subtotal: number;
+    tax: number;
+    refunded_at: string;
+    refunded_by: StaffRef | null;
+    refund_lines: { qty: number }[];
+  }>;
 }
 
 function lineLabel(line: SaleLineRaw): string {
@@ -56,7 +65,14 @@ export function SaleDetailPage() {
       const { data, error: err } = await supabase
         .from('sales')
         .select(
-          'id, sold_at, subtotal, tax, payment_method, customers ( first_name, last_name ), sale_lines ( qty, unit_price, products ( brand, name, attributes ), gift_cards ( code ) ), sale_payments ( method, amount ), refunds ( subtotal, tax, refunded_at, refund_lines ( qty ) )',
+          [
+            'id, sold_at, subtotal, tax, payment_method',
+            'customers ( first_name, last_name )',
+            'rung_by:profiles!sales_user_id_fkey ( email )',
+            'sale_lines ( qty, unit_price, products ( brand, name, attributes ), gift_cards ( code ) )',
+            'sale_payments ( method, amount )',
+            'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( qty ) )',
+          ].join(', '),
         )
         .eq('id', saleId)
         .single();
@@ -83,7 +99,10 @@ export function SaleDetailPage() {
           <h1 className="text-xl font-bold text-slate-900">
             {sale.customers ? customerNameLastFirst(sale.customers) : 'Unidentified Customer'}
           </h1>
-          <p className="text-sm text-slate-500">{new Date(sale.sold_at).toLocaleString()}</p>
+          <p className="text-sm text-slate-500">
+            {new Date(sale.sold_at).toLocaleString()}
+            {staffLabel(sale.rung_by) && ` · Rung up by ${staffLabel(sale.rung_by)}`}
+          </p>
         </div>
         <div className="flex shrink-0 gap-2">
           {canRefund && (
@@ -162,6 +181,26 @@ export function SaleDetailPage() {
               <li key={i} className="flex justify-between text-sm">
                 <span className="text-slate-600">{PAYMENT_LABEL[p.method] ?? p.method}</span>
                 <span className="font-medium text-slate-900">${Number(p.amount).toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Refunds against this sale */}
+      {sale.refunds.length > 0 && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="mb-2 text-sm font-semibold text-slate-700">Refunds</h2>
+          <ul className="space-y-1">
+            {sale.refunds.map((r) => (
+              <li key={r.id} className="flex justify-between text-sm">
+                <span className="text-slate-600">
+                  {new Date(r.refunded_at).toLocaleString()}
+                  {staffLabel(r.refunded_by) && ` · by ${staffLabel(r.refunded_by)}`}
+                </span>
+                <span className="font-medium text-red-600">
+                  −${(Number(r.subtotal) + Number(r.tax)).toFixed(2)}
+                </span>
               </li>
             ))}
           </ul>

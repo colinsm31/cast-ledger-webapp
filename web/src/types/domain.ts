@@ -227,6 +227,12 @@ export interface StringJob {
   entered_at: string;
   completed_at: string | null;
   delivered_at: string | null;
+  cancelled_at: string | null;
+  // Staff (profiles.id) behind each status change; null when not recorded.
+  entered_by: string | null;
+  completed_by: string | null;
+  delivered_by: string | null;
+  cancelled_by: string | null;
   created_at: string;
   updated_at: string;
 }

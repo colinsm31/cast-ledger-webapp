@@ -5,6 +5,7 @@ import type { Customer, CustomerRacket, StringJob, StringJobStatus } from '../..
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
+import { staffLabel, type StaffRef } from '../../lib/staff';
 import { PickOrAdd } from '../lookups/PickOrAdd';
 import {
   cellClass,
@@ -24,7 +25,21 @@ interface JobRow extends StringJob {
   customer_rackets:
     | (CustomerRacket & { customers: Customer | null })
     | null;
+  entered_by_staff: StaffRef | null;
+  completed_by_staff: StaffRef | null;
+  delivered_by_staff: StaffRef | null;
+  cancelled_by_staff: StaffRef | null;
 }
+
+// The job with its racket, owner, and the staff behind each status change.
+const JOB_SELECT = [
+  '*',
+  'customer_rackets ( *, customers ( * ) )',
+  'entered_by_staff:profiles!string_jobs_entered_by_fkey ( email )',
+  'completed_by_staff:profiles!string_jobs_completed_by_fkey ( email )',
+  'delivered_by_staff:profiles!string_jobs_delivered_by_fkey ( email )',
+  'cancelled_by_staff:profiles!string_jobs_cancelled_by_fkey ( email )',
+].join(', ');
 
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -61,7 +76,7 @@ export function StringJobDetailPage() {
       const [jobRes, productsRes, attrsRes] = await Promise.all([
         supabase
           .from('string_jobs')
-          .select('*, customer_rackets ( *, customers ( * ) )')
+          .select(JOB_SELECT)
           .eq('id', jobId)
           .single(),
         supabase.from('products').select('id, brand, name, attributes, categories(name)').order('brand'),
@@ -86,7 +101,7 @@ export function StringJobDetailPage() {
     if (!jobId) return;
     const { data, error: err } = await supabase
       .from('string_jobs')
-      .select('*, customer_rackets ( *, customers ( * ) )')
+      .select(JOB_SELECT)
       .eq('id', jobId)
       .single();
     if (err) setError(errorMessage(err));
@@ -277,6 +292,8 @@ export function StringJobDetailPage() {
         </section>
       )}
 
+      <JobHistory job={job} />
+
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {/* Lifecycle actions */}
@@ -322,6 +339,33 @@ export function StringJobDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// When each status change happened and which staff member made it.
+function JobHistory({ job }: { job: JobRow }) {
+  const steps: { label: string; at: string | null; by: StaffRef | null }[] = [
+    { label: 'Taken in', at: job.entered_at, by: job.entered_by_staff },
+    { label: 'Completed', at: job.completed_at, by: job.completed_by_staff },
+    { label: 'Picked up', at: job.delivered_at, by: job.delivered_by_staff },
+    { label: 'Cancelled', at: job.cancelled_at, by: job.cancelled_by_staff },
+  ];
+  const happened = steps.filter((step) => step.at);
+  if (happened.length === 0) return null;
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4">
+      <h2 className="mb-1 text-sm font-semibold text-slate-700">History</h2>
+      <dl className="divide-y divide-slate-100">
+        {happened.map((step) => (
+          <DetailRow
+            key={step.label}
+            label={step.label}
+            value={[new Date(step.at as string).toLocaleString(), staffLabel(step.by)].filter(Boolean).join(' · ')}
+          />
+        ))}
+      </dl>
+    </section>
   );
 }
 

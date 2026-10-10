@@ -6,8 +6,7 @@ import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
+import { computeSaleTotals, roundMoney } from '../../lib/saleMath';
 
 const METHOD_LABEL: Record<PaymentMethod, string> = {
   cash: 'Cash',
@@ -100,14 +99,18 @@ export function RefundPage() {
   }, [sale]);
 
   const taxRate = sale?.tax_rate ?? 0;
-  const subtotal = useMemo(() => {
-    if (!sale) return 0;
-    return sale.sale_lines.reduce((s, l) => s + (returnQty[l.id] ?? 0) * l.unit_price, 0);
-  }, [sale, returnQty]);
-  const tax = round2((subtotal * taxRate) / 100);
-  const total = round2(subtotal + tax);
-  const allocated = round2(tenders.reduce((s, t) => s + t.amount, 0));
-  const remainingToAllocate = round2(total - allocated);
+  // Only product lines are returnable, and products are always taxable — at the
+  // rate the original sale was charged.
+  const { subtotal, tax, total } = useMemo(
+    () =>
+      computeSaleTotals(
+        (sale?.sale_lines ?? []).map((l) => ({ qty: returnQty[l.id] ?? 0, price: l.unit_price })),
+        { taxRate, taxStringing: false },
+      ),
+    [sale, returnQty, taxRate],
+  );
+  const allocated = roundMoney(tenders.reduce((s, t) => s + t.amount, 0));
+  const remainingToAllocate = roundMoney(total - allocated);
 
   function setQty(lineId: string, qty: number) {
     const max = remaining[lineId] ?? 0;
@@ -295,7 +298,7 @@ function Row({ label, value }: { label: string; value: number }) {
 
 function AmountAdder({ label, defaultValue, onCancel, onAdd }: { label: string; defaultValue: number; onCancel: () => void; onAdd: (amt: number) => void }) {
   const [value, setValue] = useState(defaultValue > 0 ? defaultValue.toFixed(2) : '');
-  const amt = round2(Number(value) || 0);
+  const amt = roundMoney(Number(value) || 0);
   return (
     <div className="space-y-2 rounded-lg bg-slate-50 p-3">
       <span className="text-xs font-medium text-slate-500">{label} amount</span>
@@ -312,7 +315,7 @@ function GiftCardAdder({ defaultValue, customerId, onCancel, onAdd, onError }: {
   const [code, setCode] = useState('');
   const [value, setValue] = useState(defaultValue > 0 ? defaultValue.toFixed(2) : '');
   const [busy, setBusy] = useState(false);
-  const amt = round2(Number(value) || 0);
+  const amt = roundMoney(Number(value) || 0);
 
   async function add() {
     const c = code.replace(/\s+/g, '').trim();

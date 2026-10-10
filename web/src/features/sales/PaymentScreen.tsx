@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { GiftCardBalance, PaymentMethod } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { roundMoney } from '../../lib/saleMath';
 
 export interface Tender {
   id: string;
@@ -20,8 +21,6 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function PaymentScreen({
   total,
@@ -42,8 +41,8 @@ export function PaymentScreen({
   const [mode, setMode] = useState<'none' | PaymentMethod>('none');
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const paid = useMemo(() => round2(tenders.reduce((s, t) => s + t.amount, 0)), [tenders]);
-  const remaining = round2(total - paid);
+  const paid = useMemo(() => roundMoney(tenders.reduce((s, t) => s + t.amount, 0)), [tenders]);
+  const remaining = roundMoney(total - paid);
   const settled = Math.abs(remaining) < 0.005;
 
   function addTender(t: Omit<Tender, 'id'>) {
@@ -189,7 +188,7 @@ function AmountEntry({
   const [value, setValue] = useState(defaultValue > 0 ? String(defaultValue.toFixed(2)) : '');
   const entered = Number(value) || 0;
   const applied = allowOverpay ? Math.min(entered, remaining) : Math.min(entered, remaining);
-  const change = allowOverpay && entered > remaining ? round2(entered - remaining) : 0;
+  const change = allowOverpay && entered > remaining ? roundMoney(entered - remaining) : 0;
 
   return (
     <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
@@ -198,11 +197,11 @@ function AmountEntry({
       {change > 0 && <p className="text-sm text-slate-600">Change due: ${change.toFixed(2)}</p>}
       <div className="flex gap-2">
         <button
-          onClick={() => applied > 0 && onSubmit(round2(applied))}
+          onClick={() => applied > 0 && onSubmit(roundMoney(applied))}
           disabled={applied <= 0}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          Add ${round2(applied).toFixed(2)}
+          Add ${roundMoney(applied).toFixed(2)}
         </button>
         <button onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
           Cancel
@@ -245,7 +244,7 @@ function GiftCardEntry({
     setCard(data as GiftCardBalance);
   }
 
-  const applyAmount = card ? round2(Math.min(Number(card.balance), remaining)) : 0;
+  const applyAmount = card ? roundMoney(Math.min(Number(card.balance), remaining)) : 0;
 
   return (
     <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
@@ -337,7 +336,7 @@ function StoreCreditEntry({
     );
   }
 
-  const applyAmount = balance != null ? round2(Math.min(balance, remaining)) : 0;
+  const applyAmount = balance != null ? roundMoney(Math.min(balance, remaining)) : 0;
 
   return (
     <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 text-sm">
