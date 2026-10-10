@@ -6,7 +6,16 @@ import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
-import { computeSaleTotals, roundMoney } from '../../lib/saleMath';
+import {
+  allocateToOriginalPayments,
+  computeSaleTotals,
+  fromCents,
+  paymentTypeChanges,
+  refundableByMethod,
+  refundTaxCents,
+  roundMoney,
+  toCents,
+} from '../../lib/saleMath';
 
 const METHOD_LABEL: Record<PaymentMethod, string> = {
   cash: 'Cash',
@@ -27,14 +36,21 @@ interface SalePayment {
   amount: number;
   gift_card_id: string | null;
 }
+interface EarlierRefund {
+  subtotal: number;
+  tax: number;
+  refund_lines: { sale_line_id: string; qty: number }[];
+  refund_payments: { method: PaymentMethod; amount: number }[];
+}
 interface SaleData {
   id: string;
+  tax: number;
   tax_rate: number;
   customer_id: string | null;
   customers: { first_name: string; last_name: string } | null;
   sale_lines: SaleLine[];
   sale_payments: SalePayment[];
-  refunds: { refund_lines: { sale_line_id: string; qty: number }[] }[];
+  refunds: EarlierRefund[];
 }
 
 interface Tender {
@@ -62,6 +78,7 @@ export function RefundPage() {
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [reason, setReason] = useState('');
+  const [methodChangeReason, setMethodChangeReason] = useState('');
   const [mode, setMode] = useState<'none' | PaymentMethod>('none');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +90,13 @@ export function RefundPage() {
       const { data, error: err } = await supabase
         .from('sales')
         .select(
-          'id, tax_rate, customer_id, customers ( first_name, last_name ), sale_lines ( id, product_id, qty, unit_price, products ( brand, name, attributes ) ), sale_payments ( method, amount, gift_card_id ), refunds ( refund_lines ( sale_line_id, qty ) )',
+          [
+            'id, tax, tax_rate, customer_id',
+            'customers ( first_name, last_name )',
+            'sale_lines ( id, product_id, qty, unit_price, products ( brand, name, attributes ) )',
+            'sale_payments ( method, amount, gift_card_id )',
+            'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty ), refund_payments ( method, amount ) )',
+          ].join(', '),
         )
         .eq('id', saleId)
         .single();
@@ -98,19 +121,51 @@ export function RefundPage() {
     return map;
   }, [sale]);
 
-  const taxRate = sale?.tax_rate ?? 0;
-  // Only product lines are returnable, and products are always taxable — at the
-  // rate the original sale was charged.
+  // Refund subtotal, tax and total for a set of return quantities. Tax follows
+  // record_refund: cumulative over this sale's refunds, at the sale's rate, and
+  // never more than the sale charged.
+  function refundTotalsFor(qty: Record<string, number>) {
+    if (!sale) return { subtotal: 0, tax: 0, total: 0 };
+    const { subtotal } = computeSaleTotals(
+      sale.sale_lines.map((l) => ({ qty: qty[l.id] ?? 0, price: l.unit_price })),
+      { taxRate: 0, taxStringing: false },
+    );
+    const refundSubtotalCents = toCents(subtotal);
+    const taxCentsForRefund = refundTaxCents({
+      previousSubtotalCents: sale.refunds.reduce((s, r) => s + toCents(r.subtotal), 0),
+      previousTaxCents: sale.refunds.reduce((s, r) => s + toCents(r.tax), 0),
+      saleTaxCents: toCents(sale.tax),
+      refundSubtotalCents,
+      taxRate: sale.tax_rate,
+    });
+    return {
+      subtotal,
+      tax: fromCents(taxCentsForRefund),
+      total: fromCents(refundSubtotalCents + taxCentsForRefund),
+    };
+  }
+
   const { subtotal, tax, total } = useMemo(
-    () =>
-      computeSaleTotals(
-        (sale?.sale_lines ?? []).map((l) => ({ qty: returnQty[l.id] ?? 0, price: l.unit_price })),
-        { taxRate, taxStringing: false },
-      ),
-    [sale, returnQty, taxRate],
+    () => refundTotalsFor(returnQty),
+    // refundTotalsFor only reads `sale`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sale, returnQty],
   );
   const allocated = roundMoney(tenders.reduce((s, t) => s + t.amount, 0));
   const remainingToAllocate = roundMoney(total - allocated);
+
+  // What each payment type the sale used can still give back, and which types
+  // this refund over-sends to (a payment-type change, which needs a reason).
+  const refundable = useMemo(
+    () =>
+      refundableByMethod(
+        sale?.sale_payments ?? [],
+        (sale?.refunds ?? []).flatMap((r) => r.refund_payments),
+      ),
+    [sale],
+  );
+  const changedTypes = paymentTypeChanges(refundable, tenders);
+  const needsMethodChangeReason = changedTypes.length > 0;
 
   function setQty(lineId: string, qty: number) {
     const max = remaining[lineId] ?? 0;
@@ -124,12 +179,19 @@ export function RefundPage() {
     const q: Record<string, number> = {};
     for (const l of sale.sale_lines) if (l.product_id) q[l.id] = remaining[l.id] ?? 0;
     setReturnQty(q);
+    // Send the money back the way it came, up to what each payment type can
+    // still give back; anything left over is for the cashier to place.
+    const { allocations } = allocateToOriginalPayments(
+      toCents(refundTotalsFor(q).total),
+      sale.sale_payments ?? [],
+      refundable,
+    );
     setTenders(
-      (sale.sale_payments ?? []).map((p) => ({
+      allocations.map(({ payment, cents }) => ({
         id: crypto.randomUUID(),
-        method: p.method,
-        amount: Number(p.amount),
-        giftCardId: p.gift_card_id ?? undefined,
+        method: payment.method,
+        amount: fromCents(cents),
+        giftCardId: payment.gift_card_id ?? undefined,
       })),
     );
     setReason((r) => r || 'Void');
@@ -149,6 +211,10 @@ export function RefundPage() {
       setError('Refund tender must equal the refund total.');
       return;
     }
+    if (needsMethodChangeReason && !methodChangeReason.trim()) {
+      setError('Give a reason for refunding to a different payment type.');
+      return;
+    }
     setSaving(true);
     setError(null);
     const lines = sale!.sale_lines
@@ -160,6 +226,7 @@ export function RefundPage() {
       p_payments: tenders.map((t) => ({ method: t.method, amount: t.amount, gift_card_id: t.giftCardId ?? null })),
       p_reason: reason.trim() || null,
       p_note: null,
+      p_method_change_reason: needsMethodChangeReason ? methodChangeReason.trim() : null,
     });
     setSaving(false);
     if (err) {
@@ -228,6 +295,14 @@ export function RefundPage() {
 
       {/* Refund tenders */}
       <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+        {refundable.size > 0 && (
+          <p className="text-xs text-slate-500">
+            Can go back without a reason:{' '}
+            {[...refundable]
+              .map(([method, cents]) => `${METHOD_LABEL[method]} $${fromCents(cents).toFixed(2)}`)
+              .join(' · ')}
+          </p>
+        )}
         <div className="flex justify-between text-sm">
           <span className="font-medium text-slate-700">Refund to</span>
           <span className={remainingToAllocate === 0 ? 'text-slate-500' : 'font-medium text-blue-700'}>
@@ -274,11 +349,31 @@ export function RefundPage() {
         )}
       </section>
 
+      {needsMethodChangeReason && (
+        <label className="block space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-4">
+          <span className="text-sm font-medium text-amber-900">
+            This refund sends more to {changedTypes.map((m) => METHOD_LABEL[m]).join(' and ')} than the sale
+            took that way. Why the different payment type?
+          </span>
+          <input
+            value={methodChangeReason}
+            onChange={(e) => setMethodChangeReason(e.target.value)}
+            placeholder="Reason (required)"
+            className={`${inputClass} w-full bg-white`}
+          />
+        </label>
+      )}
+
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button
         onClick={() => void process()}
-        disabled={saving || total <= 0 || Math.abs(remainingToAllocate) > 0.005}
+        disabled={
+          saving ||
+          total <= 0 ||
+          Math.abs(remainingToAllocate) > 0.005 ||
+          (needsMethodChangeReason && !methodChangeReason.trim())
+        }
         className="w-full rounded-lg bg-red-600 px-4 py-3 text-base font-semibold text-white hover:bg-red-700 disabled:opacity-50"
       >
         {saving ? 'Processing…' : `Process refund · $${total.toFixed(2)}`}

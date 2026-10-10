@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { computeSaleTotals, lineTotalCents, roundMoney, taxCents, toCents } from './saleMath';
+import {
+  allocateToOriginalPayments,
+  computeSaleTotals,
+  lineTotalCents,
+  paymentTypeChanges,
+  refundableByMethod,
+  refundTaxCents,
+  roundMoney,
+  taxCents,
+  toCents,
+} from './saleMath';
 
 const shopRules = { taxRate: 8.25, taxStringing: false };
 
@@ -94,5 +104,64 @@ describe('computeSaleTotals', () => {
 
   it('counts an unparseable price as zero instead of producing NaN', () => {
     expect(computeSaleTotals([{ qty: 1, price: '' }], shopRules)).toEqual({ subtotal: 0, tax: 0, total: 0 });
+  });
+});
+
+describe('refundTaxCents', () => {
+  const sale = { saleTaxCents: 83, taxRate: 8.25 }; // 2 × $5.05 at 8.25%
+
+  it('gives back exactly the sale tax when items are refunded one at a time', () => {
+    const first = refundTaxCents({ ...sale, previousSubtotalCents: 0, previousTaxCents: 0, refundSubtotalCents: 505 });
+    const second = refundTaxCents({
+      ...sale,
+      previousSubtotalCents: 505,
+      previousTaxCents: first,
+      refundSubtotalCents: 505,
+    });
+    expect([first, second]).toEqual([42, 41]);
+    expect(first + second).toBe(83);
+  });
+
+  it('never refunds more tax than the sale charged', () => {
+    expect(
+      refundTaxCents({ saleTaxCents: 50, taxRate: 10, previousSubtotalCents: 0, previousTaxCents: 0, refundSubtotalCents: 1000 }),
+    ).toBe(50);
+  });
+
+  it('is never negative, even after an earlier over-refund', () => {
+    expect(
+      refundTaxCents({ ...sale, previousSubtotalCents: 505, previousTaxCents: 84, refundSubtotalCents: 505 }),
+    ).toBe(0);
+  });
+});
+
+describe('refund payment types', () => {
+  const salePayments = [
+    { method: 'cash', amount: 20 },
+    { method: 'credit', amount: 23.3 },
+  ];
+
+  it('tracks what each payment type can still give back', () => {
+    const refundable = refundableByMethod(salePayments, [{ method: 'cash', amount: 15 }]);
+    expect(Object.fromEntries(refundable)).toEqual({ cash: 500, credit: 2330 });
+  });
+
+  it('flags only the types a refund over-sends to', () => {
+    const refundable = refundableByMethod(salePayments, []);
+    expect(paymentTypeChanges(refundable, [{ method: 'cash', amount: 20 }, { method: 'credit', amount: 1.65 }])).toEqual([]);
+    expect(paymentTypeChanges(refundable, [{ method: 'cash', amount: 21.65 }])).toEqual(['cash']);
+    expect(paymentTypeChanges(refundable, [{ method: 'store_credit', amount: 5 }])).toEqual(['store_credit']);
+  });
+
+  it('splits a refund back across the original payments in order', () => {
+    const refundable = refundableByMethod(salePayments, []);
+    const { allocations, unallocatedCents } = allocateToOriginalPayments(2165, salePayments, refundable);
+    expect(allocations.map((a) => [a.payment.method, a.cents])).toEqual([['cash', 2000], ['credit', 165]]);
+    expect(unallocatedCents).toBe(0);
+  });
+
+  it('leaves the rest unallocated when the original types are used up', () => {
+    const refundable = refundableByMethod(salePayments, [{ method: 'cash', amount: 20 }, { method: 'credit', amount: 23.3 }]);
+    expect(allocateToOriginalPayments(1000, salePayments, refundable)).toEqual({ allocations: [], unallocatedCents: 1000 });
   });
 });
