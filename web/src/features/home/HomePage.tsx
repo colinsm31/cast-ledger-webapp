@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { searchCustomers } from '../../lib/customerSearch';
 import { errorMessage } from '../../lib/errors';
 import { looksLikeBarcode, normalizeBarcode } from '../../lib/barcode';
 import type { Customer } from '../../types/domain';
@@ -51,15 +51,14 @@ export function HomePage() {
     let active = true;
     setSearchingNames(true);
     const handle = setTimeout(async () => {
-      const { data } = await supabase
-        .from('customers')
-        .select('*')
-        .or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%`)
-        .order('last_name')
-        .order('first_name')
-        .limit(8);
+      let found: Customer[] = [];
+      try {
+        found = await searchCustomers(term);
+      } catch {
+        // A failed lookup just shows no matches; the user can retype.
+      }
       if (!active) return;
-      setMatches((data ?? []) as Customer[]);
+      setMatches(found);
       setSearchingNames(false);
     }, 200);
     return () => {

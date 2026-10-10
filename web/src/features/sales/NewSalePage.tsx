@@ -4,8 +4,10 @@ import { supabase } from '../../lib/supabase';
 import type { Customer } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { searchCustomers } from '../../lib/customerSearch';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
 import { useSettings } from '../../lib/settings';
+import { computeSaleTotals, fromCents, lineTotalCents } from '../../lib/saleMath';
 import { useDialog } from '../../components/Dialog';
 import { resolveBarcode, type ScannedProduct } from '../scan/resolveBarcode';
 import { useScannerCapture } from '../scan/useScannerCapture';
@@ -342,24 +344,13 @@ export function NewSalePage() {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, price } : l)));
   }
 
-  const subtotal = useMemo(
-    () => lines.reduce((sum, l) => sum + l.qty * (Number(l.price) || 0), 0),
-    [lines],
-  );
-
   // Tax: products always taxed; stringing optionally; gift-card loads never.
   const taxRate = settings?.tax_rate ?? 0;
   const taxStringing = settings?.tax_stringing ?? false;
-  const tax = useMemo(() => {
-    const taxable = lines.reduce((sum, l) => {
-      const lt = l.qty * (Number(l.price) || 0);
-      if (l.giftCardId) return sum;
-      if (l.stringJobId) return sum + (taxStringing ? lt : 0);
-      return sum + lt;
-    }, 0);
-    return Math.round((taxable * taxRate) / 100 * 100) / 100;
-  }, [lines, taxRate, taxStringing]);
-  const total = Math.round((subtotal + tax) * 100) / 100;
+  const { subtotal, tax, total } = useMemo(
+    () => computeSaleTotals(lines, { taxRate, taxStringing }),
+    [lines, taxRate, taxStringing],
+  );
 
   function openPayment() {
     if (lines.length === 0) {
@@ -575,7 +566,7 @@ export function NewSalePage() {
                   )}
                 </div>
                 <div className="w-20 text-right text-sm font-semibold text-slate-900">
-                  ${(l.qty * (Number(l.price) || 0)).toFixed(2)}
+                  ${fromCents(lineTotalCents(l)).toFixed(2)}
                 </div>
                 <button onClick={() => setQty(l.key, 0)} className="text-xs text-red-600 hover:underline">
                   Remove
@@ -646,14 +637,13 @@ function CustomerBar({
     }
     let active = true;
     const handle = setTimeout(async () => {
-      const { data } = await supabase
-        .from('customers')
-        .select('*')
-        .or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%`)
-        .order('last_name')
-        .order('first_name')
-        .limit(8);
-      if (active) setMatches((data ?? []) as Customer[]);
+      let found: Customer[] = [];
+      try {
+        found = await searchCustomers(term);
+      } catch {
+        // A failed lookup just shows no matches; the cashier can retype.
+      }
+      if (active) setMatches(found);
     }, 200);
     return () => {
       active = false;

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { CustomerRacket, ProductWithCategory } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { useDialog } from '../../components/Dialog';
 
 // Standard tennis grip sizes.
 const GRIP_SIZES = ['4 1/8', '4 1/4', '4 3/8', '4 1/2', '4 5/8'];
@@ -37,6 +38,7 @@ export function CustomerRacketsPanel({
   prefillBarcode?: string;
 }) {
   const navigate = useNavigate();
+  const { confirm } = useDialog();
   const [rackets, setRackets] = useState<CustomerRacket[] | null>(null);
   const [catalogRackets, setCatalogRackets] = useState<ProductWithCategory[]>([]);
   // racket id → id of its open (entered/complete) string job, if any.
@@ -53,6 +55,7 @@ export function CustomerRacketsPanel({
         .from('customer_rackets')
         .select('*')
         .eq('customer_id', customerId)
+        .eq('is_active', true)
         .order('created_at'),
       supabase.from('products').select('*, categories(name)').order('brand'),
       supabase
@@ -82,9 +85,23 @@ export function CustomerRacketsPanel({
     void load();
   }, [load]);
 
-  async function remove(id: string) {
+  // Removing retires the racket (is_active = false) rather than deleting it, so
+  // its stringing history stays on the customer's record and its tag barcode
+  // is freed for another racket.
+  async function remove(racket: CustomerRacket) {
     setError(null);
-    const { error: err } = await supabase.from('customer_rackets').delete().eq('id', id);
+    if (openJobByRacket[racket.id]) {
+      setError('This racket has an open string job. Deliver or cancel the job before removing the racket.');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Remove racket?',
+      message: `${racket.brand ? `${racket.brand} ` : ''}${racket.model} will no longer be listed for this customer. Its stringing history is kept${racket.barcode ? `, and tag ${racket.barcode} can be reused` : ''}.`,
+      confirmLabel: 'Remove racket',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    const { error: err } = await supabase.from('customer_rackets').update({ is_active: false }).eq('id', racket.id);
     if (err) setError(errorMessage(err));
     else await load();
   }
@@ -179,7 +196,7 @@ export function CustomerRacketsPanel({
                     Edit
                   </button>
                   <button
-                    onClick={() => void remove(racket.id)}
+                    onClick={() => void remove(racket)}
                     className="text-xs text-red-600 hover:underline"
                   >
                     Remove
