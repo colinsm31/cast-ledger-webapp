@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { Customer } from '../../types/domain';
-import { customerNameLastFirst } from '../../types/domain';
+import { customerName, customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { searchCustomers } from '../../lib/customerSearch';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
@@ -13,6 +13,8 @@ import { resolveBarcode, type ScannedProduct } from '../scan/resolveBarcode';
 import { useScannerCapture } from '../scan/useScannerCapture';
 import { ScanFlowParams, withParams } from '../scan/scanFlow';
 import { PaymentScreen, type Tender } from './PaymentScreen';
+import { decideJobLine, ownerWarnings, type TicketJob } from './ticketJobs';
+import { fetchTicketJob, fetchUnpaidOpenJobs } from './ticketJobQueries';
 
 const NEW_SALE_PATH = '/sales/new';
 
@@ -23,6 +25,10 @@ interface CartLine {
   productUnitId?: string;
   serialized?: boolean;
   stringJobId?: string;
+  // For a stringing line: whose racquet it is (may differ from the ticket's customer).
+  racketLabel?: string;
+  ownerCustomerId?: string;
+  ownerName?: string;
   giftCardId?: string;
   label: string;
   price: string; // editable
@@ -58,6 +64,8 @@ export function NewSalePage() {
   const [gcForm, setGcForm] = useState(false);
   const [gcCode, setGcCode] = useState('');
   const [gcAmount, setGcAmount] = useState('');
+  // The ticket customer's unpaid open string jobs, offered as one-tap lines.
+  const [customerJobs, setCustomerJobs] = useState<TicketJob[]>([]);
   const scanRef = useRef<HTMLInputElement>(null);
 
   const focusScan = () => scanRef.current?.focus();
@@ -65,22 +73,46 @@ export function NewSalePage() {
     focusScan();
   }, []);
 
-  // Resume the ticket saved when the register was last left.
-  function restoreHeldSale() {
+  // Resume the ticket saved when the register was last left. Returns what was
+  // restored so callers can add to it straight away.
+  function restoreHeldSale(): { lines: CartLine[]; customer: Customer | null } {
     const held = getHeldSale();
-    if (held) {
-      setLines(held.lines as CartLine[]);
-      setCustomer(held.customer);
-      setJobCtx(held.stringJobId ? { id: held.stringJobId, deliver: held.deliverAfter } : null);
-    } else {
-      setJobCtx(null);
-    }
+    const heldLines = (held?.lines ?? []) as CartLine[];
+    const heldCustomer = held?.customer ?? null;
+    setLines(heldLines);
+    setCustomer(heldCustomer);
+    setJobCtx(held?.stringJobId ? { id: held.stringJobId, deliver: held.deliverAfter } : null);
     setRestored(true);
+    return { lines: heldLines, customer: heldCustomer };
   }
 
-  // On open: prefill from a string job (URL params), else resume a held ticket.
-  // A scanned code the home screen couldn't place can arrive as a new gift
-  // card to sell — open that form with the code already filled in.
+  // Put a racquet's string job on the ticket (see decideJobLine for the rules).
+  // Returns false, with a message, when it can't be added.
+  function addJobLine(job: TicketJob, ticketCustomer: Customer | null, ticketLines: CartLine[]): boolean {
+    const decision = decideJobLine(job, ticketCustomer, ticketLines.some((l) => l.stringJobId === job.id));
+    if (decision.kind === 'refuse') {
+      setScanMsg(decision.message);
+      return false;
+    }
+    if (decision.customerToSet) setCustomer(decision.customerToSet);
+    const line: CartLine = {
+      key: `job:${job.id}`,
+      stringJobId: job.id,
+      label: `Stringing — ${job.racketLabel}`,
+      price: String(job.price ?? 0),
+      qty: 1,
+      racketLabel: job.racketLabel,
+      ownerCustomerId: job.owner?.id,
+      ownerName: job.owner ? customerName(job.owner) : undefined,
+    };
+    setLines((prev) => (prev.some((l) => l.key === line.key) ? prev : [...prev, line]));
+    return true;
+  }
+
+  // On open: resume a held ticket, then add a string job from the URL ("Mark as
+  // paid", "Take payment & deliver") to it. A scanned code the home screen
+  // couldn't place can arrive as a new gift card to sell — open that form with
+  // the code already filled in.
   useEffect(() => {
     const urlJob = searchParams.get('stringJob');
     const urlDeliver = searchParams.get('deliver') === '1';
@@ -89,50 +121,47 @@ export function NewSalePage() {
       setGcCode(urlGiftCardCode);
       setGcForm(true);
     }
+    const held = restoreHeldSale();
     if (urlJob) {
-      setJobCtx({ id: urlJob, deliver: urlDeliver });
       void (async () => {
-        const { data, error: err } = await supabase
-          .from('string_jobs')
-          .select('id, price, status, paid_sale_id, customer_rackets ( brand, model, customers ( * ) )')
-          .eq('id', urlJob)
-          .single();
-        if (!err && data) {
-          const job = data as unknown as {
-            price: number | null;
-            status: string;
-            paid_sale_id: string | null;
-            customer_rackets: { brand: string | null; model: string; customers: Customer | null } | null;
-          };
-          // A job is charged once; the server refuses a second charge, so say so up front.
-          if (job.paid_sale_id || job.status === 'cancelled') {
-            setScanMsg(
-              job.paid_sale_id
-                ? 'That string job is already paid, so it wasn’t added to this ticket.'
-                : 'That string job was cancelled, so it can’t be charged.',
-            );
-            // Nothing to add — carry on with whatever ticket was held.
-            restoreHeldSale();
-            return;
+        try {
+          const job = await fetchTicketJob(urlJob);
+          if (addJobLine(job, held.customer, held.lines) && urlDeliver) {
+            setJobCtx({ id: urlJob, deliver: true });
           }
-          const racket = job.customer_rackets;
-          if (racket?.customers) setCustomer(racket.customers);
-          const label = `Stringing — ${racket?.brand ? `${racket.brand} ` : ''}${racket?.model ?? ''}`.trim();
-          const price = String(job.price ?? 0);
-          setLines((prev) =>
-            prev.some((l) => l.key === `job:${urlJob}`)
-              ? prev
-              : [{ key: `job:${urlJob}`, stringJobId: urlJob, label, price, qty: 1 }, ...prev],
-          );
+        } catch (err) {
+          setScanMsg(errorMessage(err));
         }
-        setRestored(true);
+        // Handled: a refresh shouldn't add it again.
+        const next = new URLSearchParams(searchParams);
+        next.delete('stringJob');
+        next.delete('deliver');
+        setSearchParams(next, { replace: true });
       })();
-    } else {
-      restoreHeldSale();
     }
     // Once, on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Offer the ticket customer's unpaid string jobs.
+  useEffect(() => {
+    if (!customer) {
+      setCustomerJobs([]);
+      return;
+    }
+    let active = true;
+    fetchUnpaidOpenJobs(customer.id)
+      .then((jobs) => {
+        if (active) setCustomerJobs(jobs);
+      })
+      .catch(() => {
+        // Only a convenience; staff can still scan the racquet's tag.
+        if (active) setCustomerJobs([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [customer]);
 
   // Persist the ticket as it changes (after the initial restore so we don't
   // clobber a saved ticket with the empty initial state).
@@ -228,7 +257,13 @@ export function NewSalePage() {
           focusScan();
           return;
         case 'racket':
-          setScanMsg(`${match.code} is a customer's racket, not a product.`);
+          // A racquet tag adds its open, unpaid string job to the ticket.
+          if (!match.openJobId) {
+            setScanMsg(`${match.code} is a customer's racquet with no open string job.`);
+            return;
+          }
+          addJobLine(await fetchTicketJob(match.openJobId), customer, lines);
+          focusScan();
           return;
         case 'gift_card':
           setScanMsg(`${match.code} is a gift card — use “Sell gift card” or redeem it at payment.`);
@@ -564,8 +599,9 @@ export function NewSalePage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {l.serialized ? (
-                    // A serialized unit is a single physical item — qty is always 1.
+                  {l.serialized || l.stringJobId ? (
+                    // A serialized unit is a single physical item, and a string job is
+                    // charged once — qty is always 1 (the server refuses anything else).
                     <span className="w-8 text-center text-sm font-medium text-slate-400">1</span>
                   ) : (
                     <>
@@ -614,6 +650,30 @@ export function NewSalePage() {
           <span className="text-2xl font-bold text-slate-900">${total.toFixed(2)}</span>
         </div>
       </section>
+
+      {/* The customer's other racquets waiting to be paid for */}
+      {customerJobs.some((job) => !lines.some((l) => l.stringJobId === job.id)) && (
+        <section className="flex flex-wrap gap-2">
+          {customerJobs
+            .filter((job) => !lines.some((l) => l.stringJobId === job.id))
+            .map((job) => (
+              <button
+                key={job.id}
+                onClick={() => addJobLine(job, customer, lines)}
+                className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-800 hover:bg-blue-100"
+              >
+                Add stringing: {job.racketLabel} (${(job.price ?? 0).toFixed(2)})
+              </button>
+            ))}
+        </section>
+      )}
+
+      {/* A family paying on one ticket: say whose racquets are on it */}
+      {ownerWarnings(lines, customer).map((warning) => (
+        <p key={warning} className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          ⚠ {warning}
+        </p>
+      ))}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
