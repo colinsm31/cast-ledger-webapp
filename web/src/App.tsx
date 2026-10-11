@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { SignInPage } from './auth/SignInPage';
+import { PendingApprovalPage } from './auth/PendingApprovalPage';
 import { AppShell } from './app/AppShell';
 import { Spinner } from './components/Spinner';
 import { DialogProvider } from './components/Dialog';
@@ -52,9 +53,12 @@ function RequireAdmin({ children }: { children: ReactNode }) {
 }
 
 function Gate() {
-  const { loading, session } = useAuth();
+  const { loading, session, role, isStaff } = useAuth();
   if (loading) return <Spinner label="Loading…" />;
   if (!session) return <SignInPage />;
+  // Wait for the role, then keep unapproved accounts out of the app entirely.
+  if (role === null) return <Spinner label="Loading…" />;
+  if (!isStaff) return <PendingApprovalPage />;
 
   return (
     <Routes>

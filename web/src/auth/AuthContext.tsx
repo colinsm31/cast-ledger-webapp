@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
-export type Role = 'admin' | 'staff';
+// 'pending' accounts are signed in but not yet approved; they have no access.
+export type Role = 'admin' | 'staff' | 'pending';
 
 interface AuthState {
   loading: boolean;
@@ -11,6 +12,8 @@ interface AuthState {
   user: User | null;
   role: Role | null;
   isAdmin: boolean;
+  /** Approved to use the shop (staff or admin). */
+  isStaff: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -46,7 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
     void (async () => {
       const { data } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
-      if (active) setRole(((data as { role: Role } | null)?.role ?? 'staff') as Role);
+      // No readable profile means no access: fail closed.
+      if (active) setRole((data as { role: Role } | null)?.role ?? 'pending');
     })();
     return () => {
       active = false;
@@ -60,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: session?.user ?? null,
       role,
       isAdmin: role === 'admin',
+      isStaff: role === 'admin' || role === 'staff',
       signIn: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
