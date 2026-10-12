@@ -116,6 +116,15 @@ export interface InventoryTxn {
 
 export type PaymentMethod = 'credit' | 'cash' | 'gift_card' | 'store_credit';
 
+// A sale line is the original charge, or (for a paid string job whose strings
+// changed) the difference charged for the new strings.
+export type SaleLineKind = 'charge' | 'string_change';
+
+/** Display name for a stringing sale line. */
+export function stringingLineName(kind: SaleLineKind | undefined): string {
+  return kind === 'string_change' ? 'String change' : 'Stringing';
+}
+
 export interface Sale {
   id: string;
   sold_at: string;

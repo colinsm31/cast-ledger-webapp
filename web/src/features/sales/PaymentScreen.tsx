@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { GiftCardBalance, PaymentMethod } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
@@ -22,6 +22,8 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
+const ALL_METHODS: PaymentMethod[] = ['cash', 'credit', 'gift_card', 'store_credit'];
+
 export function PaymentScreen({
   total,
   customerId,
@@ -29,6 +31,14 @@ export function PaymentScreen({
   error,
   onBack,
   onComplete,
+  title = 'Payment',
+  backLabel = 'Back to ticket',
+  completeLabel = 'Complete sale',
+  methods = ALL_METHODS,
+  giveBack = false,
+  completeDisabled = false,
+  onTendersChange,
+  children,
 }: {
   total: number;
   customerId: string | null;
@@ -36,10 +46,26 @@ export function PaymentScreen({
   error: string | null;
   onBack: () => void;
   onComplete: (tenders: Tender[]) => void;
+  title?: string;
+  backLabel?: string;
+  completeLabel?: string;
+  // Payment types offered (default: all four).
+  methods?: PaymentMethod[];
+  // Money going back to the customer: store credit is added, not spent.
+  giveBack?: boolean;
+  completeDisabled?: boolean;
+  // Told about the tenders as they change (e.g. to check give-back limits).
+  onTendersChange?: (tenders: Tender[]) => void;
+  // Shown above the complete button (e.g. limits or a reason box).
+  children?: ReactNode;
 }) {
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [mode, setMode] = useState<'none' | PaymentMethod>('none');
   const [localError, setLocalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onTendersChange?.(tenders);
+  }, [tenders, onTendersChange]);
 
   const paid = useMemo(() => roundMoney(tenders.reduce((s, t) => s + t.amount, 0)), [tenders]);
   const remaining = roundMoney(total - paid);
@@ -58,19 +84,19 @@ export function PaymentScreen({
     <div className="max-w-2xl space-y-5">
       <div>
         <button onClick={onBack} className="text-sm text-blue-600 hover:underline" disabled={busy}>
-          ‹ Back to ticket
+          ‹ {backLabel}
         </button>
-        <h1 className="text-xl font-bold text-slate-900">Payment</h1>
+        <h1 className="text-xl font-bold text-slate-900">{title}</h1>
       </div>
 
       {/* Running totals */}
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex justify-between text-sm text-slate-600">
-          <span>Total</span>
+          <span>{giveBack ? 'To give back' : 'Total'}</span>
           <span className="font-medium text-slate-900">${total.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-sm text-slate-600">
-          <span>Paid</span>
+          <span>{giveBack ? 'Given back' : 'Paid'}</span>
           <span className="font-medium text-slate-900">${paid.toFixed(2)}</span>
         </div>
         <div className="mt-1 flex justify-between border-t border-slate-100 pt-2">
@@ -104,7 +130,7 @@ export function PaymentScreen({
       {/* Add a tender */}
       {!settled && mode === 'none' && (
         <div className="grid grid-cols-2 gap-3">
-          {(['cash', 'credit', 'gift_card', 'store_credit'] as PaymentMethod[]).map((m) => (
+          {methods.map((m) => (
             <button
               key={m}
               onClick={() => {
@@ -121,9 +147,9 @@ export function PaymentScreen({
 
       {mode === 'cash' && (
         <AmountEntry
-          label="Cash tendered"
+          label={giveBack ? 'Cash to give back' : 'Cash tendered'}
           defaultValue={remaining > 0 ? remaining : 0}
-          allowOverpay
+          allowOverpay={!giveBack}
           remaining={remaining}
           onCancel={() => setMode('none')}
           onSubmit={(applied) => addTender({ method: 'cash', amount: applied })}
@@ -131,7 +157,7 @@ export function PaymentScreen({
       )}
       {mode === 'credit' && (
         <AmountEntry
-          label="Credit amount"
+          label={giveBack ? 'Credit to give back' : 'Credit amount'}
           defaultValue={remaining > 0 ? remaining : 0}
           remaining={remaining}
           onCancel={() => setMode('none')}
@@ -145,7 +171,16 @@ export function PaymentScreen({
           onApply={(amount, giftCardId, code) => addTender({ method: 'gift_card', amount, giftCardId, code })}
         />
       )}
-      {mode === 'store_credit' && (
+      {mode === 'store_credit' && giveBack && (
+        <AmountEntry
+          label="Store credit to add"
+          defaultValue={remaining > 0 ? remaining : 0}
+          remaining={remaining}
+          onCancel={() => setMode('none')}
+          onSubmit={(applied) => addTender({ method: 'store_credit', amount: applied })}
+        />
+      )}
+      {mode === 'store_credit' && !giveBack && (
         <StoreCreditEntry
           remaining={remaining}
           customerId={customerId}
@@ -154,15 +189,17 @@ export function PaymentScreen({
         />
       )}
 
+      {children}
+
       {localError && <p className="text-sm text-red-600">{localError}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button
         onClick={() => onComplete(tenders)}
-        disabled={busy || !settled || tenders.length === 0}
+        disabled={busy || completeDisabled || !settled || tenders.length === 0}
         className="w-full rounded-lg bg-green-600 px-4 py-3 text-base font-semibold text-white hover:bg-green-700 disabled:opacity-50"
       >
-        {busy ? 'Completing…' : 'Complete sale'}
+        {busy ? 'Completing…' : completeLabel}
       </button>
     </div>
   );

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { Customer, JsonValue, PurchaseHistoryRow } from '../../types/domain';
-import { customerName } from '../../types/domain';
+import type { Customer, JsonValue, PurchaseHistoryRow, SaleLineKind } from '../../types/domain';
+import { customerName, stringingLineName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { formatPhone } from '../../lib/phone';
 import { Spinner } from '../../components/Spinner';
@@ -16,7 +16,7 @@ import { ScanFlowParams } from '../scan/scanFlow';
 const HISTORY_SELECT = `
   id, sold_at,
   sale_lines (
-    qty, unit_price,
+    qty, unit_price, kind,
     products ( brand, name, attributes, categories ( name ) ),
     gift_cards ( code )
   )
@@ -28,6 +28,7 @@ interface HistorySaleRaw {
   sale_lines: Array<{
     qty: number;
     unit_price: number;
+    kind: SaleLineKind;
     products: {
       brand: string | null;
       name: string;
@@ -98,7 +99,7 @@ export function CustomerDetailPage() {
             ? { category: line.products.categories?.name ?? '—', brand: line.products.brand, name: line.products.name, attributes: line.products.attributes ?? {} }
             : line.gift_cards
               ? { category: 'Gift card', brand: null, name: `Gift card ${line.gift_cards.code}`, attributes: {} }
-              : { category: 'Stringing', brand: null, name: 'Stringing', attributes: {} };
+              : { category: 'Stringing', brand: null, name: stringingLineName(line.kind), attributes: {} };
           rows.push({
             sale_id: sale.id,
             sold_at: sale.sold_at,

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { JsonValue } from '../../types/domain';
-import { customerNameLastFirst } from '../../types/domain';
+import type { JsonValue, SaleLineKind } from '../../types/domain';
+import { customerNameLastFirst, stringingLineName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
@@ -18,6 +18,7 @@ const PAYMENT_LABEL: Record<string, string> = {
 interface SaleLineRaw {
   qty: number;
   unit_price: number;
+  kind: SaleLineKind;
   products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
   gift_cards: { code: string } | null;
 }
@@ -50,7 +51,7 @@ function lineLabel(line: SaleLineRaw): string {
     return [line.products.brand, line.products.name, ...attrs].filter(Boolean).join(' ');
   }
   if (line.gift_cards) return `Gift card ${line.gift_cards.code}`;
-  return 'Stringing'; // string-job service line
+  return stringingLineName(line.kind); // string-job service line
 }
 
 export function SaleDetailPage() {
@@ -69,7 +70,7 @@ export function SaleDetailPage() {
             'id, sold_at, subtotal, tax, payment_method',
             'customers ( first_name, last_name )',
             'rung_by:profiles!sales_user_id_fkey ( email )',
-            'sale_lines ( qty, unit_price, products ( brand, name, attributes ), gift_cards ( code ) )',
+            'sale_lines ( qty, unit_price, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
             'sale_payments ( method, amount )',
             'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( qty ) )',
           ].join(', '),

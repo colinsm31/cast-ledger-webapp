@@ -22,6 +22,14 @@ import {
   type StringProductRaw,
 } from './stringJobForm';
 import { jobRowProblems } from './stringRow';
+import {
+  STRING_CHANGE_METHODS,
+  giveBackOverages,
+  stringChangeEvents,
+  type JobSaleLineRow,
+  type StringChangeQuote,
+} from './stringChange';
+import { PaymentScreen, type Tender } from '../sales/PaymentScreen';
 
 interface JobRow extends StringJob {
   customer_rackets:
@@ -32,6 +40,17 @@ interface JobRow extends StringJob {
   delivered_by_staff: StaffRef | null;
   cancelled_by_staff: StaffRef | null;
   paid_sale: { id: string; sold_at: string; rung_by: StaffRef | null } | null;
+  job_sale_lines: JobSaleLineRow[];
+}
+
+// A paid job's new strings, waiting for the difference to be settled.
+interface PendingStringChange {
+  quote: StringChangeQuote;
+  mainProductId: string;
+  crossProductId: string;
+  mainTension: number;
+  crossTension: number;
+  notes: string | null;
 }
 
 // The job with its racket, owner, and the staff behind each status change.
@@ -43,6 +62,8 @@ const JOB_SELECT = [
   'delivered_by_staff:profiles!string_jobs_delivered_by_fkey ( email )',
   'cancelled_by_staff:profiles!string_jobs_cancelled_by_fkey ( email )',
   'paid_sale:sales!string_jobs_paid_sale_id_fkey ( id, sold_at, rung_by:profiles!sales_user_id_fkey ( email ) )',
+  'job_sale_lines:sale_lines ( kind, unit_price, sales ( id, sold_at, rung_by:profiles!sales_user_id_fkey ( email ) ), ' +
+    'refund_lines ( kind, unit_price, refunds ( id, sale_id, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ) ) ) )',
 ].join(', ');
 
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -65,6 +86,9 @@ export function StringJobDetailPage() {
   const [notes, setNotes] = useState('');
   const [strungBy, setStrungBy] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pendingChange, setPendingChange] = useState<PendingStringChange | null>(null);
+  const [changeTenders, setChangeTenders] = useState<Tender[]>([]);
+  const [changeReason, setChangeReason] = useState('');
 
   const hydrate = useCallback((j: JobRow) => {
     setJob(j);
@@ -155,6 +179,41 @@ export function StringJobDetailPage() {
     }
     setBusy(true);
     setError(null);
+
+    // A paid job moving to strings of a different price settles the difference first.
+    const mainProduct = stringsEditable ? resolveProduct(catalog, dims, mains) : undefined;
+    const crossProduct = stringsEditable ? resolveProduct(catalog, dims, crosses) : undefined;
+    const stringsMoved =
+      !!mainProduct &&
+      !!crossProduct &&
+      (mainProduct.id !== job.main_product_id || crossProduct.id !== job.cross_product_id);
+    if (job.paid_sale_id && stringsMoved && mainProduct && crossProduct) {
+      const { data: quote, error: quoteErr } = await supabase.rpc('string_change_quote', {
+        p_job_id: jobId,
+        p_main_product_id: mainProduct.id,
+        p_cross_product_id: crossProduct.id,
+      });
+      if (quoteErr) {
+        setBusy(false);
+        setError(errorMessage(quoteErr));
+        return;
+      }
+      if ((quote as StringChangeQuote).direction !== 'none') {
+        setBusy(false);
+        setChangeTenders([]);
+        setChangeReason('');
+        setPendingChange({
+          quote: quote as StringChangeQuote,
+          mainProductId: mainProduct.id,
+          crossProductId: crossProduct.id,
+          mainTension: Number(mains.tension),
+          crossTension: Number(crosses.tension),
+          notes: notes.trim() || null,
+        });
+        return;
+      }
+    }
+
     const { error: err } = await supabase
       .from('string_jobs')
       .update({
@@ -171,6 +230,33 @@ export function StringJobDetailPage() {
       setError(errorMessage(err));
       return;
     }
+    setEditing(false);
+    await reload();
+  }
+
+  // Charge or give back the difference and change the strings, in one step.
+  async function completeStringChange(change: PendingStringChange, tenders: Tender[]) {
+    if (!jobId) return;
+    setBusy(true);
+    setError(null);
+    const { error: err } = await supabase.rpc('change_paid_string_job', {
+      p_job_id: jobId,
+      p_main_product_id: change.mainProductId,
+      p_cross_product_id: change.crossProductId,
+      p_main_tension: change.mainTension,
+      p_cross_tension: change.crossTension,
+      p_payments: tenders.map((t) => ({ method: t.method, amount: t.amount })),
+      p_reason: changeReason.trim() || null,
+    });
+    if (!err && change.notes !== (job?.notes ?? null)) {
+      await supabase.from('string_jobs').update({ notes: change.notes }).eq('id', jobId);
+    }
+    setBusy(false);
+    if (err) {
+      setError(errorMessage(err));
+      return;
+    }
+    setPendingChange(null);
     setEditing(false);
     await reload();
   }
@@ -224,6 +310,63 @@ export function StringJobDetailPage() {
 
   if (loadError) return <p className="text-sm text-red-600">{loadError}</p>;
   if (!job) return <Spinner label="Loading…" />;
+
+  if (pendingChange) {
+    const { quote } = pendingChange;
+    const charging = quote.direction === 'charge';
+    const overages = charging ? [] : giveBackOverages(changeTenders, quote.refundable ?? {});
+    return (
+      <PaymentScreen
+        total={Number(quote.total)}
+        customerId={quote.customer_id}
+        busy={busy}
+        error={error}
+        giveBack={!charging}
+        methods={STRING_CHANGE_METHODS}
+        title={charging ? 'String change: customer owes' : 'String change: customer is owed'}
+        backLabel="Back to the job"
+        completeLabel={charging ? 'Charge & change strings' : 'Give back & change strings'}
+        completeDisabled={overages.length > 0 && !changeReason.trim()}
+        onTendersChange={setChangeTenders}
+        onBack={() => {
+          setPendingChange(null);
+          setError(null);
+        }}
+        onComplete={(tenders) => void completeStringChange(pendingChange, tenders)}
+      >
+        <section className="space-y-1 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+          <p>
+            Strings ${Number(quote.old_price).toFixed(2)} → ${Number(quote.new_price).toFixed(2)}:{' '}
+            {charging ? 'charge' : 'give back'} ${Number(quote.amount).toFixed(2)}
+            {Number(quote.tax) > 0 ? ` + $${Number(quote.tax).toFixed(2)} tax` : ''}.
+          </p>
+          <p className="text-xs text-slate-500">The strings change once this is complete.</p>
+          {!charging && (
+            <p className="text-xs text-slate-500">
+              Up to{' '}
+              {STRING_CHANGE_METHODS.map(
+                (m) => `${m === 'store_credit' ? 'store credit' : m} $${Number(quote.refundable?.[m] ?? 0).toFixed(2)}`,
+              ).join(' · ')}{' '}
+              without a reason (what the customer paid each way).
+            </p>
+          )}
+        </section>
+        {overages.length > 0 && (
+          <label className="block space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-4">
+            <span className="text-sm text-amber-900">
+              Giving back more as {overages.map((m) => (m === 'store_credit' ? 'store credit' : m)).join(' and ')} than
+              the customer paid that way. Give a reason:
+            </span>
+            <input
+              value={changeReason}
+              onChange={(e) => setChangeReason(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </label>
+        )}
+      </PaymentScreen>
+    );
+  }
 
   const racket = job.customer_rackets;
   const customer = racket?.customers ?? null;
@@ -428,6 +571,7 @@ export function StringJobDetailPage() {
 // When each status change happened and which staff member made it.
 function JobHistory({ job }: { job: JobRow }) {
   const steps: { label: string; at: string | null; by: StaffRef | null; href?: string }[] = [
+    ...stringChangeEvents(job.job_sale_lines ?? []),
     { label: 'Taken in', at: job.entered_at, by: job.entered_by_staff },
     {
       label: 'Paid',
@@ -451,7 +595,7 @@ function JobHistory({ job }: { job: JobRow }) {
         {happened.map((step) => {
           const value = [new Date(step.at as string).toLocaleString(), staffLabel(step.by)].filter(Boolean).join(' · ');
           return step.href ? (
-            <div key={step.label} className="flex justify-between py-1.5 text-sm">
+            <div key={`${step.label}-${step.at}`} className="flex justify-between py-1.5 text-sm">
               <dt className="text-slate-500">{step.label}</dt>
               <dd className="text-right">
                 <Link to={step.href} className="text-blue-600 hover:underline">
@@ -460,7 +604,7 @@ function JobHistory({ job }: { job: JobRow }) {
               </dd>
             </div>
           ) : (
-            <DetailRow key={step.label} label={step.label} value={value} />
+            <DetailRow key={`${step.label}-${step.at}`} label={step.label} value={value} />
           );
         })}
       </dl>
