@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { GiftCardBalance, PaymentMethod } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
-import { roundMoney } from '../../lib/saleMath';
+import { availableToApply, roundMoney } from '../../lib/saleMath';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 
 export interface Tender {
@@ -71,6 +71,8 @@ export function PaymentScreen({
   const paid = useMemo(() => roundMoney(tenders.reduce((s, t) => s + t.amount, 0)), [tenders]);
   const remaining = roundMoney(total - paid);
   const settled = Math.abs(remaining) < 0.005;
+  // A $0 ticket (e.g. a warranty restring) completes with no payment.
+  const nothingToPay = Math.abs(total) < 0.005;
 
   function addTender(t: Omit<Tender, 'id'>) {
     setTenders((prev) => [...prev, { ...t, id: crypto.randomUUID() }]);
@@ -107,6 +109,12 @@ export function PaymentScreen({
           </span>
         </div>
       </section>
+
+      {nothingToPay && tenders.length === 0 && (
+        <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          Nothing to pay. {giveBack ? 'Nothing to give back.' : 'Complete the sale to record it.'}
+        </p>
+      )}
 
       {/* Tenders added */}
       {tenders.length > 0 && (
@@ -168,6 +176,7 @@ export function PaymentScreen({
       {mode === 'gift_card' && (
         <GiftCardEntry
           remaining={remaining}
+          tenders={tenders}
           onCancel={() => setMode('none')}
           onApply={(amount, giftCardId, code) => addTender({ method: 'gift_card', amount, giftCardId, code })}
         />
@@ -184,6 +193,7 @@ export function PaymentScreen({
       {mode === 'store_credit' && !giveBack && (
         <StoreCreditEntry
           remaining={remaining}
+          tenders={tenders}
           customerId={customerId}
           onCancel={() => setMode('none')}
           onApply={(amount) => addTender({ method: 'store_credit', amount })}
@@ -197,7 +207,7 @@ export function PaymentScreen({
 
       <button
         onClick={() => onComplete(tenders)}
-        disabled={busy || completeDisabled || !settled || tenders.length === 0}
+        disabled={busy || completeDisabled || !settled || (tenders.length === 0 && !nothingToPay)}
         className="w-full rounded-lg bg-green-600 px-4 py-3 text-base font-semibold text-white hover:bg-green-700 disabled:opacity-50"
       >
         {busy ? 'Completing…' : completeLabel}
@@ -253,10 +263,12 @@ function AmountEntry({
 
 function GiftCardEntry({
   remaining,
+  tenders,
   onCancel,
   onApply,
 }: {
   remaining: number;
+  tenders: Tender[];
   onCancel: () => void;
   onApply: (amount: number, giftCardId: string, code: string) => void;
 }) {
@@ -284,7 +296,12 @@ function GiftCardEntry({
     setCard(data as GiftCardBalance);
   }
 
-  const applyAmount = card ? roundMoney(Math.min(Number(card.balance), remaining)) : 0;
+  // What this card can still pay, after what the ticket already takes from it.
+  const available = card
+    ? availableToApply(Number(card.balance), tenders, { method: 'gift_card', giftCardId: card.gift_card_id })
+    : 0;
+  const alreadyApplied = card ? roundMoney(Number(card.balance) - available) : 0;
+  const applyAmount = card ? roundMoney(Math.min(available, remaining)) : 0;
 
   return (
     <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
@@ -308,10 +325,16 @@ function GiftCardEntry({
         <div className="rounded-lg bg-slate-50 p-3 text-sm">
           <p className="text-slate-700">
             Card <span className="font-medium">{card.code}</span> has{' '}
-            <span className="font-semibold text-slate-900">${Number(card.balance).toFixed(2)}</span>.
+            <span className="font-semibold text-slate-900">${Number(card.balance).toFixed(2)}</span>
+            {alreadyApplied > 0 && (
+              <>
+                {' '}(${alreadyApplied.toFixed(2)} already on this ticket), so ${available.toFixed(2)} is available
+              </>
+            )}
+            .
           </p>
-          {Number(card.balance) <= 0 ? (
-            <p className="mt-1 text-slate-500">No balance to apply.</p>
+          {available <= 0 ? (
+            <p className="mt-1 text-slate-500">No balance left to apply.</p>
           ) : (
             <p className="mt-1 text-slate-700">
               Apply <span className="font-semibold">${applyAmount.toFixed(2)}</span> to this ticket?
@@ -338,11 +361,13 @@ function GiftCardEntry({
 
 function StoreCreditEntry({
   remaining,
+  tenders,
   customerId,
   onCancel,
   onApply,
 }: {
   remaining: number;
+  tenders: Tender[];
   customerId: string | null;
   onCancel: () => void;
   onApply: (amount: number) => void;
@@ -376,7 +401,10 @@ function StoreCreditEntry({
     );
   }
 
-  const applyAmount = balance != null ? roundMoney(Math.min(balance, remaining)) : 0;
+  // What's left after store credit this ticket already uses.
+  const available = balance != null ? availableToApply(balance, tenders, { method: 'store_credit' }) : 0;
+  const alreadyApplied = balance != null ? roundMoney(balance - available) : 0;
+  const applyAmount = roundMoney(Math.min(available, remaining));
 
   return (
     <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 text-sm">
@@ -386,7 +414,12 @@ function StoreCreditEntry({
       ) : (
         <p className="text-slate-700">
           Store credit balance: <span className="font-semibold text-slate-900">${balance.toFixed(2)}</span>
-          {balance > 0 && (
+          {alreadyApplied > 0 && (
+            <>
+              {' '}(${alreadyApplied.toFixed(2)} already on this ticket, ${available.toFixed(2)} available)
+            </>
+          )}
+          {applyAmount > 0 && (
             <>
               {' '}· apply <span className="font-semibold">${applyAmount.toFixed(2)}</span>?
             </>

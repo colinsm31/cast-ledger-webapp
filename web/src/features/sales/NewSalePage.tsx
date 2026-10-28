@@ -10,10 +10,12 @@ import { useSettings } from '../../lib/settings';
 import { computeSaleTotals, fromCents, lineTotalCents } from '../../lib/saleMath';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useDialog } from '../../components/Dialog';
+import { useAuth } from '../../auth/AuthContext';
 import { resolveBarcode, type ScannedProduct } from '../scan/resolveBarcode';
 import { useScannerCapture } from '../scan/useScannerCapture';
 import { ScanFlowParams, withParams } from '../scan/scanFlow';
 import { PaymentScreen, type Tender } from './PaymentScreen';
+import type { SaleDeliveryWarning } from './SaleDetailPage';
 import { decideJobLine, ownerWarnings, type TicketJob } from './ticketJobs';
 import { fetchTicketJob, fetchUnpaidOpenJobs } from './ticketJobQueries';
 
@@ -46,6 +48,7 @@ function productLabel(p: ScannedProduct): string {
 export function NewSalePage() {
   const navigate = useNavigate();
   const { confirm } = useDialog();
+  const { user } = useAuth();
   const settings = useSettings();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -65,6 +68,9 @@ export function NewSalePage() {
   const [gcForm, setGcForm] = useState(false);
   const [gcCode, setGcCode] = useState('');
   const [gcAmount, setGcAmount] = useState('');
+  // A load being added; the ref stops a fast double-click adding it twice.
+  const [gcBusy, setGcBusy] = useState(false);
+  const gcBusyRef = useRef(false);
   // The ticket customer's unpaid open string jobs, offered as one-tap lines.
   const [customerJobs, setCustomerJobs] = useState<TicketJob[]>([]);
   const scanRef = useRef<HTMLInputElement>(null);
@@ -77,7 +83,7 @@ export function NewSalePage() {
   // Resume the ticket saved when the register was last left. Returns what was
   // restored so callers can add to it straight away.
   function restoreHeldSale(): { lines: CartLine[]; customer: Customer | null } {
-    const held = getHeldSale();
+    const held = getHeldSale(user?.id);
     const heldLines = (held?.lines ?? []) as CartLine[];
     const heldCustomer = held?.customer ?? null;
     setLines(heldLines);
@@ -167,13 +173,14 @@ export function NewSalePage() {
   // Persist the ticket as it changes (after the initial restore so we don't
   // clobber a saved ticket with the empty initial state).
   useEffect(() => {
-    if (!restored) return;
+    if (!restored || !user) return;
     setHeldSale(
+      user.id,
       lines.length > 0
-        ? { lines, customer, stringJobId: jobCtx?.id ?? null, deliverAfter: jobCtx?.deliver ?? false }
+        ? { userId: user.id, lines, customer, stringJobId: jobCtx?.id ?? null, deliverAfter: jobCtx?.deliver ?? false }
         : null,
     );
-  }, [restored, lines, customer, jobCtx]);
+  }, [restored, lines, customer, jobCtx, user]);
 
   // Arrived with a product to ring up — from a home-screen scan ("Sell this
   // item") or back from the product form after creating one. The ticket has
@@ -342,8 +349,20 @@ export function NewSalePage() {
     });
   }
 
-  // Sell a gift card: ensure a card exists for the code, then add a load line.
   async function addGiftCardLine() {
+    if (gcBusyRef.current) return;
+    gcBusyRef.current = true;
+    setGcBusy(true);
+    try {
+      await addGiftCardLineNow();
+    } finally {
+      gcBusyRef.current = false;
+      setGcBusy(false);
+    }
+  }
+
+  // Sell a gift card: ensure a card exists for the code, then add a load line.
+  async function addGiftCardLineNow() {
     const code = gcCode.replace(/\s+/g, '').trim();
     const amt = Number(gcAmount);
     if (!code) {
@@ -442,7 +461,7 @@ export function NewSalePage() {
       });
       if (!ok) return;
     }
-    clearHeldSale();
+    if (user) clearHeldSale(user.id);
     navigate('/');
   }
 
@@ -471,21 +490,20 @@ export function NewSalePage() {
       setError(errorMessage(err));
       return;
     }
+    // The sale is recorded: from here the ticket is done whatever happens, so
+    // a failure below can't invite charging twice.
+    if (user) clearHeldSale(user.id);
+    let deliveryWarning: SaleDeliveryWarning | undefined;
     // Paying at pickup: deliver the racket now that it's paid.
     if (jobCtx?.deliver && jobCtx.id) {
       const { error: advErr } = await supabase.rpc('advance_string_job', {
         p_job_id: jobCtx.id,
         p_target_status: 'delivered',
       });
-      if (advErr) {
-        setSaving(false);
-        setError(errorMessage(advErr));
-        return;
-      }
+      if (advErr) deliveryWarning = { jobId: jobCtx.id, message: errorMessage(advErr) };
     }
-    clearHeldSale();
     setSaving(false);
-    navigate(`/sales/${data as string}`);
+    navigate(`/sales/${data as string}`, { state: deliveryWarning ? { deliveryWarning } : undefined });
   }
 
   if (choosingPayment) {
@@ -565,9 +583,10 @@ export function NewSalePage() {
             </label>
             <button
               onClick={() => void addGiftCardLine()}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              disabled={gcBusy}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              Add to ticket
+              {gcBusy ? '…' : 'Add to ticket'}
             </button>
           </div>
         )}

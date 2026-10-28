@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { clearHeldSale } from '../lib/heldSale';
 
 // 'pending' accounts are signed in but not yet approved; they have no access.
 export type Role = 'admin' | 'staff' | 'pending';
@@ -73,7 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) throw error;
       },
       signOut: async () => {
+        const userId = session?.user?.id;
         await supabase.auth.signOut();
+        // A ticket in progress isn't kept for whoever signs in next.
+        if (userId) clearHeldSale(userId);
       },
     }),
     [loading, session, role],

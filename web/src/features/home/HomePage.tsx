@@ -21,7 +21,7 @@ type UpcResult =
 export function HomePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const heldSale = useHeldSale();
+  const heldSale = useHeldSale(user?.id);
   const heldCount = heldSale?.lines.reduce((n, l) => n + l.qty, 0) ?? 0;
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState<Customer[]>([]);

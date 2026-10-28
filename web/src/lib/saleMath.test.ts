@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   allocateToOriginalPayments,
+  availableToApply,
   computeSaleTotals,
   lineTotalCents,
   paymentTypeChanges,
@@ -193,5 +194,27 @@ describe('refund payment types', () => {
       );
       expect(allocations.map((a) => [a.payment.gift_card_id, a.cents])).toEqual([['A', 1000], [null, 1165]]);
     });
+  });
+});
+
+describe('availableToApply', () => {
+  const tenders = [
+    { method: 'gift_card', amount: 30, giftCardId: 'A' },
+    { method: 'gift_card', amount: 5, giftCardId: 'B' },
+    { method: 'store_credit', amount: 12.5 },
+    { method: 'cash', amount: 100 },
+  ];
+
+  it('subtracts what this ticket already takes from the same card', () => {
+    expect(availableToApply(50, tenders, { method: 'gift_card', giftCardId: 'A' })).toBe(20);
+    expect(availableToApply(50, tenders, { method: 'gift_card', giftCardId: 'C' })).toBe(50);
+  });
+
+  it('subtracts store credit already applied', () => {
+    expect(availableToApply(20, tenders, { method: 'store_credit' })).toBe(7.5);
+  });
+
+  it('never goes below zero', () => {
+    expect(availableToApply(10, tenders, { method: 'gift_card', giftCardId: 'A' })).toBe(0);
   });
 });

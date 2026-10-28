@@ -8,6 +8,7 @@ import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
 import { useDialog } from '../../components/Dialog';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
+import { isUnitLine, returnableQty } from './returnable';
 import {
   allocateToOriginalPayments,
   computeSaleTotals,
@@ -30,6 +31,7 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
 interface SaleLine {
   id: string;
   product_id: string | null;
+  product_unit_id: string | null;
   qty: number;
   unit_price: number;
   products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
@@ -102,7 +104,7 @@ export function RefundPage() {
           [
             'id, tax, tax_rate, customer_id',
             'customers ( first_name, last_name )',
-            'sale_lines ( id, product_id, qty, unit_price, products ( brand, name, attributes ) )',
+            'sale_lines ( id, product_id, product_unit_id, qty, unit_price, products ( brand, name, attributes ) )',
             'sale_payments ( method, amount, gift_card_id, gift_cards ( code ) )',
             'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty ), refund_payments ( method, amount, gift_card_id ) )',
           ].join(', '),
@@ -115,20 +117,11 @@ export function RefundPage() {
   }, [saleId]);
 
   // Remaining returnable qty per product line (original minus already refunded).
-  const remaining = useMemo(() => {
-    const map: Record<string, number> = {};
-    if (!sale) return map;
-    const refunded: Record<string, number> = {};
-    for (const r of sale.refunds ?? []) {
-      for (const rl of r.refund_lines ?? []) {
-        refunded[rl.sale_line_id] = (refunded[rl.sale_line_id] ?? 0) + rl.qty;
-      }
-    }
-    for (const l of sale.sale_lines) {
-      if (l.product_id) map[l.id] = l.qty - (refunded[l.id] ?? 0);
-    }
-    return map;
-  }, [sale]);
+  // Remaining returnable qty per line (racquet units can't be returned yet).
+  const remaining = useMemo(
+    () => (sale ? returnableQty(sale.sale_lines, (sale.refunds ?? []).flatMap((r) => r.refund_lines ?? [])) : {}),
+    [sale],
+  );
 
   // Refund subtotal, tax and total for a set of return quantities. Tax follows
   // record_refund: cumulative over this sale's refunds, at the sale's rate, and
@@ -201,7 +194,7 @@ export function RefundPage() {
     if (!sale) return;
     // Return everything still returnable, and prefill the original tenders.
     const q: Record<string, number> = {};
-    for (const l of sale.sale_lines) if (l.product_id) q[l.id] = remaining[l.id] ?? 0;
+    for (const id of Object.keys(remaining)) q[id] = remaining[id];
     setReturnQty(q);
     // Send the money back the way it came, up to what each payment type can
     // still give back; anything left over is for the cashier to place.
@@ -265,7 +258,8 @@ export function RefundPage() {
   if (loadError) return <p className="text-sm text-red-600">{loadError}</p>;
   if (!sale) return <Spinner label="Loading…" />;
 
-  const returnableLines = sale.sale_lines.filter((l) => l.product_id && (remaining[l.id] ?? 0) > 0);
+  const returnableLines = sale.sale_lines.filter((l) => (remaining[l.id] ?? 0) > 0);
+  const unitLines = sale.sale_lines.filter(isUnitLine);
 
   return (
     <div className="max-w-2xl space-y-5">
@@ -283,7 +277,7 @@ export function RefundPage() {
 
       {/* Items */}
       <section className="rounded-xl border border-slate-200 bg-white">
-        {returnableLines.length === 0 ? (
+        {returnableLines.length === 0 && unitLines.length === 0 ? (
           <p className="p-6 text-center text-sm text-slate-500">Nothing left to return on this sale.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
@@ -300,6 +294,12 @@ export function RefundPage() {
                   <span className="w-8 text-center text-sm font-medium">{returnQty[l.id] ?? 0}</span>
                   <button onClick={() => setQty(l.id, (returnQty[l.id] ?? 0) + 1)} className="h-7 w-7 rounded border border-slate-300 hover:bg-slate-50">+</button>
                 </div>
+              </li>
+            ))}
+            {unitLines.map((l) => (
+              <li key={l.id} className="p-3">
+                <p className="truncate font-medium text-slate-500">{lineLabel(l.products)}</p>
+                <p className="text-xs text-slate-500">Racquet returns aren't supported yet.</p>
               </li>
             ))}
           </ul>

@@ -184,3 +184,23 @@ export function allocateToOriginalPayments<P extends MethodAmount<string>>(
   }
   return { allocations, unallocatedCents: left };
 }
+
+/**
+ * What a gift card or store credit can still pay on this ticket: its balance
+ * minus what the ticket's tenders already take from it (the same card, or
+ * store credit). Never negative.
+ */
+export function availableToApply(
+  balance: number,
+  tenders: { method: string; amount: number; giftCardId?: string }[],
+  source: { method: 'gift_card'; giftCardId: string } | { method: 'store_credit' },
+): number {
+  const appliedCents = tenders
+    .filter((t) =>
+      source.method === 'gift_card'
+        ? t.method === 'gift_card' && t.giftCardId === source.giftCardId
+        : t.method === 'store_credit',
+    )
+    .reduce((cents, t) => cents + toCents(t.amount), 0);
+  return fromCents(Math.max(0, toCents(balance) - appliedCents));
+}
