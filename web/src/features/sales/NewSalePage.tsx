@@ -7,6 +7,7 @@ import { errorMessage } from '../../lib/errors';
 import { searchCustomers } from '../../lib/customerSearch';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
 import { useSettings } from '../../lib/settings';
+import { LoadError } from '../../components/LoadError';
 import { computeSaleTotals, fromCents, lineTotalCents } from '../../lib/saleMath';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useDialog } from '../../components/Dialog';
@@ -49,7 +50,7 @@ export function NewSalePage() {
   const navigate = useNavigate();
   const { confirm } = useDialog();
   const { user } = useAuth();
-  const settings = useSettings();
+  const { settings, error: settingsError, reload: reloadSettings } = useSettings();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [lines, setLines] = useState<CartLine[]>([]);
@@ -432,6 +433,11 @@ export function NewSalePage() {
   );
 
   function openPayment() {
+    // Without the settings the tax, and so the total, isn't known.
+    if (!settings) {
+      setError(settingsError ?? 'The shop settings are still loading.');
+      return;
+    }
     if (lines.length === 0) {
       setError('Scan at least one item.');
       return;
@@ -527,6 +533,8 @@ export function NewSalePage() {
           Sales history
         </button>
       </div>
+
+      {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
 
       <CustomerBar customer={customer} onChange={setCustomer} />
 
@@ -708,7 +716,7 @@ export function NewSalePage() {
       <div className="flex gap-2">
         <button
           onClick={openPayment}
-          disabled={lines.length === 0}
+          disabled={lines.length === 0 || !settings}
           className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-base font-semibold text-white hover:bg-green-700 disabled:opacity-50"
         >
           Payment Type · ${total.toFixed(2)}

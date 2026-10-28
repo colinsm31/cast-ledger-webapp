@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { customerNameLastFirst } from '../../types/domain';
 import { useSettings } from '../../lib/settings';
+import { LoadError } from '../../components/LoadError';
 import { useBack } from '../../app/BackContext';
 import { Spinner } from '../../components/Spinner';
 
@@ -59,7 +60,7 @@ const money = (v: number) => `$${Number(v).toFixed(2)}`;
 
 export function SalesListPage() {
   const navigate = useNavigate();
-  const settings = useSettings();
+  const { settings, error: settingsError, reload: reloadSettings } = useSettings();
   const weekStartsMonday = settings?.week_starts_monday ?? false;
   useBack('/');
   const [period, setPeriod] = useState<Period>('today');
@@ -131,6 +132,8 @@ export function SalesListPage() {
           New sale
         </Link>
       </div>
+
+      {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
 
       {/* Period */}
       <div className="flex flex-wrap gap-2">

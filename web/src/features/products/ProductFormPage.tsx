@@ -6,6 +6,7 @@ import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { PickOrAdd } from '../lookups/PickOrAdd';
 import { useSettings } from '../../lib/settings';
+import { LoadError } from '../../components/LoadError';
 import { useBack } from '../../app/BackContext';
 import { AttributeInput, toStoredValue } from './AttributeInput';
 import { ScanFlowParams, safeReturnTo, withParams } from '../scan/scanFlow';
@@ -18,7 +19,7 @@ export function ProductFormPage() {
   const { productId } = useParams<{ productId: string }>();
   const isEdit = Boolean(productId);
   const navigate = useNavigate();
-  const settings = useSettings();
+  const { settings, error: settingsError, reload: reloadSettings } = useSettings();
   const [searchParams] = useSearchParams();
   const prefillUpc = searchParams.get('upc') ?? '';
   // When opened mid-flow (e.g. from a scan on the POS), Back / Cancel / save all
@@ -189,6 +190,8 @@ export function ProductFormPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-xl font-bold text-slate-900">{isEdit ? 'Edit product' : 'New product'}</h1>
+      {/* Only a new product takes the default reorder point. */}
+      {!isEdit && !settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <label className="block space-y-1">

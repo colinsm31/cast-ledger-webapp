@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { SignInPage } from './auth/SignInPage';
 import { PendingApprovalPage } from './auth/PendingApprovalPage';
 import { AppShell } from './app/AppShell';
 import { Spinner } from './components/Spinner';
+import { EmptyState } from './components/EmptyState';
 import { DialogProvider } from './components/Dialog';
 import { BackProvider } from './app/BackContext';
 import { isSupabaseConfigured } from './lib/supabase';
@@ -15,6 +16,7 @@ import { SaleDetailPage } from './features/sales/SaleDetailPage';
 import { RefundPage } from './features/sales/RefundPage';
 import { GiftCardLookupPage } from './features/sales/GiftCardLookupPage';
 import { UsersPage } from './features/admin/UsersPage';
+import { AccountPage } from './features/account/AccountPage';
 import { SettingsPage } from './features/admin/SettingsPage';
 import { SettingsLayout } from './features/admin/SettingsLayout';
 import { CategoriesPage } from './features/categories/CategoriesPage';
@@ -48,7 +50,21 @@ function RequireAdmin({ children }: { children: ReactNode }) {
   const { session, role, isAdmin } = useAuth();
   // Wait for the role to load before deciding.
   if (session && role === null) return <Spinner label="Loading…" />;
-  if (!isAdmin) return <Navigate to="/" replace />;
+  // Explain rather than redirect: an admin who loses access mid-edit (e.g. a
+  // settings save that saved nothing) should see why the page closed.
+  if (!isAdmin) {
+    return (
+      <EmptyState
+        title="Admin access needed"
+        message="Only admins can use this page. Anything not yet saved here wasn't saved."
+        action={
+          <Link to="/" className="text-sm font-medium text-blue-600 hover:underline">
+            Go to the home page
+          </Link>
+        }
+      />
+    );
+  }
   return <>{children}</>;
 }
 
@@ -74,6 +90,7 @@ function Gate() {
         <Route path="/sales/:saleId" element={<SaleDetailPage />} />
         <Route path="/sales/:saleId/refund" element={<RefundPage />} />
         <Route path="/gift-cards" element={<GiftCardLookupPage />} />
+        <Route path="/account" element={<AccountPage />} />
         <Route element={<RequireAdmin><SettingsLayout /></RequireAdmin>}>
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/categories" element={<CategoriesPage />} />

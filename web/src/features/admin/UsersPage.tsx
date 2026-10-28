@@ -6,9 +6,8 @@ import { useAuth, type Role } from '../../auth/AuthContext';
 import { useDialog } from '../../components/Dialog';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
-
-// Matches the create-staff Edge Function's minimum.
-const MIN_PASSWORD_LENGTH = 8;
+import { MIN_PASSWORD_LENGTH, passwordProblem } from '../../lib/passwordRules';
+import { ROLE_LABEL } from '../../lib/staff';
 
 interface Profile {
   id: string;
@@ -22,12 +21,6 @@ const ROLE_BADGE: Record<Role, string> = {
   pending: 'bg-amber-100 text-amber-800',
 };
 
-const ROLE_LABEL: Record<Role, string> = {
-  admin: 'admin',
-  staff: 'staff',
-  pending: 'no access',
-};
-
 // The role changes an admin can make from each role.
 const ROLE_ACTIONS: Record<Role, { label: string; to: Role }[]> = {
   pending: [{ label: 'Approve as staff', to: 'staff' }],
@@ -39,7 +32,7 @@ const ROLE_ACTIONS: Record<Role, { label: string; to: Role }[]> = {
 };
 
 export function UsersPage() {
-  const { user } = useAuth();
+  const { user, refreshRole } = useAuth();
   const { confirm } = useDialog();
   useBack('/');
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
@@ -60,7 +53,16 @@ export function UsersPage() {
   }, [load]);
 
   async function setRole(profile: Profile, role: Role) {
-    if (role === 'pending') {
+    const isSelf = profile.id === user?.id;
+    if (isSelf) {
+      const ok = await confirm({
+        title: 'Change your own role?',
+        message: "You'll lose admin access straight away, and another admin will have to give it back.",
+        confirmLabel: role === 'pending' ? 'Remove my access' : 'Make me staff',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    } else if (role === 'pending') {
       const ok = await confirm({
         title: 'Remove access?',
         message: `${profile.email ?? 'This account'} will be signed out of the shop's data immediately. You can approve them again later.`,
@@ -73,7 +75,12 @@ export function UsersPage() {
     setError(null);
     const { error: err } = await supabase.rpc('set_user_role', { p_user_id: profile.id, p_role: role });
     setBusyId(null);
-    if (err) setError(errorMessage(err));
+    if (err) {
+      setError(errorMessage(err));
+      return;
+    }
+    // Your own new role takes effect now, closing the admin screens (#33).
+    if (isSelf) await refreshRole();
     else await load();
   }
 
@@ -130,8 +137,13 @@ function AddStaff({ onAdded, onError }: { onAdded: () => Promise<void>; onError:
   const [notice, setNotice] = useState<string | null>(null);
 
   async function add() {
-    if (!email.trim() || password.length < MIN_PASSWORD_LENGTH) {
-      onError(`Enter an email and a password of at least ${MIN_PASSWORD_LENGTH} characters.`);
+    if (!email.trim()) {
+      onError('Enter an email.');
+      return;
+    }
+    const problem = passwordProblem(password);
+    if (problem) {
+      onError(problem);
       return;
     }
     setSaving(true);
@@ -145,7 +157,7 @@ function AddStaff({ onAdded, onError }: { onAdded: () => Promise<void>; onError:
     } finally {
       setSaving(false);
     }
-    setNotice(`Staff account created for ${email.trim()}. They can sign in now with the temporary password.`);
+    setNotice(`Staff account created for ${email.trim()}. They can sign in now with the temporary password, and will be asked to change it.`);
     setEmail('');
     setPassword('');
     setOpen(false);

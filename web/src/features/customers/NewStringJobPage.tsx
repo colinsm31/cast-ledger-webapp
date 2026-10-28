@@ -5,6 +5,7 @@ import type { Customer, CustomerRacket } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useSettings } from '../../lib/settings';
+import { LoadError } from '../../components/LoadError';
 import { hasSubCent } from '../../lib/money';
 import { useBack } from '../../app/BackContext';
 import { Spinner } from '../../components/Spinner';
@@ -38,7 +39,7 @@ interface LastJob {
 export function NewStringJobPage() {
   const { customerId, racketId } = useParams<{ customerId: string; racketId: string }>();
   const navigate = useNavigate();
-  const settings = useSettings();
+  const { settings, error: settingsError, reload: reloadSettings } = useSettings();
   useBack(customerId ? `/customers/${customerId}` : '/customers');
 
   const [racket, setRacket] = useState<CustomerRacket | null>(null);
@@ -345,12 +346,14 @@ export function NewStringJobPage() {
         Pay now (open a sales ticket after entering)
       </label>
 
+      {/* The price includes the stringing labor charge from the settings. */}
+      {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex gap-2">
         <button
           onClick={() => void save()}
-          disabled={saving || rowProblems.length > 0 || unavailable.length > 0 || (needsManualPrice && !manualPriceValid)}
+          disabled={saving || !settings || rowProblems.length > 0 || unavailable.length > 0 || (needsManualPrice && !manualPriceValid)}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Enter string job'}
