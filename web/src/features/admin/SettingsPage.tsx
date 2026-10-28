@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { fetchSettings } from '../../lib/settings';
+import { subCentError } from '../../lib/money';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
 
@@ -35,9 +36,14 @@ export function SettingsPage() {
   }, []);
 
   async function save() {
+    setSaved(false);
+    const subCent = subCentError({ 'Stringing labor': stringingLabor });
+    if (subCent) {
+      setError(subCent);
+      return;
+    }
     setSaving(true);
     setError(null);
-    setSaved(false);
     const { error: err } = await supabase
       .from('settings')
       .update({

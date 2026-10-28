@@ -9,6 +9,7 @@ import { useSettings } from '../../lib/settings';
 import { useBack } from '../../app/BackContext';
 import { AttributeInput, toStoredValue } from './AttributeInput';
 import { ScanFlowParams, safeReturnTo, withParams } from '../scan/scanFlow';
+import { subCentError } from '../../lib/money';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -121,6 +122,8 @@ export function ProductFormPage() {
     if (!name.trim()) return 'Name is required';
     if (sellPrice && Number.isNaN(Number(sellPrice))) return 'Sell price must be a number';
     if (cost && Number.isNaN(Number(cost))) return 'Cost must be a number';
+    const subCent = subCentError({ 'Sell price': sellPrice, Cost: cost });
+    if (subCent) return subCent;
     for (const def of attributeDefs) {
       if (def.required && !attrValues[def.name]?.trim()) return `${def.name} is required`;
     }

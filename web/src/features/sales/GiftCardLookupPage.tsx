@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { GiftCardBalance } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useBack } from '../../app/BackContext';
 
 interface CardTxn {
@@ -93,11 +94,23 @@ export function GiftCardLookupPage() {
     if (initial) void lookup(initial);
   }, [searchParams, lookup]);
 
+  // Adding value needs a reason; taking it off doesn't (the server enforces both).
+  const adjNeedsReason = Number(adjAmount) > 0;
+  const adjHasSubCent = hasSubCent(adjAmount);
+
   async function adjustBalance() {
     if (!result) return;
     const amt = Number(adjAmount);
     if (!amt) {
       setError('Enter a non-zero adjustment (use − to remove).');
+      return;
+    }
+    if (adjHasSubCent) {
+      setError(`${SUB_CENT_MESSAGE}.`);
+      return;
+    }
+    if (adjNeedsReason && !adjReason.trim()) {
+      setError('A reason is required to add value to a gift card.');
       return;
     }
     setAdjBusy(true);
@@ -189,7 +202,9 @@ export function GiftCardLookupPage() {
                 />
               </label>
               <label className="flex-1 min-w-[8rem] space-y-1">
-                <span className="text-xs font-medium text-slate-500">Reason</span>
+                <span className="text-xs font-medium text-slate-500">
+                  {adjNeedsReason ? 'Reason (required to add value)' : 'Reason'}
+                </span>
                 <input
                   value={adjReason}
                   onChange={(e) => setAdjReason(e.target.value)}
@@ -199,7 +214,7 @@ export function GiftCardLookupPage() {
               </label>
               <button
                 onClick={() => void adjustBalance()}
-                disabled={adjBusy}
+                disabled={adjBusy || adjHasSubCent || (adjNeedsReason && !adjReason.trim())}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {adjBusy ? 'Saving…' : 'Apply'}
@@ -214,6 +229,7 @@ export function GiftCardLookupPage() {
               >
                 Cancel
               </button>
+              {adjHasSubCent && <p className="w-full text-xs text-red-600">{SUB_CENT_MESSAGE}.</p>}
             </div>
           )}
         </section>

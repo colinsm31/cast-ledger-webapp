@@ -6,6 +6,7 @@ import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { staffLabel, type StaffRef } from '../../lib/staff';
+import { subCentError } from '../../lib/money';
 import { PickOrAdd } from '../lookups/PickOrAdd';
 import {
   cellClass,
@@ -175,6 +176,11 @@ export function StringJobDetailPage() {
     }
     if (unavailable.length > 0) {
       setError(`${unavailable.map((u) => u.label).join(' and ')} — none available. Select a different string.`);
+      return;
+    }
+    const subCent = job.paid_sale_id ? null : subCentError({ Price: price });
+    if (subCent) {
+      setError(subCent);
       return;
     }
     setBusy(true);

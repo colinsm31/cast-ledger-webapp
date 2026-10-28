@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import type { GiftCardBalance, PaymentMethod } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { roundMoney } from '../../lib/saleMath';
+import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 
 export interface Tender {
   id: string;
@@ -223,7 +224,8 @@ function AmountEntry({
   onSubmit: (applied: number) => void;
 }) {
   const [value, setValue] = useState(defaultValue > 0 ? String(defaultValue.toFixed(2)) : '');
-  const entered = Number(value) || 0;
+  const subCent = hasSubCent(value);
+  const entered = subCent ? 0 : Number(value) || 0;
   const applied = allowOverpay ? Math.min(entered, remaining) : Math.min(entered, remaining);
   const change = allowOverpay && entered > remaining ? roundMoney(entered - remaining) : 0;
 
@@ -232,6 +234,7 @@ function AmountEntry({
       <span className="text-xs font-medium text-slate-500">{label}</span>
       <input autoFocus value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" className={inputClass} />
       {change > 0 && <p className="text-sm text-slate-600">Change due: ${change.toFixed(2)}</p>}
+      {subCent && <p className="text-sm text-red-600">{SUB_CENT_MESSAGE}.</p>}
       <div className="flex gap-2">
         <button
           onClick={() => applied > 0 && onSubmit(roundMoney(applied))}

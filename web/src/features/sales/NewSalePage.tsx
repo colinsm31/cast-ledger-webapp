@@ -8,6 +8,7 @@ import { searchCustomers } from '../../lib/customerSearch';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
 import { useSettings } from '../../lib/settings';
 import { computeSaleTotals, fromCents, lineTotalCents } from '../../lib/saleMath';
+import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useDialog } from '../../components/Dialog';
 import { resolveBarcode, type ScannedProduct } from '../scan/resolveBarcode';
 import { useScannerCapture } from '../scan/useScannerCapture';
@@ -353,6 +354,10 @@ export function NewSalePage() {
       setScanMsg('Enter a load amount.');
       return;
     }
+    if (hasSubCent(gcAmount)) {
+      setScanMsg(`Load amount: ${SUB_CENT_MESSAGE.toLowerCase()}.`);
+      return;
+    }
     // If the card already carries a balance, confirm this is an intentional reload.
     const { data: existing } = await supabase
       .from('gift_card_balance')
@@ -415,6 +420,10 @@ export function NewSalePage() {
     for (const l of lines) {
       if (Number(l.price) < 0 || Number.isNaN(Number(l.price))) {
         setError(`Enter a valid price for ${l.label}.`);
+        return;
+      }
+      if (hasSubCent(String(l.price))) {
+        setError(`Price for ${l.label}: ${SUB_CENT_MESSAGE.toLowerCase()}.`);
         return;
       }
     }

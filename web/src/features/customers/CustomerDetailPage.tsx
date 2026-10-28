@@ -5,6 +5,7 @@ import type { Customer, JsonValue, PurchaseHistoryRow, SaleLineKind } from '../.
 import { customerName, stringingLineName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { formatPhone } from '../../lib/phone';
+import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { Spinner } from '../../components/Spinner';
 import { CustomerRacketsPanel } from './CustomerRacketsPanel';
 import { RestringHistoryPanel } from './RestringHistoryPanel';
@@ -269,12 +270,16 @@ function AccountPanel({
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const amountHasSubCent = hasSubCent(amount);
+  const canAdd = Number(amount) > 0 && !amountHasSubCent && reason.trim() !== '';
+
   async function addCredit() {
     const amt = Number(amount);
     if (!amt || amt <= 0) {
       onError('Enter a positive store credit amount.');
       return;
     }
+    if (!canAdd) return;
     setSaving(true);
     const { error: err } = await supabase.rpc('add_store_credit', {
       p_customer_id: customerId,
@@ -318,15 +323,16 @@ function AccountPanel({
             <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           </label>
           <label className="flex-1 min-w-[8rem] space-y-1">
-            <span className="text-xs font-medium text-slate-500">Reason (optional)</span>
+            <span className="text-xs font-medium text-slate-500">Reason</span>
             <input value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           </label>
-          <button onClick={() => void addCredit()} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+          <button onClick={() => void addCredit()} disabled={saving || !canAdd} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
             {saving ? 'Adding…' : 'Add'}
           </button>
           <button onClick={() => setAdding(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
             Cancel
           </button>
+          {amountHasSubCent && <p className="w-full text-xs text-red-600">{SUB_CENT_MESSAGE}.</p>}
         </div>
       )}
 

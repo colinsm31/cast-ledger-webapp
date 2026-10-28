@@ -5,6 +5,7 @@ import {
   lineTotalCents,
   paymentTypeChanges,
   refundableByMethod,
+  refundSource,
   refundTaxCents,
   roundMoney,
   taxCents,
@@ -163,5 +164,34 @@ describe('refund payment types', () => {
   it('leaves the rest unallocated when the original types are used up', () => {
     const refundable = refundableByMethod(salePayments, [{ method: 'cash', amount: 20 }, { method: 'credit', amount: 23.3 }]);
     expect(allocateToOriginalPayments(1000, salePayments, refundable)).toEqual({ allocations: [], unallocatedCents: 1000 });
+  });
+  describe('gift cards, card by card', () => {
+    const paid = [
+      { method: 'gift_card', amount: 10, gift_card_id: 'A' },
+      { method: 'cash', amount: 11.65, gift_card_id: null },
+    ];
+    const keyed = (rows: { method: string; amount: number; gift_card_id?: string | null }[]) =>
+      rows.map((r) => ({ method: refundSource(r.method, r.gift_card_id), amount: r.amount }));
+
+    it('keys a gift card by the card', () => {
+      expect(refundSource('gift_card', 'A')).toBe('gift_card:A');
+      expect(refundSource('cash', null)).toBe('cash');
+    });
+
+    it('flags a refund to a different card than the one that paid', () => {
+      const refundable = refundableByMethod(keyed(paid), []);
+      expect(paymentTypeChanges(refundable, keyed([{ method: 'gift_card', amount: 10, gift_card_id: 'A' }]))).toEqual([]);
+      expect(paymentTypeChanges(refundable, keyed([{ method: 'gift_card', amount: 10, gift_card_id: 'B' }]))).toEqual([
+        'gift_card:B',
+      ]);
+    });
+
+    it('sends a void back to the card that paid', () => {
+      const refundable = refundableByMethod(keyed(paid), []);
+      const { allocations } = allocateToOriginalPayments(2165, paid, refundable, (p) =>
+        refundSource(p.method, p.gift_card_id),
+      );
+      expect(allocations.map((a) => [a.payment.gift_card_id, a.cents])).toEqual([['A', 1000], [null, 1165]]);
+    });
   });
 });

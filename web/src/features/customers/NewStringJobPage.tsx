@@ -5,6 +5,7 @@ import type { Customer, CustomerRacket } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useSettings } from '../../lib/settings';
+import { hasSubCent } from '../../lib/money';
 import { useBack } from '../../app/BackContext';
 import { Spinner } from '../../components/Spinner';
 import {
@@ -188,7 +189,7 @@ export function NewStringJobPage() {
   // price is only known once both rows name a specific catalog string.
   const stringsChosen = rowProblems.length === 0;
   const needsManualPrice = stringsChosen && autoPrice <= 0;
-  const manualPriceValid = Number(manualPrice) > 0;
+  const manualPriceValid = Number(manualPrice) > 0 && !hasSubCent(manualPrice);
   const price = needsManualPrice ? (manualPriceValid ? Number(manualPrice) : 0) : autoPrice;
 
   async function save() {
@@ -206,7 +207,7 @@ export function NewStringJobPage() {
       return;
     }
     if (needsManualPrice && !manualPriceValid) {
-      setError('This string has no set price — enter a price before entering the stringing.');
+      setError('This string has no set price — enter a price (whole cents) before entering the stringing.');
       return;
     }
     setSaving(true);
