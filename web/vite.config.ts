@@ -12,7 +12,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.test.ts', 'src/main.tsx'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/main.tsx'],
       reporter: ['text-summary', 'json-summary', 'html'],
       reportsDirectory: 'coverage',
     },

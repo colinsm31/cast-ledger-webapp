@@ -31,7 +31,18 @@ export function useScannerCapture(
       if (ignoreRef && target === ignoreRef.current) return;
       if (isTypingTarget(target) || isDialogOpen()) return;
 
-      const code = buffer.feed(e, Date.now());
+      // When the key was pressed, not when this page got to it: a slow screen
+      // update mid-scan mustn't look like a pause and cut the code short (#12).
+      const code = buffer.feed(
+        {
+          key: e.key,
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+          altKey: e.altKey,
+          altGraph: e.getModifierState?.('AltGraph') ?? false,
+        },
+        e.timeStamp,
+      );
       if (code) {
         e.preventDefault();
         handlerRef.current(code);

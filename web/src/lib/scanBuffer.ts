@@ -18,12 +18,15 @@ export interface ScanKey {
   ctrlKey?: boolean;
   metaKey?: boolean;
   altKey?: boolean;
+  /** AltGr held (KeyboardEvent.getModifierState('AltGraph')): types characters like @ on many keyboards. */
+  altGraph?: boolean;
 }
 
 export interface ScanBuffer {
   /**
-   * Feed one keystroke at time `now` (ms). Returns the scanned code when this
-   * key is the Enter that completes a scan, otherwise null.
+   * Feed one keystroke pressed at time `now` (ms; pass the event's timeStamp,
+   * so a slow screen update doesn't stretch the gaps). Returns the scanned
+   * code when this key is the Enter that completes a scan, otherwise null.
    */
   feed: (key: ScanKey, now: number) => string | null;
 }
@@ -36,11 +39,10 @@ export function createScanBuffer(): ScanBuffer {
 
   return {
     feed(key, now) {
-      // Shortcuts like Cmd/Ctrl+C aren't scanned characters (#40).
-      if (key.ctrlKey || key.metaKey || key.altKey) {
-        text = '';
-        return null;
-      }
+      // Shortcuts like Cmd/Ctrl+C aren't scanned characters (#40), and are
+      // skipped without losing the scan so far (#12). AltGr (which browsers
+      // can report as Ctrl+Alt) types real characters, so it isn't a shortcut.
+      if (!key.altGraph && (key.ctrlKey || key.metaKey || key.altKey)) return null;
       if (now - last > ScanConstants.maxGapMs) text = '';
       last = now;
 

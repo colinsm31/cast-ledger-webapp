@@ -2,10 +2,10 @@
   "updated": "2026-10-29",
   "web": {
     "overall": {
-      "lines": 10.32,
-      "statements": 10.75,
-      "functions": 9.54,
-      "branches": 9.41
+      "lines": 12.98,
+      "statements": 13.35,
+      "functions": 11.61,
+      "branches": 11.48
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 0
+        "lines": 87.69
       },
       "src/features/account": {
         "lines": 0
@@ -45,13 +45,13 @@
         "lines": 2.97
       },
       "src/features/scan": {
-        "lines": 0
+        "lines": 37.78
       },
       "src/features/stringjobs": {
         "lines": 13.37
       },
       "src/lib": {
-        "lines": 84.23
+        "lines": 84.94
       },
       "src/types": {
         "lines": 33.33
@@ -77,7 +77,7 @@
         "lines": 0
       },
       "src/components/Dialog.tsx": {
-        "lines": 0
+        "lines": 91.93
       },
       "src/components/EmptyState.tsx": {
         "lines": 0
@@ -206,7 +206,7 @@
         "lines": 0
       },
       "src/features/scan/useScannerCapture.ts": {
-        "lines": 0
+        "lines": 100
       },
       "src/features/stringjobs/StringJobDetailPage.tsx": {
         "lines": 0
@@ -242,7 +242,7 @@
         "lines": 62.5
       },
       "src/lib/latestRequest.ts": {
-        "lines": 81.81
+        "lines": 100
       },
       "src/lib/money.ts": {
         "lines": 100

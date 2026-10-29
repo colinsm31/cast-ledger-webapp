@@ -1,5 +1,5 @@
-import { createElement } from 'react';
-import { renderToString } from 'react-dom/server';
+// @vitest-environment jsdom
+import { renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { createRequestTracker, useLatestRequest } from './latestRequest';
 
@@ -35,16 +35,27 @@ describe('createRequestTracker', () => {
 });
 
 describe('useLatestRequest', () => {
-  it("gives a component its own tracker, where only the latest request is current", () => {
-    let startRequest: (() => () => boolean) | undefined;
-    function Page() {
-      startRequest = useLatestRequest();
-      return null;
-    }
-    renderToString(createElement(Page));
-    const first = startRequest!();
-    const second = startRequest!();
+  it('gives a component its own tracker, where only the latest request is current', () => {
+    const { result } = renderHook(() => useLatestRequest());
+    const first = result.current();
+    const second = result.current();
     expect(first()).toBe(false);
     expect(second()).toBe(true);
+  });
+
+  it('keeps the same tracker across renders', () => {
+    const { result, rerender } = renderHook(() => useLatestRequest());
+    const before = result.current;
+    const pending = before();
+    rerender();
+    expect(result.current).toBe(before);
+    expect(pending()).toBe(true);
+  });
+
+  it('makes every request out of date when the component goes away', () => {
+    const { result, unmount } = renderHook(() => useLatestRequest());
+    const pending = result.current();
+    unmount();
+    expect(pending()).toBe(false);
   });
 });

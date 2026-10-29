@@ -67,3 +67,11 @@ describe('optionalNumber', () => {
     expect(optionalNumber('0')).toBe(0);
   });
 });
+
+describe('NaN and infinity', () => {
+  it('refuses them as typed text', () => {
+    for (const text of ['NaN', 'nan', 'Infinity', '-Infinity']) {
+      expect(parseNumberField(text, 'Amount', 'decimal', { allowNegative: true })).toHaveProperty('error');
+    }
+  });
+});

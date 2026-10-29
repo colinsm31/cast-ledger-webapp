@@ -85,6 +85,16 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     current.resolve(value);
   }, []);
 
+  // The page behind doesn't scroll while a dialog is open (#11).
+  useEffect(() => {
+    if (!state) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [state]);
+
   // Give focus back to where it was once the dialog is gone, unless the code
   // that opened it has already moved focus somewhere else.
   useEffect(() => {
@@ -118,7 +128,12 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     if (buttons.length === 0) return;
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     const step = e.shiftKey ? -1 : 1;
-    const next = buttons[(index + step + buttons.length) % buttons.length];
+    // From the dialog itself (after a click on its text), Tab goes to the
+    // first button and Shift+Tab to the last.
+    const next =
+      index === -1
+        ? buttons[e.shiftKey ? buttons.length - 1 : 0]
+        : buttons[(index + step + buttons.length) % buttons.length];
     e.preventDefault();
     next.focus();
   }
@@ -141,8 +156,11 @@ export function DialogProvider({ children }: { children: ReactNode }) {
             role="dialog"
             aria-modal="true"
             aria-label={state.title ?? state.message}
+            // Focusable, so a click on the dialog's text keeps focus inside it
+            // and Escape and Tab still work (#11).
+            tabIndex={-1}
             onKeyDown={onKeyDown}
-            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             {state.title && <h2 className="text-lg font-bold text-slate-900">{state.title}</h2>}

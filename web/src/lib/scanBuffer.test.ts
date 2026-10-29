@@ -31,14 +31,29 @@ describe('createScanBuffer', () => {
     expect(typeAndEnter('', 10)).toBeNull();
   });
 
-  it('ignores shortcut keys and starts over after one', () => {
+  it('skips shortcut keys without losing the scan so far', () => {
     const buffer = createScanBuffer();
     buffer.feed({ key: 'x' }, 0);
     expect(buffer.feed({ key: 'c', metaKey: true }, 10)).toBeNull();
     expect(buffer.feed({ key: 'v', ctrlKey: true }, 20)).toBeNull();
     expect(buffer.feed({ key: 'a', altKey: true }, 30)).toBeNull();
     for (const [i, ch] of [...'1234'].entries()) buffer.feed({ key: ch }, 40 + i * 10);
-    expect(buffer.feed({ key: 'Enter' }, 80)).toBe('1234');
+    expect(buffer.feed({ key: 'Enter' }, 80)).toBe('x1234');
+  });
+
+  it('a shortcut alone, then Enter, is not a scan', () => {
+    const buffer = createScanBuffer();
+    buffer.feed({ key: 'c', metaKey: true }, 0);
+    expect(buffer.feed({ key: 'Enter' }, 10)).toBeNull();
+  });
+
+  it('keeps characters typed with AltGr, even when reported as Ctrl+Alt', () => {
+    const buffer = createScanBuffer();
+    buffer.feed({ key: 'G' }, 0);
+    buffer.feed({ key: 'C' }, 10);
+    buffer.feed({ key: '@', ctrlKey: true, altKey: true, altGraph: true }, 20);
+    buffer.feed({ key: '7' }, 30);
+    expect(buffer.feed({ key: 'Enter' }, 40)).toBe('GC@7');
   });
 
   it('skips non-character keys like Shift without breaking the burst', () => {
