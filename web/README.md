@@ -31,7 +31,8 @@ repo), put the local URL and anon key in `.env.localdb.local` and run
 - `npm test`: unit tests (Vitest), e.g. register money math and barcode handling
 - `npm run coverage`: unit tests with coverage. Open `coverage/index.html` to see the untested lines.
 - `npm run coverage:check`: fails if coverage dropped below `coverage-baseline.json`
-  (overall, or any folder's lines, by more than 0.5 points). When a commit adds tests,
+  (overall, or any folder's or file's lines, by more than 0.5 points), or if `src/lib`
+  is below 80% of lines (a minimum the baseline can't lower). When a commit adds tests,
   or adds a file without tests on purpose, run `npm run coverage:check -- --update` and
   commit the new baseline with it. Not part of CI yet.
 

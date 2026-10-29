@@ -4,9 +4,13 @@
 //   npm run coverage:check            fail if any number dropped
 //   npm run coverage:check -- --update  save the current numbers as the baseline
 //
-// Fails when the overall lines, statements, functions or branches %, or any
-// folder's lines %, is more than TOLERANCE points below the baseline. A new
-// untested file lowers its folder's %, so adding one means updating the
+// Fails when:
+//   - the overall lines, statements, functions or branches %, or any folder's
+//     or file's lines %, is more than TOLERANCE points below the baseline
+//     (checking files too stops one file's lost tests hiding behind another's
+//     new ones in the same folder);
+//   - a folder in MINIMUMS is below its minimum lines %, whatever the baseline.
+// A new untested file lowers its folder's %, so adding one means updating the
 // baseline deliberately in the same commit.
 
 import { execFileSync } from 'node:child_process';
@@ -16,6 +20,9 @@ import { fileURLToPath } from 'node:url';
 
 const TOLERANCE = 0.5; // percentage points, so rounding noise never fails the check
 const METRICS = ['lines', 'statements', 'functions', 'branches'];
+// Lines % a folder must always reach. src/lib holds the shared helpers every
+// screen relies on, so it stays well tested.
+const MINIMUMS = { 'src/lib': 80 };
 
 const webDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const baselinePath = resolve(webDir, 'coverage-baseline.json');
@@ -31,9 +38,12 @@ const percent = (covered, total) => (total === 0 ? 100 : Math.round((covered / t
 
 const overall = Object.fromEntries(METRICS.map((metric) => [metric, summary.total[metric].pct]));
 const folderLines = {};
-for (const [file, numbers] of Object.entries(summary)) {
-  if (file === 'total') continue;
-  const folder = dirname(relative(webDir, file));
+const byFile = {};
+for (const [absolutePath, numbers] of Object.entries(summary)) {
+  if (absolutePath === 'total') continue;
+  const file = relative(webDir, absolutePath);
+  byFile[file] = { lines: numbers.lines.pct };
+  const folder = dirname(file);
   folderLines[folder] ??= { covered: 0, total: 0 };
   folderLines[folder].covered += numbers.lines.covered;
   folderLines[folder].total += numbers.lines.total;
@@ -43,9 +53,23 @@ const byFolder = Object.fromEntries(
     .sort()
     .map((folder) => [folder, { lines: percent(folderLines[folder].covered, folderLines[folder].total) }]),
 );
-const current = { overall, byFolder };
+const current = {
+  overall,
+  byFolder,
+  byFile: Object.fromEntries(Object.keys(byFile).sort().map((file) => [file, byFile[file]])),
+};
+
+// A minimum holds whatever the baseline says, so --update can't lower it.
+const belowMinimum = Object.entries(MINIMUMS)
+  .filter(([folder, minimum]) => (byFolder[folder]?.lines ?? 0) < minimum)
+  .map(([folder, minimum]) => `${folder} lines: ${byFolder[folder]?.lines ?? 0}%, minimum ${minimum}%`);
 
 if (update) {
+  if (belowMinimum.length > 0) {
+    console.error('\nNot saved: below the minimum.');
+    for (const line of belowMinimum) console.error(`  ✗ ${line}`);
+    process.exit(1);
+  }
   const baseline = { updated: new Date().toLocaleDateString('en-CA') /* local YYYY-MM-DD */, web: current };
   writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
   console.log(`\nBaseline saved to coverage-baseline.json (lines ${overall.lines}%).`);
@@ -59,7 +83,7 @@ if (!existsSync(baselinePath)) {
 
 // 3. Compare with the baseline.
 const baseline = JSON.parse(readFileSync(baselinePath, 'utf8')).web;
-const drops = [];
+const drops = [...belowMinimum];
 const rises = [];
 
 function compare(label, was, now) {
@@ -72,6 +96,12 @@ for (const [folder, { lines }] of Object.entries(byFolder)) {
   const was = baseline.byFolder[folder]?.lines;
   if (was === undefined) rises.push(`${folder}: new folder at ${lines}% lines`);
   else compare(`${folder} lines`, was, lines);
+}
+// Files only drop: a new file shows in its folder's number, and a rise is
+// already reported for the folder.
+for (const [file, { lines }] of Object.entries(current.byFile)) {
+  const was = baseline.byFile?.[file]?.lines;
+  if (was !== undefined && lines < was - TOLERANCE) drops.push(`${file} lines: ${was}% → ${lines}%`);
 }
 
 console.log('');

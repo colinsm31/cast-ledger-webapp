@@ -2,10 +2,10 @@
   "updated": "2026-10-28",
   "web": {
     "overall": {
-      "lines": 7.23,
-      "statements": 7.42,
-      "functions": 6.99,
-      "branches": 6.4
+      "lines": 8.85,
+      "statements": 9.22,
+      "functions": 8.46,
+      "branches": 7.8
     },
     "byFolder": {
       "src": {
@@ -51,9 +51,218 @@
         "lines": 13.97
       },
       "src/lib": {
-        "lines": 58.38
+        "lines": 80.54
       },
       "src/types": {
+        "lines": 33.33
+      }
+    },
+    "byFile": {
+      "src/App.tsx": {
+        "lines": 0
+      },
+      "src/app/AppShell.tsx": {
+        "lines": 0
+      },
+      "src/app/BackContext.tsx": {
+        "lines": 0
+      },
+      "src/auth/AuthContext.tsx": {
+        "lines": 0
+      },
+      "src/auth/PendingApprovalPage.tsx": {
+        "lines": 0
+      },
+      "src/auth/SignInPage.tsx": {
+        "lines": 0
+      },
+      "src/components/Dialog.tsx": {
+        "lines": 0
+      },
+      "src/components/EmptyState.tsx": {
+        "lines": 0
+      },
+      "src/components/LoadError.tsx": {
+        "lines": 0
+      },
+      "src/components/Spinner.tsx": {
+        "lines": 0
+      },
+      "src/features/account/AccountPage.tsx": {
+        "lines": 0
+      },
+      "src/features/admin/SettingsLayout.tsx": {
+        "lines": 0
+      },
+      "src/features/admin/SettingsPage.tsx": {
+        "lines": 0
+      },
+      "src/features/admin/UsersPage.tsx": {
+        "lines": 0
+      },
+      "src/features/categories/CategoriesPage.tsx": {
+        "lines": 0
+      },
+      "src/features/categories/CategoryDetailPage.tsx": {
+        "lines": 0
+      },
+      "src/features/customers/CreateCustomerPage.tsx": {
+        "lines": 0
+      },
+      "src/features/customers/CustomerDetailPage.tsx": {
+        "lines": 0
+      },
+      "src/features/customers/CustomerRacketsPanel.tsx": {
+        "lines": 0
+      },
+      "src/features/customers/CustomersListPage.tsx": {
+        "lines": 0
+      },
+      "src/features/customers/NewStringJobPage.tsx": {
+        "lines": 0
+      },
+      "src/features/customers/RestringHistoryPanel.tsx": {
+        "lines": 0
+      },
+      "src/features/customers/RestringPage.tsx": {
+        "lines": 100
+      },
+      "src/features/home/ComingSoon.tsx": {
+        "lines": 0
+      },
+      "src/features/home/HomePage.tsx": {
+        "lines": 0
+      },
+      "src/features/lookups/PickOrAdd.tsx": {
+        "lines": 0
+      },
+      "src/features/lookups/useLookups.ts": {
+        "lines": 0
+      },
+      "src/features/products/AttributeInput.tsx": {
+        "lines": 0
+      },
+      "src/features/products/ProductDetailPage.tsx": {
+        "lines": 0
+      },
+      "src/features/products/ProductFormPage.tsx": {
+        "lines": 0
+      },
+      "src/features/products/ProductsListPage.tsx": {
+        "lines": 0
+      },
+      "src/features/products/ReceiveUnitsSheet.tsx": {
+        "lines": 0
+      },
+      "src/features/products/StockActions.tsx": {
+        "lines": 0
+      },
+      "src/features/products/UnitsSection.tsx": {
+        "lines": 0
+      },
+      "src/features/products/VariantDetailPage.tsx": {
+        "lines": 100
+      },
+      "src/features/products/barcodeClash.ts": {
+        "lines": 100
+      },
+      "src/features/products/variantLabel.ts": {
+        "lines": 100
+      },
+      "src/features/sales/GiftCardLookupPage.tsx": {
+        "lines": 0
+      },
+      "src/features/sales/NewSalePage.tsx": {
+        "lines": 0
+      },
+      "src/features/sales/PaymentScreen.tsx": {
+        "lines": 0
+      },
+      "src/features/sales/RefundPage.tsx": {
+        "lines": 0
+      },
+      "src/features/sales/SaleDetailPage.tsx": {
+        "lines": 0
+      },
+      "src/features/sales/SalesListPage.tsx": {
+        "lines": 0
+      },
+      "src/features/sales/returnable.ts": {
+        "lines": 100
+      },
+      "src/features/sales/ticketJobQueries.ts": {
+        "lines": 0
+      },
+      "src/features/sales/ticketJobs.ts": {
+        "lines": 100
+      },
+      "src/features/scan/resolveBarcode.ts": {
+        "lines": 0
+      },
+      "src/features/scan/scanFlow.ts": {
+        "lines": 0
+      },
+      "src/features/scan/useScannerCapture.ts": {
+        "lines": 0
+      },
+      "src/features/stringjobs/StringJobDetailPage.tsx": {
+        "lines": 0
+      },
+      "src/features/stringjobs/StringJobsPage.tsx": {
+        "lines": 0
+      },
+      "src/features/stringjobs/stringChange.ts": {
+        "lines": 100
+      },
+      "src/features/stringjobs/stringJobForm.tsx": {
+        "lines": 0
+      },
+      "src/features/stringjobs/stringRow.ts": {
+        "lines": 100
+      },
+      "src/features/stringjobs/stringSummary.ts": {
+        "lines": 100
+      },
+      "src/lib/barcode.ts": {
+        "lines": 100
+      },
+      "src/lib/customerSearch.ts": {
+        "lines": 100
+      },
+      "src/lib/edgeFunctions.ts": {
+        "lines": 100
+      },
+      "src/lib/errors.ts": {
+        "lines": 100
+      },
+      "src/lib/heldSale.ts": {
+        "lines": 62.5
+      },
+      "src/lib/money.ts": {
+        "lines": 100
+      },
+      "src/lib/paging.ts": {
+        "lines": 100
+      },
+      "src/lib/passwordRules.ts": {
+        "lines": 90
+      },
+      "src/lib/phone.ts": {
+        "lines": 100
+      },
+      "src/lib/saleMath.ts": {
+        "lines": 100
+      },
+      "src/lib/settings.ts": {
+        "lines": 58.53
+      },
+      "src/lib/staff.ts": {
+        "lines": 100
+      },
+      "src/lib/supabase.ts": {
+        "lines": 0
+      },
+      "src/types/domain.ts": {
         "lines": 33.33
       }
     }
