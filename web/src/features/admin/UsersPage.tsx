@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { supabase, supabaseAnonKey, supabaseUrl } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
+import { invokeEdgeFunction } from '../../lib/edgeFunctions';
 import { useAuth, type Role } from '../../auth/AuthContext';
+import { useDialog } from '../../components/Dialog';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
+import { MIN_PASSWORD_LENGTH, passwordProblem } from '../../lib/passwordRules';
+import { ROLE_LABEL } from '../../lib/staff';
 
 interface Profile {
   id: string;
@@ -12,8 +15,25 @@ interface Profile {
   role: Role;
 }
 
+const ROLE_BADGE: Record<Role, string> = {
+  admin: 'bg-blue-100 text-blue-800',
+  staff: 'bg-slate-100 text-slate-600',
+  pending: 'bg-amber-100 text-amber-800',
+};
+
+// The role changes an admin can make from each role.
+const ROLE_ACTIONS: Record<Role, { label: string; to: Role }[]> = {
+  pending: [{ label: 'Approve as staff', to: 'staff' }],
+  staff: [
+    { label: 'Make admin', to: 'admin' },
+    { label: 'Remove access', to: 'pending' },
+  ],
+  admin: [{ label: 'Make staff', to: 'staff' }],
+};
+
 export function UsersPage() {
-  const { user } = useAuth();
+  const { user, refreshRole } = useAuth();
+  const { confirm } = useDialog();
   useBack('/');
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,12 +52,35 @@ export function UsersPage() {
     void load();
   }, [load]);
 
-  async function setRole(id: string, role: Role) {
-    setBusyId(id);
+  async function setRole(profile: Profile, role: Role) {
+    const isSelf = profile.id === user?.id;
+    if (isSelf) {
+      const ok = await confirm({
+        title: 'Change your own role?',
+        message: "You'll lose admin access straight away, and another admin will have to give it back.",
+        confirmLabel: role === 'pending' ? 'Remove my access' : 'Make me staff',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    } else if (role === 'pending') {
+      const ok = await confirm({
+        title: 'Remove access?',
+        message: `${profile.email ?? 'This account'} will be signed out of the shop's data immediately. You can approve them again later.`,
+        confirmLabel: 'Remove access',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
+    setBusyId(profile.id);
     setError(null);
-    const { error: err } = await supabase.rpc('set_user_role', { p_user_id: id, p_role: role });
+    const { error: err } = await supabase.rpc('set_user_role', { p_user_id: profile.id, p_role: role });
     setBusyId(null);
-    if (err) setError(errorMessage(err));
+    if (err) {
+      setError(errorMessage(err));
+      return;
+    }
+    // Your own new role takes effect now, closing the admin screens (#33).
+    if (isSelf) await refreshRole();
     else await load();
   }
 
@@ -58,21 +101,26 @@ export function UsersPage() {
                   {p.email ?? '—'}
                   {p.id === user?.id && <span className="ml-2 text-xs text-slate-400">(you)</span>}
                 </p>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    p.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  {p.role}
+                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${ROLE_BADGE[p.role]}`}>
+                  {ROLE_LABEL[p.role]}
                 </span>
               </div>
-              <button
-                onClick={() => void setRole(p.id, p.role === 'admin' ? 'staff' : 'admin')}
-                disabled={busyId === p.id}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                {p.role === 'admin' ? 'Make staff' : 'Make admin'}
-              </button>
+              <div className="flex shrink-0 gap-2">
+                {ROLE_ACTIONS[p.role].map((action) => (
+                  <button
+                    key={action.to}
+                    onClick={() => void setRole(p, action.to)}
+                    disabled={busyId === p.id}
+                    className={`rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${
+                      action.to === 'pending'
+                        ? 'border-red-300 text-red-700 hover:bg-red-50'
+                        : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
             </li>
           ))}
         </ul>
@@ -89,26 +137,30 @@ function AddStaff({ onAdded, onError }: { onAdded: () => Promise<void>; onError:
   const [notice, setNotice] = useState<string | null>(null);
 
   async function add() {
-    if (!email.trim() || password.length < 6) {
-      onError('Enter an email and a password of at least 6 characters.');
+    if (!email.trim()) {
+      onError('Enter an email.');
+      return;
+    }
+    const problem = passwordProblem(password);
+    if (problem) {
+      onError(problem);
       return;
     }
     setSaving(true);
     onError('');
-    // Sign up on a throwaway client so the admin's own session is untouched.
-    const tmp = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    const { error } = await tmp.auth.signUp({ email: email.trim(), password });
-    setSaving(false);
-    if (error) {
-      onError(errorMessage(error));
+    try {
+      // Created server-side by an admin-only Edge Function: public sign-up is off.
+      await invokeEdgeFunction('create-staff', { email: email.trim(), password });
+    } catch (err) {
+      onError(errorMessage(err));
       return;
+    } finally {
+      setSaving(false);
     }
+    setNotice(`Staff account created for ${email.trim()}. They can sign in now with the temporary password, and will be asked to change it.`);
     setEmail('');
     setPassword('');
     setOpen(false);
-    setNotice('Staff account created. If email confirmation is enabled, they must confirm before signing in.');
     await onAdded();
   }
 
@@ -116,7 +168,10 @@ function AddStaff({ onAdded, onError }: { onAdded: () => Promise<void>; onError:
     return (
       <div className="space-y-2">
         <button
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setNotice(null);
+            setOpen(true);
+          }}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
         >
           Add staff account
@@ -139,7 +194,7 @@ function AddStaff({ onAdded, onError }: { onAdded: () => Promise<void>; onError:
       <input
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        placeholder="Temporary password (min 6 chars)"
+        placeholder={`Temporary password (min ${MIN_PASSWORD_LENGTH} chars)`}
         type="password"
         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
       />

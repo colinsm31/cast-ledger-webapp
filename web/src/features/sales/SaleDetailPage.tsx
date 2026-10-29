@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { JsonValue } from '../../types/domain';
-import { customerNameLastFirst } from '../../types/domain';
+import type { JsonValue, SaleLineKind } from '../../types/domain';
+import { customerNameLastFirst, stringingLineName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
 import { staffLabel, type StaffRef } from '../../lib/staff';
+import { hasReturnable } from './returnable';
+
+/** Passed by the register when a sale went through but delivering its racquet failed. */
+export interface SaleDeliveryWarning {
+  jobId: string;
+  message: string;
+}
 
 const PAYMENT_LABEL: Record<string, string> = {
   credit: 'Credit',
@@ -16,8 +23,12 @@ const PAYMENT_LABEL: Record<string, string> = {
 };
 
 interface SaleLineRaw {
+  id: string;
+  product_id: string | null;
+  product_unit_id: string | null;
   qty: number;
   unit_price: number;
+  kind: SaleLineKind;
   products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
   gift_cards: { code: string } | null;
 }
@@ -38,7 +49,7 @@ interface SaleDetail {
     tax: number;
     refunded_at: string;
     refunded_by: StaffRef | null;
-    refund_lines: { qty: number }[];
+    refund_lines: { sale_line_id: string; qty: number }[];
   }>;
 }
 
@@ -50,13 +61,14 @@ function lineLabel(line: SaleLineRaw): string {
     return [line.products.brand, line.products.name, ...attrs].filter(Boolean).join(' ');
   }
   if (line.gift_cards) return `Gift card ${line.gift_cards.code}`;
-  return 'Stringing'; // string-job service line
+  return stringingLineName(line.kind); // string-job service line
 }
 
 export function SaleDetailPage() {
   const { saleId } = useParams<{ saleId: string }>();
   const [sale, setSale] = useState<SaleDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const deliveryWarning = (useLocation().state as { deliveryWarning?: SaleDeliveryWarning } | null)?.deliveryWarning;
   useBack('/sales');
 
   useEffect(() => {
@@ -69,9 +81,9 @@ export function SaleDetailPage() {
             'id, sold_at, subtotal, tax, payment_method',
             'customers ( first_name, last_name )',
             'rung_by:profiles!sales_user_id_fkey ( email )',
-            'sale_lines ( qty, unit_price, products ( brand, name, attributes ), gift_cards ( code ) )',
+            'sale_lines ( id, product_id, product_unit_id, qty, unit_price, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
             'sale_payments ( method, amount )',
-            'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( qty ) )',
+            'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( sale_line_id, qty ) )',
           ].join(', '),
         )
         .eq('id', saleId)
@@ -84,13 +96,20 @@ export function SaleDetailPage() {
   if (error) return <p className="text-sm text-red-600">{error}</p>;
   if (!sale) return <Spinner label="Loading…" />;
 
-  const soldProductQty = sale.sale_lines.filter((l) => l.products).reduce((s, l) => s + l.qty, 0);
-  const refundedQty = sale.refunds.reduce((s, r) => s + r.refund_lines.reduce((a, x) => a + x.qty, 0), 0);
   const refundedTotal = sale.refunds.reduce((s, r) => s + Number(r.subtotal) + Number(r.tax), 0);
-  const canRefund = soldProductQty - refundedQty > 0;
+  const canRefund = hasReturnable(sale.sale_lines, sale.refunds.flatMap((r) => r.refund_lines));
 
   return (
     <div className="max-w-2xl space-y-5">
+      {deliveryWarning && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          Paid, but the racquet wasn't marked delivered: {deliveryWarning.message}{' '}
+          <Link to={`/string-jobs/${deliveryWarning.jobId}`} className="font-medium text-blue-700 hover:underline">
+            Mark it delivered from the string job
+          </Link>
+          .
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <Link to="/sales" className="text-sm text-blue-600 hover:underline">

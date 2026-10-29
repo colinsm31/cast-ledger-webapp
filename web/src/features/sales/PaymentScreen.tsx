@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { GiftCardBalance, PaymentMethod } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
-import { roundMoney } from '../../lib/saleMath';
+import { availableToApply, roundMoney } from '../../lib/saleMath';
+import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 
 export interface Tender {
   id: string;
@@ -22,6 +23,8 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
+const ALL_METHODS: PaymentMethod[] = ['cash', 'credit', 'gift_card', 'store_credit'];
+
 export function PaymentScreen({
   total,
   customerId,
@@ -29,6 +32,14 @@ export function PaymentScreen({
   error,
   onBack,
   onComplete,
+  title = 'Payment',
+  backLabel = 'Back to ticket',
+  completeLabel = 'Complete sale',
+  methods = ALL_METHODS,
+  giveBack = false,
+  completeDisabled = false,
+  onTendersChange,
+  children,
 }: {
   total: number;
   customerId: string | null;
@@ -36,14 +47,32 @@ export function PaymentScreen({
   error: string | null;
   onBack: () => void;
   onComplete: (tenders: Tender[]) => void;
+  title?: string;
+  backLabel?: string;
+  completeLabel?: string;
+  // Payment types offered (default: all four).
+  methods?: PaymentMethod[];
+  // Money going back to the customer: store credit is added, not spent.
+  giveBack?: boolean;
+  completeDisabled?: boolean;
+  // Told about the tenders as they change (e.g. to check give-back limits).
+  onTendersChange?: (tenders: Tender[]) => void;
+  // Shown above the complete button (e.g. limits or a reason box).
+  children?: ReactNode;
 }) {
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [mode, setMode] = useState<'none' | PaymentMethod>('none');
   const [localError, setLocalError] = useState<string | null>(null);
 
+  useEffect(() => {
+    onTendersChange?.(tenders);
+  }, [tenders, onTendersChange]);
+
   const paid = useMemo(() => roundMoney(tenders.reduce((s, t) => s + t.amount, 0)), [tenders]);
   const remaining = roundMoney(total - paid);
   const settled = Math.abs(remaining) < 0.005;
+  // A $0 ticket (e.g. a warranty restring) completes with no payment.
+  const nothingToPay = Math.abs(total) < 0.005;
 
   function addTender(t: Omit<Tender, 'id'>) {
     setTenders((prev) => [...prev, { ...t, id: crypto.randomUUID() }]);
@@ -58,19 +87,19 @@ export function PaymentScreen({
     <div className="max-w-2xl space-y-5">
       <div>
         <button onClick={onBack} className="text-sm text-blue-600 hover:underline" disabled={busy}>
-          ‹ Back to ticket
+          ‹ {backLabel}
         </button>
-        <h1 className="text-xl font-bold text-slate-900">Payment</h1>
+        <h1 className="text-xl font-bold text-slate-900">{title}</h1>
       </div>
 
       {/* Running totals */}
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex justify-between text-sm text-slate-600">
-          <span>Total</span>
+          <span>{giveBack ? 'To give back' : 'Total'}</span>
           <span className="font-medium text-slate-900">${total.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-sm text-slate-600">
-          <span>Paid</span>
+          <span>{giveBack ? 'Given back' : 'Paid'}</span>
           <span className="font-medium text-slate-900">${paid.toFixed(2)}</span>
         </div>
         <div className="mt-1 flex justify-between border-t border-slate-100 pt-2">
@@ -80,6 +109,12 @@ export function PaymentScreen({
           </span>
         </div>
       </section>
+
+      {nothingToPay && tenders.length === 0 && (
+        <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          Nothing to pay. {giveBack ? 'Nothing to give back.' : 'Complete the sale to record it.'}
+        </p>
+      )}
 
       {/* Tenders added */}
       {tenders.length > 0 && (
@@ -104,7 +139,7 @@ export function PaymentScreen({
       {/* Add a tender */}
       {!settled && mode === 'none' && (
         <div className="grid grid-cols-2 gap-3">
-          {(['cash', 'credit', 'gift_card', 'store_credit'] as PaymentMethod[]).map((m) => (
+          {methods.map((m) => (
             <button
               key={m}
               onClick={() => {
@@ -121,9 +156,9 @@ export function PaymentScreen({
 
       {mode === 'cash' && (
         <AmountEntry
-          label="Cash tendered"
+          label={giveBack ? 'Cash to give back' : 'Cash tendered'}
           defaultValue={remaining > 0 ? remaining : 0}
-          allowOverpay
+          allowOverpay={!giveBack}
           remaining={remaining}
           onCancel={() => setMode('none')}
           onSubmit={(applied) => addTender({ method: 'cash', amount: applied })}
@@ -131,7 +166,7 @@ export function PaymentScreen({
       )}
       {mode === 'credit' && (
         <AmountEntry
-          label="Credit amount"
+          label={giveBack ? 'Credit to give back' : 'Credit amount'}
           defaultValue={remaining > 0 ? remaining : 0}
           remaining={remaining}
           onCancel={() => setMode('none')}
@@ -141,28 +176,41 @@ export function PaymentScreen({
       {mode === 'gift_card' && (
         <GiftCardEntry
           remaining={remaining}
+          tenders={tenders}
           onCancel={() => setMode('none')}
           onApply={(amount, giftCardId, code) => addTender({ method: 'gift_card', amount, giftCardId, code })}
         />
       )}
-      {mode === 'store_credit' && (
+      {mode === 'store_credit' && giveBack && (
+        <AmountEntry
+          label="Store credit to add"
+          defaultValue={remaining > 0 ? remaining : 0}
+          remaining={remaining}
+          onCancel={() => setMode('none')}
+          onSubmit={(applied) => addTender({ method: 'store_credit', amount: applied })}
+        />
+      )}
+      {mode === 'store_credit' && !giveBack && (
         <StoreCreditEntry
           remaining={remaining}
+          tenders={tenders}
           customerId={customerId}
           onCancel={() => setMode('none')}
           onApply={(amount) => addTender({ method: 'store_credit', amount })}
         />
       )}
 
+      {children}
+
       {localError && <p className="text-sm text-red-600">{localError}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button
         onClick={() => onComplete(tenders)}
-        disabled={busy || !settled || tenders.length === 0}
+        disabled={busy || completeDisabled || !settled || (tenders.length === 0 && !nothingToPay)}
         className="w-full rounded-lg bg-green-600 px-4 py-3 text-base font-semibold text-white hover:bg-green-700 disabled:opacity-50"
       >
-        {busy ? 'Completing…' : 'Complete sale'}
+        {busy ? 'Completing…' : completeLabel}
       </button>
     </div>
   );
@@ -186,7 +234,8 @@ function AmountEntry({
   onSubmit: (applied: number) => void;
 }) {
   const [value, setValue] = useState(defaultValue > 0 ? String(defaultValue.toFixed(2)) : '');
-  const entered = Number(value) || 0;
+  const subCent = hasSubCent(value);
+  const entered = subCent ? 0 : Number(value) || 0;
   const applied = allowOverpay ? Math.min(entered, remaining) : Math.min(entered, remaining);
   const change = allowOverpay && entered > remaining ? roundMoney(entered - remaining) : 0;
 
@@ -195,6 +244,7 @@ function AmountEntry({
       <span className="text-xs font-medium text-slate-500">{label}</span>
       <input autoFocus value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" className={inputClass} />
       {change > 0 && <p className="text-sm text-slate-600">Change due: ${change.toFixed(2)}</p>}
+      {subCent && <p className="text-sm text-red-600">{SUB_CENT_MESSAGE}.</p>}
       <div className="flex gap-2">
         <button
           onClick={() => applied > 0 && onSubmit(roundMoney(applied))}
@@ -213,10 +263,12 @@ function AmountEntry({
 
 function GiftCardEntry({
   remaining,
+  tenders,
   onCancel,
   onApply,
 }: {
   remaining: number;
+  tenders: Tender[];
   onCancel: () => void;
   onApply: (amount: number, giftCardId: string, code: string) => void;
 }) {
@@ -244,7 +296,12 @@ function GiftCardEntry({
     setCard(data as GiftCardBalance);
   }
 
-  const applyAmount = card ? roundMoney(Math.min(Number(card.balance), remaining)) : 0;
+  // What this card can still pay, after what the ticket already takes from it.
+  const available = card
+    ? availableToApply(Number(card.balance), tenders, { method: 'gift_card', giftCardId: card.gift_card_id })
+    : 0;
+  const alreadyApplied = card ? roundMoney(Number(card.balance) - available) : 0;
+  const applyAmount = card ? roundMoney(Math.min(available, remaining)) : 0;
 
   return (
     <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
@@ -268,10 +325,16 @@ function GiftCardEntry({
         <div className="rounded-lg bg-slate-50 p-3 text-sm">
           <p className="text-slate-700">
             Card <span className="font-medium">{card.code}</span> has{' '}
-            <span className="font-semibold text-slate-900">${Number(card.balance).toFixed(2)}</span>.
+            <span className="font-semibold text-slate-900">${Number(card.balance).toFixed(2)}</span>
+            {alreadyApplied > 0 && (
+              <>
+                {' '}(${alreadyApplied.toFixed(2)} already on this ticket), so ${available.toFixed(2)} is available
+              </>
+            )}
+            .
           </p>
-          {Number(card.balance) <= 0 ? (
-            <p className="mt-1 text-slate-500">No balance to apply.</p>
+          {available <= 0 ? (
+            <p className="mt-1 text-slate-500">No balance left to apply.</p>
           ) : (
             <p className="mt-1 text-slate-700">
               Apply <span className="font-semibold">${applyAmount.toFixed(2)}</span> to this ticket?
@@ -298,11 +361,13 @@ function GiftCardEntry({
 
 function StoreCreditEntry({
   remaining,
+  tenders,
   customerId,
   onCancel,
   onApply,
 }: {
   remaining: number;
+  tenders: Tender[];
   customerId: string | null;
   onCancel: () => void;
   onApply: (amount: number) => void;
@@ -336,7 +401,10 @@ function StoreCreditEntry({
     );
   }
 
-  const applyAmount = balance != null ? roundMoney(Math.min(balance, remaining)) : 0;
+  // What's left after store credit this ticket already uses.
+  const available = balance != null ? availableToApply(balance, tenders, { method: 'store_credit' }) : 0;
+  const alreadyApplied = balance != null ? roundMoney(balance - available) : 0;
+  const applyAmount = roundMoney(Math.min(available, remaining));
 
   return (
     <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 text-sm">
@@ -346,7 +414,12 @@ function StoreCreditEntry({
       ) : (
         <p className="text-slate-700">
           Store credit balance: <span className="font-semibold text-slate-900">${balance.toFixed(2)}</span>
-          {balance > 0 && (
+          {alreadyApplied > 0 && (
+            <>
+              {' '}(${alreadyApplied.toFixed(2)} already on this ticket, ${available.toFixed(2)} available)
+            </>
+          )}
+          {applyAmount > 0 && (
             <>
               {' '}· apply <span className="font-semibold">${applyAmount.toFixed(2)}</span>?
             </>

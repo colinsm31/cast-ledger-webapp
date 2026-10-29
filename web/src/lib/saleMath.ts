@@ -120,6 +120,14 @@ export function centsByMethod<M extends string>(amounts: MethodAmount<M>[]): Map
 }
 
 /**
+ * What a refund is limited by: its payment type, or for a gift card, the card
+ * itself, so money goes back to the card that paid (record_refund, 0046).
+ */
+export function refundSource(method: string, giftCardId?: string | null): string {
+  return method === 'gift_card' && giftCardId ? `gift_card:${giftCardId}` : method;
+}
+
+/**
  * How much each payment type can still give back without a payment-type
  * change: what the sale took that way minus what earlier refunds returned that way.
  */
@@ -158,18 +166,41 @@ export function allocateToOriginalPayments<P extends MethodAmount<string>>(
   totalCents: number,
   salePayments: P[],
   refundable: Map<string, number>,
+  /** The key `refundable` uses for a payment; its method unless given. */
+  sourceOf: (payment: P) => string = (payment) => payment.method,
 ): { allocations: { payment: P; cents: number }[]; unallocatedCents: number } {
   const remainingByMethod = new Map(refundable);
   const allocations: { payment: P; cents: number }[] = [];
   let left = totalCents;
   for (const payment of salePayments) {
     if (left <= 0) break;
-    const available = Math.min(toCents(payment.amount), remainingByMethod.get(payment.method) ?? 0);
+    const source = sourceOf(payment);
+    const available = Math.min(toCents(payment.amount), remainingByMethod.get(source) ?? 0);
     const cents = Math.min(available, left);
     if (cents <= 0) continue;
     allocations.push({ payment, cents });
-    remainingByMethod.set(payment.method, (remainingByMethod.get(payment.method) ?? 0) - cents);
+    remainingByMethod.set(source, (remainingByMethod.get(source) ?? 0) - cents);
     left -= cents;
   }
   return { allocations, unallocatedCents: left };
+}
+
+/**
+ * What a gift card or store credit can still pay on this ticket: its balance
+ * minus what the ticket's tenders already take from it (the same card, or
+ * store credit). Never negative.
+ */
+export function availableToApply(
+  balance: number,
+  tenders: { method: string; amount: number; giftCardId?: string }[],
+  source: { method: 'gift_card'; giftCardId: string } | { method: 'store_credit' },
+): number {
+  const appliedCents = tenders
+    .filter((t) =>
+      source.method === 'gift_card'
+        ? t.method === 'gift_card' && t.giftCardId === source.giftCardId
+        : t.method === 'store_credit',
+    )
+    .reduce((cents, t) => cents + toCents(t.amount), 0);
+  return fromCents(Math.max(0, toCents(balance) - appliedCents));
 }

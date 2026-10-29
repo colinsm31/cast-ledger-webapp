@@ -6,9 +6,11 @@ import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { PickOrAdd } from '../lookups/PickOrAdd';
 import { useSettings } from '../../lib/settings';
+import { LoadError } from '../../components/LoadError';
 import { useBack } from '../../app/BackContext';
 import { AttributeInput, toStoredValue } from './AttributeInput';
 import { ScanFlowParams, safeReturnTo, withParams } from '../scan/scanFlow';
+import { subCentError } from '../../lib/money';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -17,7 +19,7 @@ export function ProductFormPage() {
   const { productId } = useParams<{ productId: string }>();
   const isEdit = Boolean(productId);
   const navigate = useNavigate();
-  const settings = useSettings();
+  const { settings, error: settingsError, reload: reloadSettings } = useSettings();
   const [searchParams] = useSearchParams();
   const prefillUpc = searchParams.get('upc') ?? '';
   // When opened mid-flow (e.g. from a scan on the POS), Back / Cancel / save all
@@ -37,7 +39,6 @@ export function ProductFormPage() {
   const [reorderPoint, setReorderPoint] = useState('');
   const [upc, setUpc] = useState(prefillUpc);
   const [sku, setSku] = useState('');
-  const [isSerialized, setIsSerialized] = useState(false);
   const [attrValues, setAttrValues] = useState<Record<string, string>>({});
 
   const [loading, setLoading] = useState(isEdit);
@@ -51,14 +52,9 @@ export function ProductFormPage() {
     [categories, categoryId],
   );
   const categoryName = selectedCategory?.name ?? '';
-  // Rackets (and any category flagged serialized_default) are always unit-tracked.
-  const forcesSerialized = selectedCategory?.serialized_default ?? false;
-
-  // New products inherit their category's serialization default as the toggle
-  // starts; a forced category (rackets) stays on and locked.
-  useEffect(() => {
-    if (!isEdit) setIsSerialized(forcesSerialized);
-  }, [isEdit, forcesSerialized, categoryId]);
+  // Unit tracking comes from the category (the server sets it): rackets, and any
+  // other category flagged serialized_default, are tracked unit by unit.
+  const tracksUnits = selectedCategory?.serialized_default ?? false;
 
   // Load categories once.
   useEffect(() => {
@@ -113,7 +109,6 @@ export function ProductFormPage() {
       setReorderPoint(p.reorder_point != null ? String(p.reorder_point) : '');
       setUpc(p.barcode ?? '');
       setSku(p.sku ?? '');
-      setIsSerialized(p.is_serialized);
       const prefilled: Record<string, string> = {};
       for (const [key, value] of Object.entries(p.attributes ?? {})) {
         prefilled[key] = value == null ? '' : String(value);
@@ -128,6 +123,8 @@ export function ProductFormPage() {
     if (!name.trim()) return 'Name is required';
     if (sellPrice && Number.isNaN(Number(sellPrice))) return 'Sell price must be a number';
     if (cost && Number.isNaN(Number(cost))) return 'Cost must be a number';
+    const subCent = subCentError({ 'Sell price': sellPrice, Cost: cost });
+    if (subCent) return subCent;
     for (const def of attributeDefs) {
       if (def.required && !attrValues[def.name]?.trim()) return `${def.name} is required`;
     }
@@ -159,7 +156,6 @@ export function ProductFormPage() {
       reorder_point: reorderPoint ? Number(reorderPoint) : null,
       barcode: upc.trim() || null,
       sku: sku.trim() || null,
-      is_serialized: isSerialized,
     };
 
     const duplicateUpcMessage = (message: string) =>
@@ -194,6 +190,8 @@ export function ProductFormPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-xl font-bold text-slate-900">{isEdit ? 'Edit product' : 'New product'}</h1>
+      {/* Only a new product takes the default reorder point. */}
+      {!isEdit && !settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <label className="block space-y-1">
@@ -261,23 +259,14 @@ export function ProductFormPage() {
           </label>
         </div>
 
-        <label className="flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={isSerialized}
-            disabled={forcesSerialized}
-            onChange={(e) => setIsSerialized(e.target.checked)}
-            className="mt-0.5"
-          />
-          <span>
-            Track individual units (rackets)
+        {tracksUnits && (
+          <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+            Tracked as individual units ({categoryName} category)
             <span className="block text-xs text-slate-500">
-              {forcesSerialized
-                ? `${categoryName} are always tracked as individual units — each with its own barcode.`
-                : 'Stock is the count of scanned-in units, each with its own barcode. The UPC above is the shared model code.'}
+              Stock is the count of scanned-in units, each with its own barcode. The UPC above is the shared model code.
             </span>
-          </span>
-        </label>
+          </p>
+        )}
       </section>
 
       {attributeDefs.length > 0 && (

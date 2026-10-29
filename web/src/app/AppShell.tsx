@@ -1,6 +1,10 @@
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useBackTarget } from './BackContext';
+import { useDialog } from '../components/Dialog';
+import { heldSaleSummary, useHeldSale } from '../lib/heldSale';
+import { customerName } from '../types/domain';
+import { usesTemporaryPassword } from '../lib/passwordRules';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `px-3 py-2 rounded-lg text-sm font-medium ${
@@ -16,11 +20,28 @@ const testStripe = {
 };
 
 export function AppShell() {
-  const { signOut, isAdmin } = useAuth();
+  const { signOut, isAdmin, user } = useAuth();
+  const { confirm } = useDialog();
+  const heldSale = useHeldSale(user?.id);
   const navigate = useNavigate();
   const location = useLocation();
   const backTarget = useBackTarget();
   const showBack = location.pathname !== '/';
+
+  // Signing out discards a ticket in progress, so say so first.
+  async function confirmSignOut() {
+    if (heldSale) {
+      const ok = await confirm({
+        title: 'Discard the ticket in progress?',
+        message: `You have a ticket in progress (${heldSaleSummary(heldSale, heldSale.customer ? customerName(heldSale.customer) : null)}). Signing out discards it.`,
+        confirmLabel: 'Discard and sign out',
+        cancelLabel: 'Keep ticket',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
+    await signOut();
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -61,14 +82,30 @@ export function AppShell() {
               )}
             </nav>
           </div>
-          <button
-            onClick={() => void signOut()}
-            className="text-sm text-slate-600 hover:text-red-600"
-          >
-            Sign out
-          </button>
+          <div className="flex items-center gap-4">
+            <NavLink to="/account" className={navLinkClass}>
+              My account
+            </NavLink>
+            <button
+              onClick={() => void confirmSignOut()}
+              className="text-sm text-slate-600 hover:text-red-600"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
+      {/* A reminder, not a block: new accounts start on an admin-given password. */}
+      {usesTemporaryPassword(user?.user_metadata) && location.pathname !== '/account' && (
+        <div className="border-b border-amber-300 bg-amber-50">
+          <p className="mx-auto max-w-5xl px-4 py-2 text-sm text-amber-900">
+            You're using a temporary password.{' '}
+            <Link to="/account" className="font-semibold underline">
+              Change it
+            </Link>
+          </p>
+        </div>
+      )}
       <main className="mx-auto max-w-5xl px-4 py-6">
         {showBack && (
           <button

@@ -85,6 +85,12 @@ export function CustomerRacketsPanel({
     void load();
   }, [load]);
 
+  // Closing a racket form (saved or cancelled) drops any error it raised.
+  function closeForm(close: () => void) {
+    setError(null);
+    close();
+  }
+
   // Removing retires the racket (is_active = false) rather than deleting it, so
   // its stringing history stays on the customer's record and its tag barcode
   // is freed for another racket.
@@ -127,9 +133,9 @@ export function CustomerRacketsPanel({
           customerId={customerId}
           catalogRackets={catalogRackets}
           initialBarcode={pendingBarcode}
-          onCancel={() => setAdding(false)}
+          onCancel={() => closeForm(() => setAdding(false))}
           onSaved={async () => {
-            setAdding(false);
+            closeForm(() => setAdding(false));
             setPendingBarcode('');
             await load();
           }}
@@ -150,9 +156,9 @@ export function CustomerRacketsPanel({
                   customerId={customerId}
                   catalogRackets={catalogRackets}
                   existing={racket}
-                  onCancel={() => setEditingId(null)}
+                  onCancel={() => closeForm(() => setEditingId(null))}
                   onSaved={async () => {
-                    setEditingId(null);
+                    closeForm(() => setEditingId(null));
                     await load();
                   }}
                   onError={setError}

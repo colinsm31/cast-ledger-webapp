@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { fetchAllRows } from '../../lib/paging';
+import { searchCustomers } from '../../lib/customerSearch';
 import type { Customer } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
@@ -9,10 +10,17 @@ import { EmptyState } from '../../components/EmptyState';
 import { useBack } from '../../app/BackContext';
 import { ScanFlowParams, withParams } from '../scan/scanFlow';
 
+// The most matches search_customers returns; more means "type more".
+const SEARCH_RESULT_LIMIT = 50;
+
 export function CustomersListPage() {
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  // Search results (null while not searching), from the same search as Home:
+  // "first last", "last, first", email, or phone digits (#23).
+  const [matches, setMatches] = useState<Customer[] | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
   useBack('/');
   const [searchParams] = useSearchParams();
   // Arrived from a home-screen scan: we're picking who owns this racket, so
@@ -20,31 +28,53 @@ export function CustomersListPage() {
   const racketBarcode = searchParams.get(ScanFlowParams.racketBarcode);
   const carryBarcode = (path: string) => withParams(path, { [ScanFlowParams.racketBarcode]: racketBarcode });
 
-  async function load() {
-    const { data, error: err } = await supabase
-      .from('customers')
-      .select('*')
-      .order('last_name')
-      .order('first_name');
-    if (err) setError(errorMessage(err));
-    else setCustomers((data ?? []) as Customer[]);
-  }
-
+  // Every customer, a page at a time: one request returns at most 1,000 rows.
+  // Paging needs a unique order (id), so the name order is applied here.
   useEffect(() => {
-    void load();
+    let active = true;
+    fetchAllRows<Customer>('customers', '*', 'id').then(
+      (rows) => {
+        if (!active) return;
+        const byName = (c: Customer) => `${c.last_name ?? ''}\u0000${c.first_name}`.toLowerCase();
+        setCustomers([...rows].sort((a, b) => byName(a).localeCompare(byName(b))));
+      },
+      (err: unknown) => {
+        if (active) setError(errorMessage(err));
+      },
+    );
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const filtered = useMemo(() => {
-    if (!customers) return [];
-    const term = search.trim().toLowerCase();
-    if (!term) return customers;
-    return customers.filter(
-      (c) =>
-        customerName(c).toLowerCase().includes(term) ||
-        (c.phone_number?.toLowerCase().includes(term) ?? false) ||
-        (c.email?.toLowerCase().includes(term) ?? false),
-    );
-  }, [customers, search]);
+  // Search as the user types (debounced); an older response never replaces a newer one.
+  const term = search.trim();
+  useEffect(() => {
+    if (!term) {
+      setMatches(null);
+      setSearchError(null);
+      return;
+    }
+    let active = true;
+    const handle = setTimeout(() => {
+      searchCustomers(term, SEARCH_RESULT_LIMIT).then(
+        (found) => {
+          if (!active) return;
+          setMatches(found);
+          setSearchError(null);
+        },
+        (err: unknown) => {
+          if (active) setSearchError(errorMessage(err));
+        },
+      );
+    }, 200);
+    return () => {
+      active = false;
+      clearTimeout(handle);
+    };
+  }, [term]);
+
+  const shown = term ? (matches ?? []) : (customers ?? []);
 
   return (
     <div className="space-y-4">
@@ -72,17 +102,22 @@ export function CustomersListPage() {
         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {(error ?? searchError) && <p className="text-sm text-red-600">{error ?? searchError}</p>}
       {customers === null && !error && <Spinner label="Loading…" />}
       {customers && customers.length === 0 && (
         <EmptyState title="No customers yet" message="Add a customer to track their purchases." />
       )}
-      {customers && customers.length > 0 && filtered.length === 0 && (
+      {customers && customers.length > 0 && matches !== null && matches.length === 0 && (
         <EmptyState title="No matches" message="No customers match your search." />
       )}
-      {filtered.length > 0 && (
+      {matches !== null && matches.length === SEARCH_RESULT_LIMIT && (
+        <p className="text-sm text-slate-500">
+          Showing the first {SEARCH_RESULT_LIMIT} matches. Type more to narrow it down.
+        </p>
+      )}
+      {shown.length > 0 && (
         <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
-          {filtered.map((customer) => (
+          {shown.map((customer) => (
             <li key={customer.id}>
               <Link to={carryBarcode(`/customers/${customer.id}`)} className="block p-4 hover:bg-slate-50">
                 <p className="font-medium text-slate-900">{customerName(customer)}</p>

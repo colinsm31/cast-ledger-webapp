@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   allocateToOriginalPayments,
+  availableToApply,
   computeSaleTotals,
   lineTotalCents,
   paymentTypeChanges,
   refundableByMethod,
+  refundSource,
   refundTaxCents,
   roundMoney,
   taxCents,
@@ -163,5 +165,56 @@ describe('refund payment types', () => {
   it('leaves the rest unallocated when the original types are used up', () => {
     const refundable = refundableByMethod(salePayments, [{ method: 'cash', amount: 20 }, { method: 'credit', amount: 23.3 }]);
     expect(allocateToOriginalPayments(1000, salePayments, refundable)).toEqual({ allocations: [], unallocatedCents: 1000 });
+  });
+  describe('gift cards, card by card', () => {
+    const paid = [
+      { method: 'gift_card', amount: 10, gift_card_id: 'A' },
+      { method: 'cash', amount: 11.65, gift_card_id: null },
+    ];
+    const keyed = (rows: { method: string; amount: number; gift_card_id?: string | null }[]) =>
+      rows.map((r) => ({ method: refundSource(r.method, r.gift_card_id), amount: r.amount }));
+
+    it('keys a gift card by the card', () => {
+      expect(refundSource('gift_card', 'A')).toBe('gift_card:A');
+      expect(refundSource('cash', null)).toBe('cash');
+    });
+
+    it('flags a refund to a different card than the one that paid', () => {
+      const refundable = refundableByMethod(keyed(paid), []);
+      expect(paymentTypeChanges(refundable, keyed([{ method: 'gift_card', amount: 10, gift_card_id: 'A' }]))).toEqual([]);
+      expect(paymentTypeChanges(refundable, keyed([{ method: 'gift_card', amount: 10, gift_card_id: 'B' }]))).toEqual([
+        'gift_card:B',
+      ]);
+    });
+
+    it('sends a void back to the card that paid', () => {
+      const refundable = refundableByMethod(keyed(paid), []);
+      const { allocations } = allocateToOriginalPayments(2165, paid, refundable, (p) =>
+        refundSource(p.method, p.gift_card_id),
+      );
+      expect(allocations.map((a) => [a.payment.gift_card_id, a.cents])).toEqual([['A', 1000], [null, 1165]]);
+    });
+  });
+});
+
+describe('availableToApply', () => {
+  const tenders = [
+    { method: 'gift_card', amount: 30, giftCardId: 'A' },
+    { method: 'gift_card', amount: 5, giftCardId: 'B' },
+    { method: 'store_credit', amount: 12.5 },
+    { method: 'cash', amount: 100 },
+  ];
+
+  it('subtracts what this ticket already takes from the same card', () => {
+    expect(availableToApply(50, tenders, { method: 'gift_card', giftCardId: 'A' })).toBe(20);
+    expect(availableToApply(50, tenders, { method: 'gift_card', giftCardId: 'C' })).toBe(50);
+  });
+
+  it('subtracts store credit already applied', () => {
+    expect(availableToApply(20, tenders, { method: 'store_credit' })).toBe(7.5);
+  });
+
+  it('never goes below zero', () => {
+    expect(availableToApply(10, tenders, { method: 'gift_card', giftCardId: 'A' })).toBe(0);
   });
 });

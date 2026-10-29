@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { customerNameLastFirst } from '../../types/domain';
 import { useSettings } from '../../lib/settings';
+import { LoadError } from '../../components/LoadError';
 import { useBack } from '../../app/BackContext';
 import { Spinner } from '../../components/Spinner';
 
@@ -31,6 +32,7 @@ interface Summary {
   num_customers: number;
   num_tickets: number;
   num_items: number;
+  gift_cards_sold: number;
 }
 
 interface TicketRow {
@@ -59,7 +61,7 @@ const money = (v: number) => `$${Number(v).toFixed(2)}`;
 
 export function SalesListPage() {
   const navigate = useNavigate();
-  const settings = useSettings();
+  const { settings, error: settingsError, reload: reloadSettings } = useSettings();
   const weekStartsMonday = settings?.week_starts_monday ?? false;
   useBack('/');
   const [period, setPeriod] = useState<Period>('today');
@@ -132,6 +134,8 @@ export function SalesListPage() {
         </Link>
       </div>
 
+      {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
+
       {/* Period */}
       <div className="flex flex-wrap gap-2">
         {PERIODS.map((p) => (
@@ -177,7 +181,8 @@ export function SalesListPage() {
           <Spinner label="Loading…" />
         ) : summary ? (
           <section className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
-            <MoneyRow label="Gross receipts" value={summary.gross} />
+            <MoneyRow label="Gross sales" value={summary.gross} />
+            <MoneyRow label="Gift cards sold" value={summary.gift_cards_sold} />
             <MoneyRow label="Sales tax collected" value={summary.tax} />
             <MoneyRow label="Total refunds issued" value={summary.refunds} />
             <MoneyRow label="Total net receipts" value={summary.net} strong />
@@ -188,7 +193,11 @@ export function SalesListPage() {
             <MoneyRow label="Net purchases made with gift cards/certificates" value={summary.gift_card} />
             <CountRow label="Number of customers" value={summary.num_customers} />
             <CountRow label="Number of sales tickets" value={summary.num_tickets} />
-            <CountRow label="Number of items sold" value={summary.num_items} />
+            <CountRow label="Number of items sold (net of returns)" value={summary.num_items} />
+            <p className="p-3 text-xs text-slate-500">
+              Gift cards count as sales when they're spent, not when they're sold. Net receipts include
+              gift cards sold, so they match the money taken in.
+            </p>
           </section>
         ) : null
       )}
@@ -238,6 +247,7 @@ function normalizeSummary(r: Record<string, unknown>): Summary {
     num_customers: n('num_customers'),
     num_tickets: n('num_tickets'),
     num_items: n('num_items'),
+    gift_cards_sold: n('gift_cards_sold'),
   };
 }
 

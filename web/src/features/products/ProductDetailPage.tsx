@@ -153,7 +153,14 @@ export function ProductDetailPage() {
               <span className="font-medium text-slate-700">{Number(availability.available)}</span> available
             </p>
           )}
-          <StockActions productId={product.id} onDone={load} onError={setError} />
+          <StockActions
+            productId={product.id}
+            onDone={async () => {
+              setError(null);
+              await load();
+            }}
+            onError={setError}
+          />
         </section>
       )}
 

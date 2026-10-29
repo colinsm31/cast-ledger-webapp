@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
-import { fetchSettings } from '../../lib/settings';
+import { fetchSettings, parseSettingsForm, settingsToForm } from '../../lib/settings';
+import type { SettingsForm } from '../../lib/settings';
+import { useAuth } from '../../auth/AuthContext';
 import { Spinner } from '../../components/Spinner';
+import { LoadError } from '../../components/LoadError';
 import { useBack } from '../../app/BackContext';
 
 const inputClass =
@@ -10,52 +13,68 @@ const inputClass =
 
 export function SettingsPage() {
   useBack('/');
-  const [loading, setLoading] = useState(true);
-  const [taxRate, setTaxRate] = useState('');
-  const [taxStringing, setTaxStringing] = useState(false);
-  const [stringingLabor, setStringingLabor] = useState('');
-  const [defaultReorder, setDefaultReorder] = useState('');
-  const [blockOversell, setBlockOversell] = useState(false);
-  const [weekStartsMonday, setWeekStartsMonday] = useState(false);
+  const { refreshRole } = useAuth();
+  // Null until loaded; the form is never shown over values that failed to load.
+  const [form, setForm] = useState<SettingsForm | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    void (async () => {
-      const s = await fetchSettings();
-      setTaxRate(String(s.tax_rate));
-      setTaxStringing(s.tax_stringing);
-      setStringingLabor(String(s.stringing_labor));
-      setDefaultReorder(s.default_reorder_point != null ? String(s.default_reorder_point) : '');
-      setBlockOversell(s.block_oversell);
-      setWeekStartsMonday(s.week_starts_monday);
-      setLoading(false);
-    })();
+  const load = useCallback(async () => {
+    setLoadError(null);
+    try {
+      setForm(settingsToForm(await fetchSettings()));
+    } catch (err) {
+      setLoadError(errorMessage(err));
+    }
   }, []);
 
-  async function save() {
-    setSaving(true);
-    setError(null);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  function update(changes: Partial<SettingsForm>) {
+    setForm((current) => (current ? { ...current, ...changes } : current));
     setSaved(false);
-    const { error: err } = await supabase
-      .from('settings')
-      .update({
-        tax_rate: Number(taxRate) || 0,
-        tax_stringing: taxStringing,
-        stringing_labor: Number(stringingLabor) || 0,
-        default_reorder_point: defaultReorder.trim() ? Number(defaultReorder) : null,
-        block_oversell: blockOversell,
-        week_starts_monday: weekStartsMonday,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', true);
-    setSaving(false);
-    if (err) setError(errorMessage(err));
-    else setSaved(true);
   }
 
-  if (loading) return <Spinner label="Loading…" />;
+  async function save() {
+    if (!form) return;
+    setSaved(false);
+    const parsed = parseSettingsForm(form);
+    if ('error' in parsed) {
+      setError(parsed.error);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const { data, error: err } = await supabase
+      .from('settings')
+      .update({ ...parsed.settings, updated_at: new Date().toISOString() })
+      .eq('id', true)
+      .select('id');
+    setSaving(false);
+    if (err) {
+      setError(errorMessage(err));
+    } else if (!data || data.length === 0) {
+      // The database saved nothing: this account is no longer an admin (#33).
+      setError('Settings weren\'t saved: only admins can change settings.');
+      await refreshRole();
+    } else {
+      setSaved(true);
+    }
+  }
+
+  if (loadError) {
+    return (
+      <div className="max-w-xl space-y-6">
+        <h1 className="text-xl font-bold text-slate-900">Settings</h1>
+        <LoadError message={loadError} onRetry={() => void load()} />
+      </div>
+    );
+  }
+  if (!form) return <Spinner label="Loading…" />;
 
   return (
     <div className="max-w-xl space-y-6">
@@ -65,10 +84,10 @@ export function SettingsPage() {
         <h2 className="text-sm font-semibold text-slate-700">Taxes</h2>
         <label className="block space-y-1">
           <span className="text-xs font-medium text-slate-500">Sales tax rate (%)</span>
-          <input value={taxRate} onChange={(e) => setTaxRate(e.target.value)} inputMode="decimal" className={inputClass} placeholder="0" />
+          <input value={form.taxRate} onChange={(e) => update({ taxRate: e.target.value })} inputMode="decimal" className={inputClass} placeholder="0" />
         </label>
         <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={taxStringing} onChange={(e) => setTaxStringing(e.target.checked)} />
+          <input type="checkbox" checked={form.taxStringing} onChange={(e) => update({ taxStringing: e.target.checked })} />
           Charge tax on stringing services
         </label>
         <p className="text-xs text-slate-400">Products are always taxed at this rate; gift card loads are never taxed.</p>
@@ -78,7 +97,7 @@ export function SettingsPage() {
         <h2 className="text-sm font-semibold text-slate-700">Stringing</h2>
         <label className="block space-y-1">
           <span className="text-xs font-medium text-slate-500">Base labor charge</span>
-          <input value={stringingLabor} onChange={(e) => setStringingLabor(e.target.value)} inputMode="decimal" className={inputClass} placeholder="0.00" />
+          <input value={form.stringingLabor} onChange={(e) => update({ stringingLabor: e.target.value })} inputMode="decimal" className={inputClass} placeholder="0.00" />
         </label>
         <p className="text-xs text-slate-400">Added on top of the string price when pricing a string job.</p>
       </section>
@@ -87,10 +106,10 @@ export function SettingsPage() {
         <h2 className="text-sm font-semibold text-slate-700">Inventory</h2>
         <label className="block space-y-1">
           <span className="text-xs font-medium text-slate-500">Default reorder point for new products</span>
-          <input value={defaultReorder} onChange={(e) => setDefaultReorder(e.target.value)} inputMode="numeric" className={inputClass} placeholder="(none)" />
+          <input value={form.defaultReorder} onChange={(e) => update({ defaultReorder: e.target.value })} inputMode="numeric" className={inputClass} placeholder="(none)" />
         </label>
         <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={blockOversell} onChange={(e) => setBlockOversell(e.target.checked)} />
+          <input type="checkbox" checked={form.blockOversell} onChange={(e) => update({ blockOversell: e.target.checked })} />
           Block selling a product below 0 on hand
         </label>
       </section>
@@ -98,7 +117,7 @@ export function SettingsPage() {
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-700">Reports</h2>
         <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={weekStartsMonday} onChange={(e) => setWeekStartsMonday(e.target.checked)} />
+          <input type="checkbox" checked={form.weekStartsMonday} onChange={(e) => update({ weekStartsMonday: e.target.checked })} />
           Week starts on Monday (otherwise Sunday)
         </label>
         <p className="text-xs text-slate-400">Affects the “Week to date” period on the sales report.</p>

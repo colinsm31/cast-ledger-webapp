@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
+import { resolveBarcode } from '../scan/resolveBarcode';
+import { barcodeCanonical, barcodeInUseMessage } from './barcodeClash';
 
 // MARK: - Types
 
@@ -32,11 +34,22 @@ export function ReceiveUnitsSheet({
   const [error, setError] = useState<string | null>(null);
   const scanRef = useRef<HTMLInputElement>(null);
 
-  function addBarcode() {
+  async function addBarcode() {
     const code = scan.trim();
     if (!code) return;
-    if (pending.some((u) => u.barcode === code)) {
+    if (pending.some((u) => u.barcode && barcodeCanonical(u.barcode) === barcodeCanonical(code))) {
       setError(`Barcode ${code} is already in this list`);
+      return;
+    }
+    // A code means one thing: say so now rather than when the list is submitted.
+    try {
+      const inUse = barcodeInUseMessage(await resolveBarcode(code));
+      if (inUse) {
+        setError(inUse);
+        return;
+      }
+    } catch (err) {
+      setError(errorMessage(err));
       return;
     }
     setError(null);
@@ -105,14 +118,14 @@ export function ReceiveUnitsSheet({
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                addBarcode();
+                void addBarcode();
               }
             }}
             placeholder="Scan or type a barcode"
             className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
-            onClick={addBarcode}
+            onClick={() => void addBarcode()}
             className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
           >
             Add

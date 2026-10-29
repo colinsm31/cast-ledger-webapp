@@ -6,12 +6,16 @@ import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
+import { useDialog } from '../../components/Dialog';
+import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
+import { isUnitLine, returnableQty } from './returnable';
 import {
   allocateToOriginalPayments,
   computeSaleTotals,
   fromCents,
   paymentTypeChanges,
   refundableByMethod,
+  refundSource,
   refundTaxCents,
   roundMoney,
   toCents,
@@ -27,6 +31,7 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
 interface SaleLine {
   id: string;
   product_id: string | null;
+  product_unit_id: string | null;
   qty: number;
   unit_price: number;
   products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
@@ -35,12 +40,13 @@ interface SalePayment {
   method: PaymentMethod;
   amount: number;
   gift_card_id: string | null;
+  gift_cards: { code: string } | null;
 }
 interface EarlierRefund {
   subtotal: number;
   tax: number;
   refund_lines: { sale_line_id: string; qty: number }[];
-  refund_payments: { method: PaymentMethod; amount: number }[];
+  refund_payments: { method: PaymentMethod; amount: number; gift_card_id: string | null }[];
 }
 interface SaleData {
   id: string;
@@ -59,6 +65,11 @@ interface Tender {
   amount: number;
   giftCardId?: string;
   code?: string;
+}
+
+// Payments keyed by what limits a refund: the type, or the gift card itself.
+function bySource(payments: { method: PaymentMethod; amount: number; gift_card_id: string | null }[]) {
+  return payments.map((p) => ({ method: refundSource(p.method, p.gift_card_id), amount: p.amount }));
 }
 
 function lineLabel(p: SaleLine['products']): string {
@@ -93,9 +104,9 @@ export function RefundPage() {
           [
             'id, tax, tax_rate, customer_id',
             'customers ( first_name, last_name )',
-            'sale_lines ( id, product_id, qty, unit_price, products ( brand, name, attributes ) )',
-            'sale_payments ( method, amount, gift_card_id )',
-            'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty ), refund_payments ( method, amount ) )',
+            'sale_lines ( id, product_id, product_unit_id, qty, unit_price, products ( brand, name, attributes ) )',
+            'sale_payments ( method, amount, gift_card_id, gift_cards ( code ) )',
+            'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty ), refund_payments ( method, amount, gift_card_id ) )',
           ].join(', '),
         )
         .eq('id', saleId)
@@ -106,20 +117,11 @@ export function RefundPage() {
   }, [saleId]);
 
   // Remaining returnable qty per product line (original minus already refunded).
-  const remaining = useMemo(() => {
-    const map: Record<string, number> = {};
-    if (!sale) return map;
-    const refunded: Record<string, number> = {};
-    for (const r of sale.refunds ?? []) {
-      for (const rl of r.refund_lines ?? []) {
-        refunded[rl.sale_line_id] = (refunded[rl.sale_line_id] ?? 0) + rl.qty;
-      }
-    }
-    for (const l of sale.sale_lines) {
-      if (l.product_id) map[l.id] = l.qty - (refunded[l.id] ?? 0);
-    }
-    return map;
-  }, [sale]);
+  // Remaining returnable qty per line (racquet units can't be returned yet).
+  const remaining = useMemo(
+    () => (sale ? returnableQty(sale.sale_lines, (sale.refunds ?? []).flatMap((r) => r.refund_lines ?? [])) : {}),
+    [sale],
+  );
 
   // Refund subtotal, tax and total for a set of return quantities. Tax follows
   // record_refund: cumulative over this sale's refunds, at the sale's rate, and
@@ -154,17 +156,32 @@ export function RefundPage() {
   const allocated = roundMoney(tenders.reduce((s, t) => s + t.amount, 0));
   const remainingToAllocate = roundMoney(total - allocated);
 
-  // What each payment type the sale used can still give back, and which types
-  // this refund over-sends to (a payment-type change, which needs a reason).
+  // What each payment type the sale used can still give back (a gift card
+  // only to the card that paid), and which this refund over-sends to (a
+  // payment-type change, which needs a reason).
   const refundable = useMemo(
     () =>
       refundableByMethod(
-        sale?.sale_payments ?? [],
-        (sale?.refunds ?? []).flatMap((r) => r.refund_payments),
+        bySource(sale?.sale_payments ?? []),
+        bySource((sale?.refunds ?? []).flatMap((r) => r.refund_payments)),
       ),
     [sale],
   );
-  const changedTypes = paymentTypeChanges(refundable, tenders);
+  const changedTypes = paymentTypeChanges(
+    refundable,
+    tenders.map((t) => ({ method: refundSource(t.method, t.giftCardId), amount: t.amount })),
+  );
+  // "Cash", or "Gift Card GC-123" for a card.
+  const cardCodes = useMemo(() => {
+    const codes = new Map<string, string>();
+    for (const p of sale?.sale_payments ?? []) if (p.gift_card_id && p.gift_cards) codes.set(p.gift_card_id, p.gift_cards.code);
+    for (const t of tenders) if (t.giftCardId && t.code) codes.set(t.giftCardId, t.code);
+    return codes;
+  }, [sale, tenders]);
+  function sourceLabel(source: string): string {
+    const [method, cardId] = source.split(':') as [PaymentMethod, string | undefined];
+    return cardId ? `${METHOD_LABEL[method]} ${cardCodes.get(cardId) ?? ''}`.trim() : METHOD_LABEL[method];
+  }
   const needsMethodChangeReason = changedTypes.length > 0;
 
   function setQty(lineId: string, qty: number) {
@@ -177,7 +194,7 @@ export function RefundPage() {
     if (!sale) return;
     // Return everything still returnable, and prefill the original tenders.
     const q: Record<string, number> = {};
-    for (const l of sale.sale_lines) if (l.product_id) q[l.id] = remaining[l.id] ?? 0;
+    for (const id of Object.keys(remaining)) q[id] = remaining[id];
     setReturnQty(q);
     // Send the money back the way it came, up to what each payment type can
     // still give back; anything left over is for the cashier to place.
@@ -185,6 +202,7 @@ export function RefundPage() {
       toCents(refundTotalsFor(q).total),
       sale.sale_payments ?? [],
       refundable,
+      (p) => refundSource(p.method, p.gift_card_id),
     );
     setTenders(
       allocations.map(({ payment, cents }) => ({
@@ -192,6 +210,7 @@ export function RefundPage() {
         method: payment.method,
         amount: fromCents(cents),
         giftCardId: payment.gift_card_id ?? undefined,
+        code: payment.gift_cards?.code,
       })),
     );
     setReason((r) => r || 'Void');
@@ -239,7 +258,8 @@ export function RefundPage() {
   if (loadError) return <p className="text-sm text-red-600">{loadError}</p>;
   if (!sale) return <Spinner label="Loading…" />;
 
-  const returnableLines = sale.sale_lines.filter((l) => l.product_id && (remaining[l.id] ?? 0) > 0);
+  const returnableLines = sale.sale_lines.filter((l) => (remaining[l.id] ?? 0) > 0);
+  const unitLines = sale.sale_lines.filter(isUnitLine);
 
   return (
     <div className="max-w-2xl space-y-5">
@@ -257,7 +277,7 @@ export function RefundPage() {
 
       {/* Items */}
       <section className="rounded-xl border border-slate-200 bg-white">
-        {returnableLines.length === 0 ? (
+        {returnableLines.length === 0 && unitLines.length === 0 ? (
           <p className="p-6 text-center text-sm text-slate-500">Nothing left to return on this sale.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
@@ -274,6 +294,12 @@ export function RefundPage() {
                   <span className="w-8 text-center text-sm font-medium">{returnQty[l.id] ?? 0}</span>
                   <button onClick={() => setQty(l.id, (returnQty[l.id] ?? 0) + 1)} className="h-7 w-7 rounded border border-slate-300 hover:bg-slate-50">+</button>
                 </div>
+              </li>
+            ))}
+            {unitLines.map((l) => (
+              <li key={l.id} className="p-3">
+                <p className="truncate font-medium text-slate-500">{lineLabel(l.products)}</p>
+                <p className="text-xs text-slate-500">Racquet returns aren't supported yet.</p>
               </li>
             ))}
           </ul>
@@ -299,7 +325,7 @@ export function RefundPage() {
           <p className="text-xs text-slate-500">
             Can go back without a reason:{' '}
             {[...refundable]
-              .map(([method, cents]) => `${METHOD_LABEL[method]} $${fromCents(cents).toFixed(2)}`)
+              .map(([source, cents]) => `${sourceLabel(source)} $${fromCents(cents).toFixed(2)}`)
               .join(' · ')}
           </p>
         )}
@@ -345,14 +371,14 @@ export function RefundPage() {
           )
         )}
         {mode === 'gift_card' && (
-          <GiftCardAdder defaultValue={remainingToAllocate} customerId={sale.customer_id} onCancel={() => setMode('none')} onAdd={(amt, id, code) => addTender({ method: 'gift_card', amount: amt, giftCardId: id, code })} onError={setError} />
+          <GiftCardAdder defaultValue={remainingToAllocate} defaultCode={sale.sale_payments.find((p) => p.gift_cards)?.gift_cards?.code ?? ''} customerId={sale.customer_id} onCancel={() => setMode('none')} onAdd={(amt, id, code) => addTender({ method: 'gift_card', amount: amt, giftCardId: id, code })} onError={setError} />
         )}
       </section>
 
       {needsMethodChangeReason && (
         <label className="block space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-4">
           <span className="text-sm font-medium text-amber-900">
-            This refund sends more to {changedTypes.map((m) => METHOD_LABEL[m]).join(' and ')} than the sale
+            This refund sends more to {changedTypes.map(sourceLabel).join(' and ')} than the sale
             took that way. Why the different payment type?
           </span>
           <input
@@ -393,11 +419,13 @@ function Row({ label, value }: { label: string; value: number }) {
 
 function AmountAdder({ label, defaultValue, onCancel, onAdd }: { label: string; defaultValue: number; onCancel: () => void; onAdd: (amt: number) => void }) {
   const [value, setValue] = useState(defaultValue > 0 ? defaultValue.toFixed(2) : '');
-  const amt = roundMoney(Number(value) || 0);
+  const subCent = hasSubCent(value);
+  const amt = subCent ? 0 : roundMoney(Number(value) || 0);
   return (
     <div className="space-y-2 rounded-lg bg-slate-50 p-3">
       <span className="text-xs font-medium text-slate-500">{label} amount</span>
       <input autoFocus value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" className={`${inputClass} w-full`} />
+      {subCent && <p className="text-xs text-red-600">{SUB_CENT_MESSAGE}.</p>}
       <div className="flex gap-2">
         <button onClick={() => amt > 0 && onAdd(amt)} disabled={amt <= 0} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">Add ${amt.toFixed(2)}</button>
         <button onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel</button>
@@ -406,16 +434,44 @@ function AmountAdder({ label, defaultValue, onCancel, onAdd }: { label: string; 
   );
 }
 
-function GiftCardAdder({ defaultValue, customerId, onCancel, onAdd, onError }: { defaultValue: number; customerId: string | null; onCancel: () => void; onAdd: (amt: number, id: string, code: string) => void; onError: (m: string) => void }) {
-  const [code, setCode] = useState('');
+// Refund onto a gift card: an existing card is looked up by its code (a typo
+// no longer creates a card). A new card is issued only when asked for.
+function GiftCardAdder({ defaultValue, defaultCode, customerId, onCancel, onAdd, onError }: { defaultValue: number; defaultCode: string; customerId: string | null; onCancel: () => void; onAdd: (amt: number, id: string, code: string) => void; onError: (m: string) => void }) {
+  const { confirm } = useDialog();
+  const [code, setCode] = useState(defaultCode);
   const [value, setValue] = useState(defaultValue > 0 ? defaultValue.toFixed(2) : '');
   const [busy, setBusy] = useState(false);
-  const amt = roundMoney(Number(value) || 0);
+  const [missingCode, setMissingCode] = useState<string | null>(null);
+  const subCent = hasSubCent(value);
+  const amt = subCent ? 0 : roundMoney(Number(value) || 0);
+
+  function checkInput(): string | null {
+    const c = code.replace(/\s+/g, '').trim();
+    if (!c) { onError('Enter a gift card code.'); return null; }
+    if (amt <= 0) { onError('Enter an amount.'); return null; }
+    return c;
+  }
 
   async function add() {
-    const c = code.replace(/\s+/g, '').trim();
-    if (!c) { onError('Enter a gift card code.'); return; }
-    if (amt <= 0) { onError('Enter an amount.'); return; }
+    const c = checkInput();
+    if (!c) return;
+    setBusy(true);
+    const { data, error } = await supabase.from('gift_card_balance').select('gift_card_id, code').eq('code', c).maybeSingle();
+    setBusy(false);
+    if (error) { onError(errorMessage(error)); return; }
+    if (!data) { setMissingCode(c); return; }
+    onAdd(amt, data.gift_card_id as string, data.code as string);
+  }
+
+  async function issueNewCard() {
+    const c = checkInput();
+    if (!c) return;
+    const ok = await confirm({
+      title: 'Issue a new gift card?',
+      message: `No card has code ${c}. A new card with this code gets $${amt.toFixed(2)}. It didn't pay for this sale, so you'll be asked for a reason.`,
+      confirmLabel: 'Issue new card',
+    });
+    if (!ok) return;
     setBusy(true);
     const { data, error } = await supabase.rpc('ensure_gift_card', { p_code: c, p_customer_id: customerId });
     setBusy(false);
@@ -425,13 +481,22 @@ function GiftCardAdder({ defaultValue, customerId, onCancel, onAdd, onError }: {
 
   return (
     <div className="space-y-2 rounded-lg bg-slate-50 p-3">
-      <span className="text-xs font-medium text-slate-500">Load onto gift card</span>
+      <span className="text-xs font-medium text-slate-500">Refund to gift card</span>
       <div className="flex gap-2">
-        <input autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="Card code" className={`${inputClass} flex-1`} />
+        <input autoFocus value={code} onChange={(e) => { setCode(e.target.value); setMissingCode(null); }} placeholder="Card code" className={`${inputClass} flex-1`} />
         <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" placeholder="0.00" className={`${inputClass} w-24`} />
       </div>
+      {subCent && <p className="text-xs text-red-600">{SUB_CENT_MESSAGE}.</p>}
+      {missingCode && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-red-600">No gift card with code {missingCode}.</span>
+          <button onClick={() => void issueNewCard()} disabled={busy} className="text-blue-600 hover:underline disabled:opacity-50">
+            Issue a new card with this code
+          </button>
+        </div>
+      )}
       <div className="flex gap-2">
-        <button onClick={() => void add()} disabled={busy} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{busy ? '…' : `Add $${amt.toFixed(2)}`}</button>
+        <button onClick={() => void add()} disabled={busy || amt <= 0} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{busy ? '…' : `Add $${amt.toFixed(2)}`}</button>
         <button onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel</button>
       </div>
     </div>

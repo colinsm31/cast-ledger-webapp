@@ -101,6 +101,7 @@ export function StringJobsPage({
                         <span className="font-medium text-slate-900">—</span>
                       )}
                       <StatusBadge status={job.status} />
+                      <PaidBadge paid={!!job.paid_sale_id} />
                     </div>
                     <p className="text-sm text-slate-500">
                       {racket ? `${racket.brand ? `${racket.brand} ` : ''}${racket.model}` : '—'}
@@ -108,6 +109,19 @@ export function StringJobsPage({
                     </p>
                     <p className="mt-1 text-sm text-slate-700">{stringSummary(job)}</p>
                   </div>
+                  {job.status === 'entered' && !job.paid_sale_id && (
+                    <div className="flex shrink-0 gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/sales/new?stringJob=${job.id}`);
+                        }}
+                        className="rounded-lg border border-green-600 px-3 py-1.5 text-sm font-semibold text-green-700 hover:bg-green-50"
+                      >
+                        Mark as paid
+                      </button>
+                    </div>
+                  )}
                   {job.status === 'complete' && (
                     <div className="flex shrink-0 gap-2">
                       <button
@@ -143,5 +157,17 @@ function StatusBadge({ status }: { status: StringJob['status'] }) {
   const m = meta[status];
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${m.classes}`}>{m.label}</span>
+  );
+}
+
+function PaidBadge({ paid }: { paid: boolean }) {
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+        paid ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+      }`}
+    >
+      {paid ? 'Paid' : 'Unpaid'}
+    </span>
   );
 }

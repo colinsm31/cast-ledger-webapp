@@ -1,3 +1,5 @@
+import type { Role } from '../auth/AuthContext';
+
 // A staff member embedded from `profiles` through an attribution column
 // (e.g. `rung_by:profiles!sales_user_id_fkey ( email )`).
 export interface StaffRef {
@@ -8,3 +10,10 @@ export interface StaffRef {
 export function staffLabel(staff: StaffRef | null | undefined): string | null {
   return staff?.email ?? null;
 }
+
+/** How a role is named on screen. */
+export const ROLE_LABEL: Record<Role, string> = {
+  admin: 'admin',
+  staff: 'staff',
+  pending: 'no access',
+};

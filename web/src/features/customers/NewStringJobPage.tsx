@@ -5,6 +5,8 @@ import type { Customer, CustomerRacket } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useSettings } from '../../lib/settings';
+import { LoadError } from '../../components/LoadError';
+import { hasSubCent } from '../../lib/money';
 import { useBack } from '../../app/BackContext';
 import { Spinner } from '../../components/Spinner';
 import {
@@ -21,6 +23,7 @@ import {
   type RowSel,
   type StringProductRaw,
 } from '../stringjobs/stringJobForm';
+import { jobRowProblems } from '../stringjobs/stringRow';
 
 interface LastJob {
   main_brand: string | null;
@@ -36,7 +39,7 @@ interface LastJob {
 export function NewStringJobPage() {
   const { customerId, racketId } = useParams<{ customerId: string; racketId: string }>();
   const navigate = useNavigate();
-  const settings = useSettings();
+  const { settings, error: settingsError, reload: reloadSettings } = useSettings();
   useBack(customerId ? `/customers/${customerId}` : '/customers');
 
   const [racket, setRacket] = useState<CustomerRacket | null>(null);
@@ -45,6 +48,8 @@ export function NewStringJobPage() {
   const [dims, setDims] = useState<string[]>([]);
   const [availableById, setAvailableById] = useState<Record<string, number>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
+  // A racquet can have only one open (entered or complete) job at a time.
+  const [openJobId, setOpenJobId] = useState<string | null>(null);
 
   const [mains, setMains] = useState<RowSel>(emptyRow);
   const [crosses, setCrosses] = useState<RowSel>(emptyRow);
@@ -59,7 +64,7 @@ export function NewStringJobPage() {
   useEffect(() => {
     if (!racketId) return;
     void (async () => {
-      const [racketRes, customerRes, productsRes, attrsRes, lastJobRes, availRes] = await Promise.all([
+      const [racketRes, customerRes, productsRes, attrsRes, lastJobRes, availRes, openJobRes] = await Promise.all([
         supabase.from('customer_rackets').select('*').eq('id', racketId).single(),
         customerId
           ? supabase.from('customers').select('*').eq('id', customerId).single()
@@ -74,12 +79,20 @@ export function NewStringJobPage() {
           .limit(1)
           .maybeSingle(),
         supabase.from('product_available').select('product_id, available'),
+        supabase
+          .from('string_jobs')
+          .select('id')
+          .eq('customer_racket_id', racketId)
+          .in('status', ['entered', 'complete'])
+          .limit(1)
+          .maybeSingle(),
       ]);
       if (racketRes.error) {
         setLoadError(errorMessage(racketRes.error));
         return;
       }
       setRacket(racketRes.data as CustomerRacket);
+      setOpenJobId((openJobRes.data as { id: string } | null)?.id ?? null);
       if (customerRes.data) setCustomer(customerRes.data as Customer);
       setDims(stringDims((attrsRes.data ?? []) as unknown as AttributeDefRaw[]));
       setCatalog(toCatalogStrings((productsRes.data ?? []) as unknown as StringProductRaw[]));
@@ -170,15 +183,20 @@ export function NewStringJobPage() {
     return sum;
   }, [mains, crosses, catalog, dims, settings]);
 
-  // When the chosen string has no price ($0), the user must enter one.
-  const needsManualPrice = !!mains.name && autoPrice <= 0;
-  const manualPriceValid = Number(manualPrice) > 0;
+  // Every column (brand, string, each string attribute, tension) on both rows.
+  const rowProblems = useMemo(() => jobRowProblems(catalog, dims, mains, crosses), [catalog, dims, mains, crosses]);
+
+  // When the chosen strings have no price ($0), the user must enter one. The
+  // price is only known once both rows name a specific catalog string.
+  const stringsChosen = rowProblems.length === 0;
+  const needsManualPrice = stringsChosen && autoPrice <= 0;
+  const manualPriceValid = Number(manualPrice) > 0 && !hasSubCent(manualPrice);
   const price = needsManualPrice ? (manualPriceValid ? Number(manualPrice) : 0) : autoPrice;
 
   async function save() {
     if (!racketId) return;
-    if (!mains.name) {
-      setError('Choose the mains string');
+    if (rowProblems.length > 0) {
+      setError(rowProblems.join(' · '));
       return;
     }
     if (unavailable.length > 0) {
@@ -190,7 +208,7 @@ export function NewStringJobPage() {
       return;
     }
     if (needsManualPrice && !manualPriceValid) {
-      setError('This string has no set price — enter a price before entering the stringing.');
+      setError('This string has no set price — enter a price (whole cents) before entering the stringing.');
       return;
     }
     setSaving(true);
@@ -223,6 +241,38 @@ export function NewStringJobPage() {
   if (loadError) return <p className="text-sm text-red-600">{loadError}</p>;
   if (!racket) return <Spinner label="Loading…" />;
 
+  // The database refuses both of these; say so before the form is filled in.
+  if (!racket.is_active || openJobId) {
+    return (
+      <div className="max-w-3xl space-y-4">
+        <h1 className="text-xl font-bold text-slate-900">
+          {customer ? customerName(customer) : 'New string job'}
+        </h1>
+        <p className="text-sm text-slate-700">
+          {!racket.is_active
+            ? `${racketLabel(racket)} has been retired, so it can't get a new string job.`
+            : `${racketLabel(racket)} already has an open string job. Finish or deliver it before entering a new one.`}
+        </p>
+        <div className="flex gap-2">
+          {openJobId && racket.is_active && (
+            <button
+              onClick={() => navigate(`/string-jobs/${openJobId}`)}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Open the current job
+            </button>
+          )}
+          <button
+            onClick={() => navigate(customerId ? `/customers/${customerId}` : '/customers')}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
+          >
+            Back to customer
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -251,6 +301,13 @@ export function NewStringJobPage() {
           Pick a string from the catalog. Crosses copy the mains string and tension automatically —
           change the crosses row only for a hybrid or a different cross tension.
         </p>
+        {rowProblems.length > 0 && (
+          <ul className="mt-2 space-y-0.5 text-xs text-amber-700">
+            {rowProblems.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        )}
         {unavailable.length > 0 && (
           <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {unavailable.map((u) => u.label).join(' and ')}{' '}
@@ -274,7 +331,7 @@ export function NewStringJobPage() {
               className={`${cellClass} w-28 text-right`}
             />
           ) : (
-            <span className="text-lg font-semibold text-slate-900">${price.toFixed(2)}</span>
+            <span className="text-lg font-semibold text-slate-900">{stringsChosen ? `$${price.toFixed(2)}` : '—'}</span>
           )}
         </div>
         {needsManualPrice && (
@@ -289,12 +346,14 @@ export function NewStringJobPage() {
         Pay now (open a sales ticket after entering)
       </label>
 
+      {/* The price includes the stringing labor charge from the settings. */}
+      {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex gap-2">
         <button
           onClick={() => void save()}
-          disabled={saving || unavailable.length > 0 || (needsManualPrice && !manualPriceValid)}
+          disabled={saving || !settings || rowProblems.length > 0 || unavailable.length > 0 || (needsManualPrice && !manualPriceValid)}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Enter string job'}
@@ -305,4 +364,8 @@ export function NewStringJobPage() {
       </div>
     </div>
   );
+}
+
+function racketLabel(racket: CustomerRacket): string {
+  return `${racket.brand ? `${racket.brand} ` : ''}${racket.model}`;
 }

@@ -1,9 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { clearHeldSale } from '../lib/heldSale';
 
-export type Role = 'admin' | 'staff';
+// 'pending' accounts are signed in but not yet approved; they have no access.
+export type Role = 'admin' | 'staff' | 'pending';
 
 interface AuthState {
   loading: boolean;
@@ -11,6 +13,10 @@ interface AuthState {
   user: User | null;
   role: Role | null;
   isAdmin: boolean;
+  /** Approved to use the shop (staff or admin). */
+  isStaff: boolean;
+  /** Re-read the signed-in user's role, e.g. after a role change. */
+  refreshRole: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -36,22 +42,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Load the signed-in user's role from their profile.
-  useEffect(() => {
-    const userId = session?.user?.id;
-    if (!userId) {
-      setRole(null);
-      return;
+  const userId = session?.user?.id;
+
+  // Load the signed-in user's role from their profile. Throws if it can't be
+  // read, so callers choose what a failed load means.
+  const loadRole = useCallback(async (): Promise<Role | null> => {
+    if (!userId) return null;
+    const { data, error } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
+    if (error) throw error;
+    // No readable profile means no access: fail closed.
+    return (data as { role: Role } | null)?.role ?? 'pending';
+  }, [userId]);
+
+  // A failed refresh keeps the current role; the database still enforces it.
+  const refreshRole = useCallback(async () => {
+    try {
+      setRole(await loadRole());
+    } catch {
+      // Keep the current role.
     }
+  }, [loadRole]);
+
+  useEffect(() => {
     let active = true;
-    void (async () => {
-      const { data } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
-      if (active) setRole(((data as { role: Role } | null)?.role ?? 'staff') as Role);
-    })();
+    loadRole().then(
+      (loaded) => {
+        if (active) setRole(loaded);
+      },
+      // A failed first load means no access: fail closed.
+      () => {
+        if (active) setRole('pending');
+      },
+    );
     return () => {
       active = false;
     };
-  }, [session?.user?.id]);
+  }, [loadRole]);
+
+  // A role changed elsewhere (another admin, another tab) is picked up when
+  // the window regains focus.
+  useEffect(() => {
+    if (!userId) return;
+    const onFocus = () => void refreshRole();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [userId, refreshRole]);
 
   const value = useMemo<AuthState>(
     () => ({
@@ -60,6 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: session?.user ?? null,
       role,
       isAdmin: role === 'admin',
+      isStaff: role === 'admin' || role === 'staff',
+      refreshRole,
       signIn: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
@@ -68,10 +105,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) throw error;
       },
       signOut: async () => {
+        const userId = session?.user?.id;
         await supabase.auth.signOut();
+        // A ticket in progress isn't kept for whoever signs in next.
+        if (userId) clearHeldSale(userId);
       },
     }),
-    [loading, session, role],
+    [loading, session, role, refreshRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
