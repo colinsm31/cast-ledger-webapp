@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { fetchAllRowsResult } from '../../lib/paging';
 import type { Customer, CustomerRacket } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
@@ -69,7 +70,8 @@ export function NewStringJobPage() {
         customerId
           ? supabase.from('customers').select('*').eq('id', customerId).single()
           : Promise.resolve({ data: null, error: null }),
-        supabase.from('products').select('id, brand, name, attributes, sell_price, categories(name)').order('brand'),
+        // Every product and its availability, not just the first 1000 (#5).
+        fetchAllRowsResult('products', 'id, brand, name, attributes, sell_price, categories(name)', ['brand', 'id']),
         supabase.from('attribute_defs').select('name, sort_order, categories(name)').order('sort_order'),
         supabase
           .from('string_jobs')
@@ -78,7 +80,7 @@ export function NewStringJobPage() {
           .order('entered_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase.from('product_available').select('product_id, available'),
+        fetchAllRowsResult('product_available', 'product_id, available', 'product_id'),
         supabase
           .from('string_jobs')
           .select('id')

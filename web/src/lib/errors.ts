@@ -5,6 +5,9 @@ export function errorMessage(error: unknown): string {
     if (message.toLowerCase().includes('duplicate') || message.includes('23505')) {
       return 'That already exists (duplicate key).';
     }
+    if (message.toLowerCase().includes('numeric field overflow')) {
+      return 'That number is too large to save.';
+    }
     return message || 'Something went wrong.';
   }
   return 'Something went wrong.';

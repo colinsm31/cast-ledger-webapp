@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { fetchAllRowsResult } from '../../lib/paging';
 import type { Customer, CustomerRacket, StringJob, StringJobStatus } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { useLatestRequest } from '../../lib/latestRequest';
+import { firstNumberProblem, optionalNumber, parseNumberField } from '../../lib/numberInput';
 import { Spinner } from '../../components/Spinner';
+import { LoadError } from '../../components/LoadError';
 import { staffLabel, type StaffRef } from '../../lib/staff';
 import { subCentError } from '../../lib/money';
 import { PickOrAdd } from '../lookups/PickOrAdd';
@@ -78,6 +82,7 @@ export function StringJobDetailPage() {
   const [dims, setDims] = useState<string[]>([]);
   const [availableById, setAvailableById] = useState<Record<string, number>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadCount, setLoadCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const [editing, setEditing] = useState(false);
@@ -100,8 +105,18 @@ export function StringJobDetailPage() {
     setStrungBy(j.strung_by ?? '');
   }, []);
 
+  // Moving to another job, an answer for the previous one is ignored (#37).
+  const startRequest = useLatestRequest();
+  // Stringer saves are tracked on their own: only the latest pick is shown,
+  // and never on a different job than the one it was saved for (#7).
+  const startStringerSave = useLatestRequest();
+  const currentJobIdRef = useRef(jobId);
+  currentJobIdRef.current = jobId;
+
   useEffect(() => {
     if (!jobId) return;
+    const isLatest = startRequest();
+    setLoadError(null);
     void (async () => {
       const [jobRes, productsRes, attrsRes, availRes] = await Promise.all([
         supabase
@@ -109,24 +124,25 @@ export function StringJobDetailPage() {
           .select(JOB_SELECT)
           .eq('id', jobId)
           .single(),
-        supabase.from('products').select('id, brand, name, attributes, categories(name)').order('brand'),
+        // Every product and its availability, not just the first 1000 (#5).
+        fetchAllRowsResult('products', 'id, brand, name, attributes, categories(name)', ['brand', 'id']),
         supabase.from('attribute_defs').select('name, sort_order, categories(name)').order('sort_order'),
-        supabase.from('product_available').select('product_id, available'),
+        fetchAllRowsResult('product_available', 'product_id, available', 'product_id'),
       ]);
-      if (jobRes.error) {
-        setLoadError(errorMessage(jobRes.error));
+      if (!isLatest()) return;
+      // Without the catalog or what's available, the strings can't be shown
+      // or checked, so any failure is a load error rather than an empty list (#36).
+      const failure = jobRes.error ?? productsRes.error ?? attrsRes.error ?? availRes.error;
+      if (failure) {
+        setLoadError(errorMessage(failure));
         return;
       }
       hydrate(jobRes.data as unknown as JobRow);
       setDims(stringDims((attrsRes.data ?? []) as unknown as AttributeDefRaw[]));
       setCatalog(toCatalogStrings((productsRes.data ?? []) as unknown as StringProductRaw[]));
-      const avail: Record<string, number> = {};
-      for (const row of (availRes.data ?? []) as { product_id: string; available: number }[]) {
-        avail[row.product_id] = Number(row.available);
-      }
-      setAvailableById(avail);
+      setAvailableById(availabilityById(availRes.data));
     })();
-  }, [jobId, hydrate]);
+  }, [jobId, hydrate, startRequest, loadCount]);
 
   const brands = useMemo(
     () => Array.from(new Set(catalog.map((c) => c.brand).filter(Boolean))).sort(),
@@ -155,15 +171,23 @@ export function StringJobDetailPage() {
     return out;
   }, [job, mains, crosses, catalog, dims, availableById]);
 
+  // After a change: the job, and what's available, since a change of
+  // strings or status sets aside or uses up string (#8).
   async function reload() {
     if (!jobId) return;
-    const { data, error: err } = await supabase
-      .from('string_jobs')
-      .select(JOB_SELECT)
-      .eq('id', jobId)
-      .single();
-    if (err) setError(errorMessage(err));
-    else hydrate(data as unknown as JobRow);
+    const isLatest = startRequest();
+    const [jobRes, availRes] = await Promise.all([
+      supabase.from('string_jobs').select(JOB_SELECT).eq('id', jobId).single(),
+      fetchAllRowsResult('product_available', 'product_id, available', 'product_id'),
+    ]);
+    if (!isLatest()) return;
+    const failure = jobRes.error ?? availRes.error;
+    if (failure) {
+      setError(errorMessage(failure));
+      return;
+    }
+    hydrate(jobRes.data as unknown as JobRow);
+    setAvailableById(availabilityById(availRes.data));
   }
 
   async function saveEdits() {
@@ -178,10 +202,13 @@ export function StringJobDetailPage() {
       setError(`${unavailable.map((u) => u.label).join(' and ')} — none available. Select a different string.`);
       return;
     }
-    const subCent = job.paid_sale_id ? null : subCentError({ Price: price });
-    if (subCent) {
-      setError(subCent);
-      return;
+    // A paid job's price is locked, so it's only checked while it can change.
+    if (!job.paid_sale_id) {
+      const priceProblem = firstNumberProblem(parseNumberField(price, 'Price')) ?? subCentError({ Price: price });
+      if (priceProblem) {
+        setError(priceProblem);
+        return;
+      }
     }
     setBusy(true);
     setError(null);
@@ -227,7 +254,7 @@ export function StringJobDetailPage() {
           ? { ...rowPayload(catalog, dims, mains, 'main'), ...rowPayload(catalog, dims, crosses, 'cross') }
           : {}),
         // A paid job's price is locked (the database refuses changes).
-        ...(job.paid_sale_id ? {} : { price: price ? Number(price) : null }),
+        ...(job.paid_sale_id ? {} : { price: optionalNumber(price) }),
         notes: notes.trim() || null,
       })
       .eq('id', jobId);
@@ -254,8 +281,9 @@ export function StringJobDetailPage() {
       p_payments: tenders.map((t) => ({ method: t.method, amount: t.amount })),
       p_reason: changeReason.trim() || null,
     });
+    let notesError: unknown = null;
     if (!err && change.notes !== (job?.notes ?? null)) {
-      await supabase.from('string_jobs').update({ notes: change.notes }).eq('id', jobId);
+      ({ error: notesError } = await supabase.from('string_jobs').update({ notes: change.notes }).eq('id', jobId));
     }
     setBusy(false);
     if (err) {
@@ -265,17 +293,29 @@ export function StringJobDetailPage() {
     setPendingChange(null);
     setEditing(false);
     await reload();
+    // The strings did change; say so if the notes didn't save with them (#8).
+    if (notesError) setError(`The strings were changed, but the notes weren't saved: ${errorMessage(notesError)}`);
   }
 
-  // Persist the stringer immediately when picked.
+  // Persist the stringer immediately when picked. It's shown only once saved,
+  // so "Mark complete" can't go ahead on a stringer that wasn't recorded (#42).
   async function setStringer(value: string) {
-    setStrungBy(value);
     if (!jobId) return;
-    const { error: err } = await supabase
+    const forJobId = jobId;
+    const isLatest = startStringerSave();
+    setError(null);
+    const { data, error: err } = await supabase
       .from('string_jobs')
       .update({ strung_by: value.trim() || null })
-      .eq('id', jobId);
-    if (err) setError(errorMessage(err));
+      .eq('id', forJobId)
+      .select('strung_by')
+      .single();
+    if (!isLatest() || currentJobIdRef.current !== forJobId) return;
+    if (err) {
+      setError(`The stringer wasn't saved: ${errorMessage(err)}`);
+      return;
+    }
+    setStrungBy((data as { strung_by: string | null }).strung_by ?? '');
   }
 
   async function advance(target: StringJobStatus) {
@@ -314,7 +354,11 @@ export function StringJobDetailPage() {
     navigate(customerId ? `/customers/${customerId}` : '/string-jobs');
   }
 
-  if (loadError) return <p className="text-sm text-red-600">{loadError}</p>;
+  if (loadError) {
+    return (
+      <LoadError message={`Couldn't load this string job: ${loadError}`} onRetry={() => setLoadCount((n) => n + 1)} />
+    );
+  }
   if (!job) return <Spinner label="Loading…" />;
 
   if (pendingChange) {
@@ -640,4 +684,15 @@ function StatusBadge({ status }: { status: string }) {
       {label}
     </span>
   );
+}
+
+// MARK: - Private Helpers
+
+/** Each product's available count, from product_available rows. */
+function availabilityById(rows: unknown): Record<string, number> {
+  const avail: Record<string, number> = {};
+  for (const row of (rows ?? []) as { product_id: string; available: number }[]) {
+    avail[row.product_id] = Number(row.available);
+  }
+  return avail;
 }

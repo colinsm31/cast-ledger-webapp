@@ -7,6 +7,7 @@ import { useSettings } from '../../lib/settings';
 import { LoadError } from '../../components/LoadError';
 import { useBack } from '../../app/BackContext';
 import { Spinner } from '../../components/Spinner';
+import { useLatestRequest } from '../../lib/latestRequest';
 
 type Period = 'today' | 'wtd' | 'mtd' | 'ytd' | 'custom';
 type Tab = 'summary' | 'tickets';
@@ -39,6 +40,7 @@ interface TicketRow {
   id: string;
   sold_at: string;
   subtotal: number;
+  tax: number;
   customers: { first_name: string; last_name: string } | null;
 }
 
@@ -71,7 +73,13 @@ export function SalesListPage() {
 
   const [summary, setSummary] = useState<Summary | null>(null);
   const [tickets, setTickets] = useState<TicketRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Each tab's own load error, shown with Retry (a failed tickets load used to
+  // spin forever, code review #36).
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [ticketsError, setTicketsError] = useState<string | null>(null);
+  const [loadCount, setLoadCount] = useState(0);
+  const retry = () => setLoadCount((count) => count + 1);
+  const startRequest = useLatestRequest();
 
   // Resolve the selected period to a [from, to) range.
   const range = useMemo(() => {
@@ -102,25 +110,30 @@ export function SalesListPage() {
     const toISO = range.to.toISOString();
     setSummary(null);
     setTickets(null);
-    setError(null);
+    setSummaryError(null);
+    setTicketsError(null);
+    // A slow answer for an earlier period never replaces the one chosen since (#37).
+    const isLatest = startRequest();
     void (async () => {
       const [sumRes, tixRes] = await Promise.all([
         supabase.rpc('sales_summary', { p_from: fromISO, p_to: toISO }),
         supabase
           .from('sales')
-          .select('id, sold_at, subtotal, customers ( first_name, last_name )')
+          .select('id, sold_at, subtotal, tax, customers ( first_name, last_name )')
           .gte('sold_at', fromISO)
           .lt('sold_at', toISO)
           .order('sold_at', { ascending: false }),
       ]);
-      if (sumRes.error) setError(errorMessage(sumRes.error));
+      if (!isLatest()) return;
+      if (sumRes.error) setSummaryError(`Couldn't load the summary: ${errorMessage(sumRes.error)}`);
       else {
         const row = Array.isArray(sumRes.data) ? sumRes.data[0] : sumRes.data;
         setSummary(row ? normalizeSummary(row) : null);
       }
-      if (!tixRes.error) setTickets((tixRes.data ?? []) as unknown as TicketRow[]);
+      if (tixRes.error) setTicketsError(`Couldn't load the tickets: ${errorMessage(tixRes.error)}`);
+      else setTickets((tixRes.data ?? []) as unknown as TicketRow[]);
     })();
-  }, [range]);
+  }, [range, loadCount, startRequest]);
 
   return (
     <div className="space-y-4">
@@ -171,13 +184,14 @@ export function SalesListPage() {
         <TabButton active={tab === 'tickets'} onClick={() => setTab('tickets')}>Tickets</TabButton>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
       {period === 'custom' && !range && (
         <p className="text-sm text-slate-500">Choose a start and end date.</p>
       )}
 
       {tab === 'summary' && range && (
-        summary === null && !error ? (
+        summaryError ? (
+          <LoadError message={summaryError} onRetry={retry} />
+        ) : summary === null ? (
           <Spinner label="Loading…" />
         ) : summary ? (
           <section className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
@@ -203,7 +217,9 @@ export function SalesListPage() {
       )}
 
       {tab === 'tickets' && range && (
-        tickets === null && !error ? (
+        ticketsError ? (
+          <LoadError message={ticketsError} onRetry={retry} />
+        ) : tickets === null ? (
           <Spinner label="Loading…" />
         ) : tickets && tickets.length === 0 ? (
           <p className="p-6 text-center text-sm text-slate-500">No sales in this period.</p>
@@ -221,7 +237,8 @@ export function SalesListPage() {
                     </p>
                     <p className="text-xs text-slate-500">{formatDateTime(sale.sold_at)}</p>
                   </div>
-                  <span className="font-semibold text-slate-900">{money(sale.subtotal)}</span>
+                  {/* The total the customer paid, tax included (#38). */}
+                  <span className="font-semibold text-slate-900">{money(Number(sale.subtotal) + Number(sale.tax))}</span>
                 </button>
               </li>
             ))}

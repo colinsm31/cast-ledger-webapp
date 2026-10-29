@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { GiftCardBalance } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { useLatestRequest } from '../../lib/latestRequest';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useBack } from '../../app/BackContext';
 
@@ -46,19 +47,24 @@ export function GiftCardLookupPage() {
   const [adjAmount, setAdjAmount] = useState('');
   const [adjReason, setAdjReason] = useState('');
   const [adjBusy, setAdjBusy] = useState(false);
+  const startRequest = useLatestRequest();
 
   const lookup = useCallback(async (raw: string) => {
     const c = raw.replace(/\s+/g, '').trim();
+    // Only the latest lookup's answer is shown (#37).
+    const isLatest = startRequest();
     setResult(null);
     setNotFound(null);
     setError(null);
+    // An empty box ends any search in progress, so "Searching…" doesn't stick (#9).
+    setSearching(Boolean(c));
     if (!c) return;
-    setSearching(true);
     const { data, error: err } = await supabase
       .from('gift_card_balance')
       .select('*')
       .eq('code', c)
       .maybeSingle();
+    if (!isLatest()) return;
     if (err) {
       setSearching(false);
       setError(errorMessage(err));
@@ -80,13 +86,20 @@ export function GiftCardLookupPage() {
         .eq('gift_card_id', card.gift_card_id)
         .order('created_at', { ascending: false }),
     ]);
+    if (!isLatest()) return;
     setSearching(false);
+    // A card whose history or owner didn't load isn't shown as "no history" (#36).
+    const detailsError = ('error' in custRes ? custRes.error : null) ?? txnRes.error;
+    if (detailsError) {
+      setError(`Couldn't load this card's history: ${errorMessage(detailsError)}. Press Check to try again.`);
+      return;
+    }
     setResult({
       card,
       customer: (custRes.data as Result['customer']) ?? null,
       txns: (txnRes.data ?? []) as CardTxn[],
     });
-  }, []);
+  }, [startRequest]);
 
   // Look up automatically if arrived with ?code=.
   useEffect(() => {
