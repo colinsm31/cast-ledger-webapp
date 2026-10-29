@@ -116,26 +116,31 @@ export function HomePage() {
       if (isLatest()) setUpcResult({ kind: 'error', message: errorMessage(err) });
       return;
     }
-    openNameMatch();
+    await openNameMatch(code, isLatest);
   }
 
-  function openNameMatch() {
-    if (matches.length > 0) {
-      // Enter jumps to the top predictive match.
-      navigate(`/customers/${matches[0].id}`);
-    } else if (!searchingNames) {
-      // No such customer — open the create screen prefilled with the typed name.
-      navigate(createCustomerUrl);
+  // Enter on a name: search for exactly what's typed now, rather than using
+  // the live matches, which may be from before the last few keys (#4). Opens
+  // the top match, or the create screen prefilled with the name.
+  async function openNameMatch(name: string, isLatest: () => boolean) {
+    let found: Customer[];
+    try {
+      found = await searchCustomers(name);
+    } catch (err) {
+      if (isLatest()) setUpcResult({ kind: 'error', message: errorMessage(err) });
+      return;
     }
+    if (!isLatest()) return;
+    navigate(found.length > 0 ? `/customers/${found[0].id}` : newCustomerUrl(name));
   }
 
-  const createCustomerUrl = `/customers/new?name=${encodeURIComponent(term)}`;
+  const createCustomerUrl = newCustomerUrl(term);
 
   function onSubmit() {
     if (!term) return;
     if (isUpcQuery) void runUpc(term);
     else if (mightBeCode(term)) void runCodeOrName(term);
-    else openNameMatch();
+    else void openNameMatch(term, startRequest());
   }
 
   return (
@@ -163,6 +168,9 @@ export function HomePage() {
           autoFocus
           value={query}
           onChange={(e) => {
+            // Typing replaces whatever was being looked up: a slow answer to an
+            // earlier scan or Enter must not navigate away mid-typing (#3).
+            startRequest();
             setQuery(e.target.value);
             if (upcResult.kind !== 'idle') setUpcResult({ kind: 'idle' });
           }}
@@ -348,4 +356,10 @@ function NavCard({ to, label }: { to: string; label: string }) {
       {label}
     </Link>
   );
+}
+
+// MARK: - Private Helpers
+
+function newCustomerUrl(name: string): string {
+  return `/customers/new?name=${encodeURIComponent(name)}`;
 }

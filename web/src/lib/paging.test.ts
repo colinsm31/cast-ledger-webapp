@@ -5,9 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 let rows: number[] = [];
 let failure: unknown = null;
 const ranges: [number, number][] = [];
+const orders: string[] = [];
 const query = {
   select: () => query,
-  order: () => query,
+  order: (column: string) => {
+    orders.push(column);
+    return query;
+  },
   range: async (from: number, to: number) => {
     ranges.push([from, to]);
     return failure ? { data: null, error: failure } : { data: rows.slice(from, to + 1), error: null };
@@ -16,13 +20,14 @@ const query = {
 const from = vi.fn((_table: string) => query);
 vi.mock('./supabase', () => ({ supabase: { from: (table: string) => from(table) } }));
 
-const { fetchAllRows } = await import('./paging');
+const { fetchAllRows, fetchAllRowsResult } = await import('./paging');
 
 describe('fetchAllRows', () => {
   beforeEach(() => {
     rows = [];
     failure = null;
     ranges.length = 0;
+    orders.length = 0;
     from.mockClear();
   });
 
@@ -50,5 +55,28 @@ describe('fetchAllRows', () => {
   it('passes a failure on', async () => {
     failure = { message: 'timeout' };
     await expect(fetchAllRows('products', 'id', 'id')).rejects.toBe(failure);
+  });
+
+  it('sorts by every column given, in order, on each page', async () => {
+    rows = Array.from({ length: 1500 }, (_, i) => i);
+    await fetchAllRows('products', 'id, brand', ['brand', 'id']);
+    expect(orders).toEqual(['brand', 'id', 'brand', 'id']);
+  });
+});
+
+describe('fetchAllRowsResult', () => {
+  beforeEach(() => {
+    rows = [];
+    failure = null;
+  });
+
+  it('returns the rows with no error', async () => {
+    rows = [1, 2];
+    await expect(fetchAllRowsResult('products', 'id', 'id')).resolves.toEqual({ data: [1, 2], error: null });
+  });
+
+  it('returns the failure instead of throwing', async () => {
+    failure = { message: 'timeout' };
+    await expect(fetchAllRowsResult('products', 'id', 'id')).resolves.toEqual({ data: null, error: failure });
   });
 });

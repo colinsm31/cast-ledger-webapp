@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { fetchAllRowsResult } from '../../lib/paging';
 import type { Customer, CustomerRacket, StringJob, StringJobStatus } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
@@ -115,9 +116,10 @@ export function StringJobDetailPage() {
           .select(JOB_SELECT)
           .eq('id', jobId)
           .single(),
-        supabase.from('products').select('id, brand, name, attributes, categories(name)').order('brand'),
+        // Every product and its availability, not just the first 1000 (#5).
+        fetchAllRowsResult('products', 'id, brand, name, attributes, categories(name)', ['brand', 'id']),
         supabase.from('attribute_defs').select('name, sort_order, categories(name)').order('sort_order'),
-        supabase.from('product_available').select('product_id, available'),
+        fetchAllRowsResult('product_available', 'product_id, available', 'product_id'),
       ]);
       if (!isLatest()) return;
       // Without the catalog or what's available, the strings can't be shown

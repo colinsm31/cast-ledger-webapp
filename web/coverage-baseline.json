@@ -2,10 +2,10 @@
   "updated": "2026-10-29",
   "web": {
     "overall": {
-      "lines": 10.03,
-      "statements": 10.5,
-      "functions": 9.4,
-      "branches": 9.13
+      "lines": 10.19,
+      "statements": 10.65,
+      "functions": 9.49,
+      "branches": 9.17
     },
     "byFolder": {
       "src": {
@@ -51,7 +51,7 @@
         "lines": 13.8
       },
       "src/lib": {
-        "lines": 83.41
+        "lines": 83.83
       },
       "src/types": {
         "lines": 33.33

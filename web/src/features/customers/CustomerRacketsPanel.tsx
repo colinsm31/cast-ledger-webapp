@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { fetchAllRowsResult } from '../../lib/paging';
 import type { CustomerRacket, ProductWithCategory } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useDialog } from '../../components/Dialog';
@@ -65,7 +66,8 @@ export function CustomerRacketsPanel({
         .eq('customer_id', customerId)
         .eq('is_active', true)
         .order('created_at'),
-      supabase.from('products').select('*, categories(name)').order('brand'),
+      // Every product, not just the first 1000 (#5).
+      fetchAllRowsResult('products', '*, categories(name)', ['brand', 'id']),
       supabase
         .from('string_jobs')
         .select('id, customer_racket_id, customer_rackets!inner(customer_id)')
