@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { parseSettingsForm, settingsToForm } from './settings';
+import { describe, expect, it, vi } from 'vitest';
 import type { Settings, SettingsForm } from './settings';
+
+// A fake `supabase.from('settings').select().eq().maybeSingle()` returning `result`.
+let result: { data: unknown; error: unknown } = { data: null, error: null };
+const query = { select: () => query, eq: () => query, maybeSingle: async () => result };
+vi.mock('./supabase', () => ({ supabase: { from: () => query } }));
+
+const { fetchSettings, parseSettingsForm, settingsToForm } = await import('./settings');
 
 const saved: Settings = {
   tax_rate: 8.25,
@@ -53,5 +59,24 @@ describe('parseSettingsForm', () => {
         error: 'Default reorder point: enter a whole number, or leave it empty.',
       });
     }
+  });
+});
+
+describe('fetchSettings', () => {
+  it('reads the settings row, with numbers as numbers', async () => {
+    result = {
+      data: { ...saved, tax_rate: '8.250', stringing_labor: '18.00', default_reorder_point: null },
+      error: null,
+    };
+    await expect(fetchSettings()).resolves.toEqual({ ...saved, default_reorder_point: null });
+  });
+
+  it('fails rather than falling back to 0% tax', async () => {
+    result = { data: null, error: { message: 'permission denied for table settings' } };
+    await expect(fetchSettings()).rejects.toThrow(
+      "Couldn't load the shop settings: permission denied for table settings",
+    );
+    result = { data: null, error: null };
+    await expect(fetchSettings()).rejects.toThrow('the settings row is missing');
   });
 });
