@@ -25,7 +25,8 @@ describe('rowProblem', () => {
   });
 
   it('refuses a tension that isn’t a positive number', () => {
-    expect(rowProblem(catalog, dims, { ...complete, tension: 'abc' })).toBe('enter a tension');
+    expect(rowProblem(catalog, dims, { ...complete, tension: 'abc' })).toBe('the tension must be a number, like 52 or 52.5');
+    expect(rowProblem(catalog, dims, { ...complete, tension: '52lb' })).toBe('the tension must be a number, like 52 or 52.5');
     expect(rowProblem(catalog, dims, { ...complete, tension: '0' })).toBe('enter a tension');
   });
 

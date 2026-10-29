@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
+import { parseNumberField } from '../../lib/numberInput';
 
 // Per-product stock actions: Receive (positive) or Adjust (signed) via the RPCs.
 export function StockActions({
@@ -24,13 +25,15 @@ export function StockActions({
   }
 
   async function submit() {
-    const n = Number(qty);
-    if (!qty || Number.isNaN(n) || n === 0) {
-      onError('Enter a non-zero quantity');
+    // Whole or half units, as the server requires (0049).
+    const parsed = parseNumberField(qty, 'Quantity', 'halves', { allowNegative: mode === 'adjust' });
+    if ('error' in parsed) {
+      onError(mode === 'receive' && qty.trim().startsWith('-') ? 'Receive quantity must be positive' : parsed.error);
       return;
     }
-    if (mode === 'receive' && n < 0) {
-      onError('Receive quantity must be positive');
+    const n = parsed.value;
+    if (!n) {
+      onError('Enter a non-zero quantity');
       return;
     }
     setBusy(true);

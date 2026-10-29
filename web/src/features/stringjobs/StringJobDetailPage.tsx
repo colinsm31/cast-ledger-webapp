@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { Customer, CustomerRacket, StringJob, StringJobStatus } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { firstNumberProblem, parseNumberField } from '../../lib/numberInput';
 import { Spinner } from '../../components/Spinner';
 import { staffLabel, type StaffRef } from '../../lib/staff';
 import { subCentError } from '../../lib/money';
@@ -178,10 +179,13 @@ export function StringJobDetailPage() {
       setError(`${unavailable.map((u) => u.label).join(' and ')} — none available. Select a different string.`);
       return;
     }
-    const subCent = job.paid_sale_id ? null : subCentError({ Price: price });
-    if (subCent) {
-      setError(subCent);
-      return;
+    // A paid job's price is locked, so it's only checked while it can change.
+    if (!job.paid_sale_id) {
+      const priceProblem = firstNumberProblem(parseNumberField(price, 'Price')) ?? subCentError({ Price: price });
+      if (priceProblem) {
+        setError(priceProblem);
+        return;
+      }
     }
     setBusy(true);
     setError(null);
@@ -267,15 +271,22 @@ export function StringJobDetailPage() {
     await reload();
   }
 
-  // Persist the stringer immediately when picked.
+  // Persist the stringer immediately when picked. It's shown only once saved,
+  // so "Mark complete" can't go ahead on a stringer that wasn't recorded (#42).
   async function setStringer(value: string) {
-    setStrungBy(value);
     if (!jobId) return;
-    const { error: err } = await supabase
+    setError(null);
+    const { data, error: err } = await supabase
       .from('string_jobs')
       .update({ strung_by: value.trim() || null })
-      .eq('id', jobId);
-    if (err) setError(errorMessage(err));
+      .eq('id', jobId)
+      .select('strung_by')
+      .single();
+    if (err) {
+      setError(`The stringer wasn't saved: ${errorMessage(err)}`);
+      return;
+    }
+    setStrungBy((data as { strung_by: string | null }).strung_by ?? '');
   }
 
   async function advance(target: StringJobStatus) {

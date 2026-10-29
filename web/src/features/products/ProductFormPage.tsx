@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { AttributeDef, Category, JsonValue, Product } from '../../types/domain';
@@ -11,6 +11,9 @@ import { useBack } from '../../app/BackContext';
 import { AttributeInput, toStoredValue } from './AttributeInput';
 import { ScanFlowParams, safeReturnTo, withParams } from '../scan/scanFlow';
 import { subCentError } from '../../lib/money';
+import { normalizeBarcode } from '../../lib/barcode';
+import { firstNumberProblem, parseNumberField } from '../../lib/numberInput';
+import { productSaveError } from './productSaveError';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -31,6 +34,10 @@ export function ProductFormPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState('');
   const [attributeDefs, setAttributeDefs] = useState<AttributeDef[]>([]);
+  // The category the attribute defs were loaded for ('' for none chosen; null while loading).
+  const [attrDefsFor, setAttrDefsFor] = useState<string | null>(null);
+  const [attrDefsError, setAttrDefsError] = useState<string | null>(null);
+  const [attrDefsLoadCount, setAttrDefsLoadCount] = useState(0);
 
   const [brand, setBrand] = useState('');
   const [name, setName] = useState('');
@@ -64,24 +71,38 @@ export function ProductFormPage() {
     })();
   }, []);
 
-  // Load attribute defs whenever the chosen category changes.
-  const loadAttrDefs = useCallback(async (catId: string) => {
-    if (!catId) {
+  // Load attribute defs whenever the chosen category changes. Saving waits
+  // until they've loaded for that category: saving before would store no
+  // attributes and erase the product's existing ones (code review #41).
+  useEffect(() => {
+    let active = true;
+    setAttrDefsFor(null);
+    setAttrDefsError(null);
+    if (!categoryId) {
       setAttributeDefs([]);
+      setAttrDefsFor('');
       return;
     }
-    const { data } = await supabase
-      .from('attribute_defs')
-      .select('*')
-      .eq('category_id', catId)
-      .order('sort_order')
-      .order('name');
-    setAttributeDefs((data ?? []) as AttributeDef[]);
-  }, []);
-
-  useEffect(() => {
-    void loadAttrDefs(categoryId);
-  }, [categoryId, loadAttrDefs]);
+    void (async () => {
+      const { data, error: err } = await supabase
+        .from('attribute_defs')
+        .select('*')
+        .eq('category_id', categoryId)
+        .order('sort_order')
+        .order('name');
+      if (!active) return;
+      if (err) {
+        setAttrDefsError(`Couldn't load this category's attributes: ${errorMessage(err)}`);
+        return;
+      }
+      setAttributeDefs((data ?? []) as AttributeDef[]);
+      setAttrDefsFor(categoryId);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [categoryId, attrDefsLoadCount]);
+  const attrDefsReady = attrDefsFor === categoryId;
 
   // Prefill the reorder point with the shop default for new products.
   useEffect(() => {
@@ -121,8 +142,13 @@ export function ProductFormPage() {
   function validate(): string | null {
     if (!categoryId) return 'Choose a category';
     if (!name.trim()) return 'Name is required';
-    if (sellPrice && Number.isNaN(Number(sellPrice))) return 'Sell price must be a number';
-    if (cost && Number.isNaN(Number(cost))) return 'Cost must be a number';
+    if (!attrDefsReady) return "The category's attributes are still loading.";
+    const numberProblem = firstNumberProblem(
+      parseNumberField(sellPrice, 'Sell price'),
+      parseNumberField(cost, 'Cost'),
+      parseNumberField(reorderPoint, 'Reorder point', 'whole'),
+    );
+    if (numberProblem) return numberProblem;
     const subCent = subCentError({ 'Sell price': sellPrice, Cost: cost });
     if (subCent) return subCent;
     for (const def of attributeDefs) {
@@ -154,19 +180,14 @@ export function ProductFormPage() {
       sell_price: sellPrice ? Number(sellPrice) : null,
       cost: cost ? Number(cost) : null,
       reorder_point: reorderPoint ? Number(reorderPoint) : null,
-      barcode: upc.trim() || null,
+      barcode: normalizeBarcode(upc) || null,
       sku: sku.trim() || null,
     };
-
-    const duplicateUpcMessage = (message: string) =>
-      message.includes('duplicate') || message.includes('uq_products_barcode')
-        ? 'That UPC is already used by another product.'
-        : message;
 
     if (isEdit && productId) {
       const { error: err } = await supabase.from('products').update(payload).eq('id', productId);
       setSaving(false);
-      if (err) setError(duplicateUpcMessage(errorMessage(err)));
+      if (err) setError(productSaveError(err));
       else navigate(`/products/${productId}`);
       return;
     }
@@ -175,7 +196,7 @@ export function ProductFormPage() {
     const { data, error: err } = await supabase.from('products').insert(payload).select('id').single();
     setSaving(false);
     if (err) {
-      setError(duplicateUpcMessage(errorMessage(err)));
+      setError(productSaveError(err));
       return;
     }
     navigate(
@@ -284,12 +305,15 @@ export function ProductFormPage() {
         </section>
       )}
 
+      {attrDefsError && (
+        <LoadError message={attrDefsError} onRetry={() => setAttrDefsLoadCount((count) => count + 1)} />
+      )}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex gap-2">
         <button
           onClick={() => void handleSave()}
-          disabled={saving}
+          disabled={saving || !attrDefsReady}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
