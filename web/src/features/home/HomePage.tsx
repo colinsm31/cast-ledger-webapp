@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { searchCustomers } from '../../lib/customerSearch';
 import { errorMessage } from '../../lib/errors';
-import { looksLikeBarcode, normalizeBarcode } from '../../lib/barcode';
+import { looksLikeBarcode, mightBeCode, normalizeBarcode } from '../../lib/barcode';
 import type { Customer } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { useHeldSale } from '../../lib/heldSale';
 import { useAuth } from '../../auth/AuthContext';
-import { resolveBarcode, routeForMatch, type ScannedProduct } from '../scan/resolveBarcode';
+import { resolveBarcode, routeForMatch, type BarcodeMatch, type ScannedProduct } from '../scan/resolveBarcode';
 import { useScannerCapture } from '../scan/useScannerCapture';
 import { ScanFlowParams, sellProductPath, withParams } from '../scan/scanFlow';
 
@@ -75,24 +75,49 @@ export function HomePage() {
     setUpcResult({ kind: 'searching' });
     try {
       const match = await resolveBarcode(upc);
-      if (match.kind === 'product') {
-        // A racket (serialized) scanned here means "receive into inventory":
-        // go straight to its receive sheet. Others show the sell/view card.
-        if (match.product.is_serialized) {
-          navigate(`/products/${match.product.id}?receive=1`);
-          return;
-        }
-        setUpcResult({ kind: 'product', product: match.product });
-        return;
-      }
-      const route = routeForMatch(match);
-      if (route) {
-        navigate(route);
-        return;
-      }
-      setUpcResult({ kind: 'notFoundUpc', upc });
+      if (!openMatch(match)) setUpcResult({ kind: 'notFoundUpc', upc });
     } catch (err) {
       setUpcResult({ kind: 'error', message: errorMessage(err) });
+    }
+  }
+
+  // Go to (or show) what a code matched; false if it matched nothing.
+  function openMatch(match: BarcodeMatch): boolean {
+    if (match.kind === 'product') {
+      // A racket (serialized) scanned here means "receive into inventory":
+      // go straight to its receive sheet. Others show the sell/view card.
+      if (match.product.is_serialized) {
+        navigate(`/products/${match.product.id}?receive=1`);
+      } else {
+        setUpcResult({ kind: 'product', product: match.product });
+      }
+      return true;
+    }
+    const route = routeForMatch(match);
+    if (route) navigate(route);
+    return route !== null;
+  }
+
+  // A single word with letters may be a gift card code, racquet tag or unit
+  // code typed or scanned into the box (#18): look it up first, and only
+  // treat it as a customer name if it matches nothing.
+  async function runCodeOrName(code: string) {
+    try {
+      if (openMatch(await resolveBarcode(code))) return;
+    } catch (err) {
+      setUpcResult({ kind: 'error', message: errorMessage(err) });
+      return;
+    }
+    openNameMatch();
+  }
+
+  function openNameMatch() {
+    if (matches.length > 0) {
+      // Enter jumps to the top predictive match.
+      navigate(`/customers/${matches[0].id}`);
+    } else if (!searchingNames) {
+      // No such customer — open the create screen prefilled with the typed name.
+      navigate(createCustomerUrl);
     }
   }
 
@@ -100,15 +125,9 @@ export function HomePage() {
 
   function onSubmit() {
     if (!term) return;
-    if (isUpcQuery) {
-      void runUpc(term);
-    } else if (matches.length > 0) {
-      // Enter jumps to the top predictive match.
-      navigate(`/customers/${matches[0].id}`);
-    } else if (!searchingNames) {
-      // No such customer — open the create screen prefilled with the typed name.
-      navigate(createCustomerUrl);
-    }
+    if (isUpcQuery) void runUpc(term);
+    else if (mightBeCode(term)) void runCodeOrName(term);
+    else openNameMatch();
   }
 
   return (

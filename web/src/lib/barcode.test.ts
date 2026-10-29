@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { looksLikeBarcode, normalizeBarcode } from './barcode';
+import { looksLikeBarcode, mightBeCode, normalizeBarcode } from './barcode';
 
 describe('normalizeBarcode', () => {
   it('strips every kind of whitespace', () => {
@@ -25,5 +25,19 @@ describe('looksLikeBarcode', () => {
   it('is false for blank input', () => {
     expect(looksLikeBarcode('')).toBe(false);
     expect(looksLikeBarcode('   ')).toBe(false);
+  });
+});
+
+describe('mightBeCode', () => {
+  it('is true for a single word with letters, like a gift card code or racquet tag', () => {
+    expect(mightBeCode('GC-CARD-B')).toBe(true);
+    expect(mightBeCode(' RKT0001 ')).toBe(true);
+    expect(mightBeCode('Smith')).toBe(true);
+  });
+
+  it('is false for a name with a space, an all-digits barcode, or nothing', () => {
+    expect(mightBeCode('Pat Tester')).toBe(false);
+    expect(mightBeCode('012345678905')).toBe(false);
+    expect(mightBeCode('   ')).toBe(false);
   });
 });

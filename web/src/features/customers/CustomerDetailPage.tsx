@@ -7,6 +7,7 @@ import { errorMessage } from '../../lib/errors';
 import { formatPhone } from '../../lib/phone';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { Spinner } from '../../components/Spinner';
+import { LoadError } from '../../components/LoadError';
 import { CustomerRacketsPanel } from './CustomerRacketsPanel';
 import { RestringHistoryPanel } from './RestringHistoryPanel';
 import { useBack } from '../../app/BackContext';
@@ -53,7 +54,13 @@ export function CustomerDetailPage() {
   // dropped from the URL so a refresh doesn't reopen the add form.
   const [prefillRacketBarcode] = useState(() => searchParams.get(ScanFlowParams.racketBarcode));
   const [tab, setTab] = useState<CustomerTab>(prefillRacketBarcode ? 'rackets' : 'purchases');
+  // A failed load of the customer itself, or a failed edit or store credit
+  // save; shown at any time, and cleared when the next action starts.
   const [error, setError] = useState<string | null>(null);
+  // Failed loads of the balances or purchase history, shown in their place
+  // with Retry, so a failure never looks like $0 or "no purchases" (#23).
+  const [balancesError, setBalancesError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   useBack('/customers');
 
@@ -78,6 +85,8 @@ export function CustomerDetailPage() {
       supabase.from('customer_store_credit').select('balance').eq('customer_id', customerId).maybeSingle(),
       supabase.from('gift_card_balance').select('code, balance').eq('customer_id', customerId),
     ]);
+    const balancesLoadError = scRes.error ?? gcRes.error;
+    setBalancesError(balancesLoadError ? `Couldn't load the balances: ${errorMessage(balancesLoadError)}` : null);
     setStoreCredit(scRes.data ? Number((scRes.data as { balance: number }).balance) : 0);
     setGiftCards(
       ((gcRes.data ?? []) as { code: string; balance: number }[]).map((g) => ({
@@ -92,6 +101,7 @@ export function CustomerDetailPage() {
       .select(HISTORY_SELECT)
       .eq('customer_id', customerId)
       .order('sold_at', { ascending: false });
+    setHistoryError(histRes.error ? `Couldn't load the purchase history: ${errorMessage(histRes.error)}` : null);
     if (!histRes.error && histRes.data) {
       const rows: PurchaseHistoryRow[] = [];
       for (const sale of histRes.data as unknown as HistorySaleRaw[]) {
@@ -143,6 +153,8 @@ export function CustomerDetailPage() {
         </button>
       </div>
 
+      {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
       {editing && (
         <EditCustomerForm
           customer={customer}
@@ -155,13 +167,17 @@ export function CustomerDetailPage() {
         />
       )}
 
-      <AccountPanel
-        customerId={customer.id}
-        storeCredit={storeCredit}
-        giftCards={giftCards}
-        onChanged={load}
-        onError={setError}
-      />
+      {balancesError ? (
+        <LoadError message={balancesError} onRetry={() => void load()} />
+      ) : (
+        <AccountPanel
+          customerId={customer.id}
+          storeCredit={storeCredit}
+          giftCards={giftCards}
+          onChanged={load}
+          onError={setError}
+        />
+      )}
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2">
@@ -186,11 +202,13 @@ export function CustomerDetailPage() {
         <section className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-700">Past purchases</h2>
-            {history.length > 0 && (
+            {history.length > 0 && !historyError && (
               <span className="text-sm text-slate-500">Total ${totalSpent.toFixed(2)}</span>
             )}
           </div>
-          {history.length === 0 ? (
+          {historyError ? (
+            <LoadError message={historyError} onRetry={() => void load()} />
+          ) : history.length === 0 ? (
             <p className="text-sm text-slate-500">No purchases recorded yet.</p>
           ) : (
             <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
@@ -263,7 +281,7 @@ function AccountPanel({
   storeCredit: number;
   giftCards: { code: string; balance: number }[];
   onChanged: () => Promise<void>;
-  onError: (message: string) => void;
+  onError: (message: string | null) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [amount, setAmount] = useState('');
@@ -280,6 +298,7 @@ function AccountPanel({
       return;
     }
     if (!canAdd) return;
+    onError(null);
     setSaving(true);
     const { error: err } = await supabase.rpc('add_store_credit', {
       p_customer_id: customerId,
@@ -369,11 +388,12 @@ function EditCustomerForm({
   customer: Customer;
   onCancel: () => void;
   onSaved: () => Promise<void>;
-  onError: (message: string) => void;
+  onError: (message: string | null) => void;
 }) {
   const [firstName, setFirstName] = useState(customer.first_name);
   const [lastName, setLastName] = useState(customer.last_name ?? '');
-  const [phone, setPhone] = useState(formatPhone(customer.phone_number ?? ''));
+  // The saved number as stored; it's only reformatted if it's edited.
+  const [phone, setPhone] = useState(customer.phone_number ?? '');
   const [email, setEmail] = useState(customer.email ?? '');
   const [saving, setSaving] = useState(false);
 
@@ -385,6 +405,7 @@ function EditCustomerForm({
       onError('First and last name are required');
       return;
     }
+    onError(null);
     setSaving(true);
     const { error: err } = await supabase
       .from('customers')
