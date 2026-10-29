@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import { ScanConstants } from '../lib/scanBuffer';
 
 type Tone = 'default' | 'danger';
 
@@ -49,6 +50,8 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const nextIdRef = useRef(0);
+  // When the last character key landed in the dialog, to spot a scanner's Enter.
+  const lastCharKeyAtRef = useRef(Number.NEGATIVE_INFINITY);
 
   const show = useCallback((options: Omit<DialogState, 'id'>) => {
     const next = { ...options, id: ++nextIdRef.current };
@@ -91,11 +94,23 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     returnFocusRef.current = null;
   }, [state]);
 
-  // Escape cancels; Tab and Shift+Tab stay on the dialog's buttons (#39).
+  // Escape cancels; Tab and Shift+Tab stay on the dialog's buttons (#39); a
+  // scanner's Enter doesn't press a button.
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'Escape') {
       e.preventDefault();
       close(false);
+      return;
+    }
+    if (e.key.length === 1) {
+      lastCharKeyAtRef.current = e.timeStamp;
+      return;
+    }
+    if (e.key === 'Enter') {
+      // A scanner types its code then Enter within milliseconds. That Enter
+      // would press the focused button (e.g. "Add to card"), so ignore it; a
+      // person's Enter still works.
+      if (e.timeStamp - lastCharKeyAtRef.current <= ScanConstants.maxGapMs) e.preventDefault();
       return;
     }
     if (e.key !== 'Tab') return;
