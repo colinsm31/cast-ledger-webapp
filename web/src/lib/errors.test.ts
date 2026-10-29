@@ -14,6 +14,10 @@ describe('errorMessage', () => {
     expect(errorMessage({ message: 'error 23505' })).toBe('That already exists (duplicate key).');
   });
 
+  it('turns a too-large number into plain words', () => {
+    expect(errorMessage({ message: 'numeric field overflow' })).toBe('That number is too large to save.');
+  });
+
   it('falls back when there is no message', () => {
     expect(errorMessage({ message: '' })).toBe('Something went wrong.');
     expect(errorMessage('a string')).toBe('Something went wrong.');

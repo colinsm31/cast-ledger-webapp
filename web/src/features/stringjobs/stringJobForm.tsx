@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { JsonValue } from '../../types/domain';
+import { optionalNumber } from '../../lib/numberInput';
 
 export const cellClass =
   'w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -116,7 +117,7 @@ export function rowPayload(
       [`${prefix}_brand`]: null,
       [`${prefix}_string`]: null,
       [`${prefix}_specs`]: {},
-      [`${prefix}_tension`]: row.tension ? Number(row.tension) : null,
+      [`${prefix}_tension`]: optionalNumber(row.tension),
     };
   }
   const product = resolveProduct(catalog, dims, row);
@@ -125,7 +126,7 @@ export function rowPayload(
     [`${prefix}_brand`]: row.brand || null,
     [`${prefix}_string`]: row.name,
     [`${prefix}_specs`]: product ? product.attributes : row.specs,
-    [`${prefix}_tension`]: row.tension ? Number(row.tension) : null,
+    [`${prefix}_tension`]: optionalNumber(row.tension),
   };
 }
 

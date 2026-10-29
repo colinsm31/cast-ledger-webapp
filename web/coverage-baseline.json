@@ -2,10 +2,10 @@
   "updated": "2026-10-29",
   "web": {
     "overall": {
-      "lines": 10.19,
-      "statements": 10.65,
-      "functions": 9.49,
-      "branches": 9.17
+      "lines": 10.32,
+      "statements": 10.75,
+      "functions": 9.54,
+      "branches": 9.41
     },
     "byFolder": {
       "src": {
@@ -42,16 +42,16 @@
         "lines": 3.41
       },
       "src/features/sales": {
-        "lines": 3.01
+        "lines": 2.97
       },
       "src/features/scan": {
         "lines": 0
       },
       "src/features/stringjobs": {
-        "lines": 13.8
+        "lines": 13.37
       },
       "src/lib": {
-        "lines": 83.83
+        "lines": 84.23
       },
       "src/types": {
         "lines": 33.33

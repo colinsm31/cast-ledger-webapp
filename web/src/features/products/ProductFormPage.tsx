@@ -12,7 +12,7 @@ import { AttributeInput, toStoredValue } from './AttributeInput';
 import { ScanFlowParams, safeReturnTo, withParams } from '../scan/scanFlow';
 import { subCentError } from '../../lib/money';
 import { normalizeBarcode } from '../../lib/barcode';
-import { firstNumberProblem, parseNumberField } from '../../lib/numberInput';
+import { firstNumberProblem, optionalNumber, parseNumberField } from '../../lib/numberInput';
 import { productSaveError } from './productSaveError';
 
 const inputClass =
@@ -177,9 +177,10 @@ export function ProductFormPage() {
       brand: brand.trim() || null,
       name: name.trim(),
       attributes,
-      sell_price: sellPrice ? Number(sellPrice) : null,
-      cost: cost ? Number(cost) : null,
-      reorder_point: reorderPoint ? Number(reorderPoint) : null,
+      // Blank (or only spaces) saves as empty, never $0 (#6).
+      sell_price: optionalNumber(sellPrice),
+      cost: optionalNumber(cost),
+      reorder_point: optionalNumber(reorderPoint),
       barcode: normalizeBarcode(upc) || null,
       sku: sku.trim() || null,
     };

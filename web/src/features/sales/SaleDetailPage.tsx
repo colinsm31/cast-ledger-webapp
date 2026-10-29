@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { JsonValue, SaleLineKind } from '../../types/domain';
 import { customerNameLastFirst, stringingLineName } from '../../types/domain';
@@ -69,14 +69,28 @@ export function SaleDetailPage() {
   const { saleId } = useParams<{ saleId: string }>();
   const [sale, setSale] = useState<SaleDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const deliveryWarning = (useLocation().state as { deliveryWarning?: SaleDeliveryWarning } | null)?.deliveryWarning;
+  const location = useLocation();
+  const navigate = useNavigate();
+  // The register's "delivery failed" warning shows for the sale it was about,
+  // once: it's taken out of the page's history so a reload doesn't repeat it (#10).
+  const [deliveryNotice] = useState(() => {
+    const warning = (location.state as { deliveryWarning?: SaleDeliveryWarning } | null)?.deliveryWarning;
+    return warning ? { saleId, warning } : null;
+  });
+  const deliveryWarning = deliveryNotice && deliveryNotice.saleId === saleId ? deliveryNotice.warning : undefined;
+  useEffect(() => {
+    if (location.state) navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
   useBack('/sales');
   const startRequest = useLatestRequest();
 
   useEffect(() => {
     if (!saleId) return;
-    // Moving to another sale, an answer for the previous one is ignored (#37).
+    // Moving to another sale, an answer for the previous one is ignored (#37),
+    // and the previous sale's details and error are cleared straight away (#10).
     const isLatest = startRequest();
+    setSale(null);
+    setError(null);
     void (async () => {
       const { data, error: err } = await supabase
         .from('sales')

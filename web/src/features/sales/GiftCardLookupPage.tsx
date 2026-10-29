@@ -56,8 +56,9 @@ export function GiftCardLookupPage() {
     setResult(null);
     setNotFound(null);
     setError(null);
+    // An empty box ends any search in progress, so "Searching…" doesn't stick (#9).
+    setSearching(Boolean(c));
     if (!c) return;
-    setSearching(true);
     const { data, error: err } = await supabase
       .from('gift_card_balance')
       .select('*')

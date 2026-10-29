@@ -1,5 +1,5 @@
 import type { CatalogString, RowSel } from './stringJobForm';
-import { parseNumberField } from '../../lib/numberInput';
+import { NumberLimits, parseNumberField } from '../../lib/numberInput';
 
 /**
  * What's still missing from one mains/crosses row before a job can be entered,
@@ -26,8 +26,12 @@ export function rowProblem(catalog: CatalogString[], dims: string[], row: RowSel
   if (matches.length === 0) return 'that combination isn’t in the catalog';
   if (matches.length > 1) return 'more than one catalog string matches — check the catalog';
 
-  const tension = parseNumberField(row.tension, 'Tension');
-  if ('error' in tension) return 'the tension must be a number, like 52 or 52.5';
+  const tension = parseNumberField(row.tension, 'Tension', 'decimal', { max: NumberLimits.maxTension });
+  if ('error' in tension) {
+    return Number(row.tension) > NumberLimits.maxTension
+      ? `the tension is too high (the most is ${NumberLimits.maxTension.toLocaleString('en-US')})`
+      : 'the tension must be a number, like 52 or 52.5';
+  }
   if (!tension.value) return 'enter a tension';
   return null;
 }

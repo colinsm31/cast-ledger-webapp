@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { firstNumberProblem, parseNumberField } from './numberInput';
+import { firstNumberProblem, NumberLimits, optionalNumber, parseNumberField } from './numberInput';
 
 describe('parseNumberField', () => {
   it('reads a typed number, and an empty field as null', () => {
@@ -37,5 +37,33 @@ describe('firstNumberProblem', () => {
   it('returns the first error, or null', () => {
     expect(firstNumberProblem({ value: 1 }, { error: 'A' }, { error: 'B' })).toBe('A');
     expect(firstNumberProblem({ value: 1 }, { value: null })).toBeNull();
+  });
+});
+
+describe('number limits', () => {
+  it('refuses a number larger than the database stores', () => {
+    expect(parseNumberField('9999999999.99', 'Price')).toEqual({ value: NumberLimits.max });
+    expect(parseNumberField('10000000000', 'Price')).toEqual({
+      error: 'Price is too large (the most is 9,999,999,999.99).',
+    });
+    expect(parseNumberField('-10000000000', 'Adjustment', 'decimal', { allowNegative: true })).toHaveProperty('error');
+  });
+
+  it('takes a smaller limit for a field that needs one', () => {
+    expect(parseNumberField('10000', 'Tension', 'decimal', { max: NumberLimits.maxTension })).toEqual({
+      error: 'Tension is too large (the most is 9,999.9).',
+    });
+  });
+});
+
+describe('optionalNumber', () => {
+  it('saves a blank or spaces-only field as empty, never 0', () => {
+    expect(optionalNumber('')).toBeNull();
+    expect(optionalNumber('   ')).toBeNull();
+  });
+
+  it('reads a typed number, including 0', () => {
+    expect(optionalNumber(' 12.5 ')).toBe(12.5);
+    expect(optionalNumber('0')).toBe(0);
   });
 });
