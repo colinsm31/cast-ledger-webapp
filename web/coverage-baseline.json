@@ -2,10 +2,10 @@
   "updated": "2026-10-29",
   "web": {
     "overall": {
-      "lines": 9.61,
-      "statements": 10.09,
-      "functions": 9.2,
-      "branches": 8.76
+      "lines": 10.03,
+      "statements": 10.5,
+      "functions": 9.4,
+      "branches": 9.13
     },
     "byFolder": {
       "src": {
@@ -51,7 +51,7 @@
         "lines": 13.8
       },
       "src/lib": {
-        "lines": 82.24
+        "lines": 83.41
       },
       "src/types": {
         "lines": 33.33
@@ -260,6 +260,9 @@
         "lines": 100
       },
       "src/lib/saleMath.ts": {
+        "lines": 100
+      },
+      "src/lib/scanBuffer.ts": {
         "lines": 100
       },
       "src/lib/settings.ts": {
