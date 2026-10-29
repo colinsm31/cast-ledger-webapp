@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { Category, ProductStock, ProductWithCategory } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
+import { LoadError } from '../../components/LoadError';
 import { EmptyState } from '../../components/EmptyState';
 import { displayStored } from './AttributeInput';
 import { useBack } from '../../app/BackContext';
@@ -39,6 +40,7 @@ export function ProductsListPage() {
   // Attribute names per category, ordered by sort_order — drives the row label.
   const [attrOrderByCategory, setAttrOrderByCategory] = useState<Record<string, string[]>>({});
   const [error, setError] = useState<string | null>(null);
+  const [loadCount, setLoadCount] = useState(0);
 
   // Category + brand selections live in the URL, so browser back walks up the
   // drill-down (products → brands → categories) and views are linkable.
@@ -50,6 +52,8 @@ export function ProductsListPage() {
   const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
+    let active = true;
+    setError(null);
     void (async () => {
       try {
         // Products can exceed PostgREST's 1000-row cap, so page through all of
@@ -61,6 +65,11 @@ export function ProductsListPage() {
           supabase.from('attribute_defs').select('category_id, name, sort_order').order('sort_order'),
           fetchAllRows<ProductStock>('product_stock', '*', 'product_id'),
         ]);
+        // Without categories or attribute order the list can't be grouped or
+        // labelled, so a failure is an error, not an empty list (#36).
+        if (categoriesRes.error) throw categoriesRes.error;
+        if (attrsRes.error) throw attrsRes.error;
+        if (!active) return;
         setProducts(loaded);
         setCategories((categoriesRes.data ?? []) as Category[]);
 
@@ -74,10 +83,14 @@ export function ProductsListPage() {
         for (const row of stock) map[row.product_id] = row;
         setStockByProduct(map);
       } catch (err) {
-        setError(errorMessage(err));
+        if (active) setError(`Couldn't load the products: ${errorMessage(err)}`);
       }
     })();
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [loadCount]);
+  const loadError = error && <LoadError message={error} onRetry={() => setLoadCount((count) => count + 1)} />;
 
   const selectedCategory = useMemo(
     () => categories.find((c) => c.id === categoryId) ?? null,
@@ -144,7 +157,7 @@ export function ProductsListPage() {
           {newProductButton}
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {loadError}
         {products === null && !error && <Spinner label="Loading…" />}
 
         {categories.length > 0 && (
@@ -175,7 +188,7 @@ export function ProductsListPage() {
           {newProductButton}
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {loadError}
         {products === null && !error && <Spinner label="Loading…" />}
         {products && brandsInCategory.length === 0 && (
           <EmptyState title="No products yet" message="No products in this category yet." />
@@ -227,7 +240,7 @@ export function ProductsListPage() {
         </label>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {loadError}
       {products === null && !error && <Spinner label="Loading…" />}
       {products && filtered.length === 0 && (
         <EmptyState title="No products here" message="No products match your search." />

@@ -1,4 +1,14 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
+import { ScanConstants } from '../lib/scanBuffer';
 
 type Tone = 'default' | 'danger';
 
@@ -11,6 +21,8 @@ interface DialogOptions {
 }
 
 interface DialogState extends DialogOptions {
+  /** Changes with each dialog, so a replacement remounts and takes focus. */
+  id: number;
   mode: 'confirm' | 'alert';
   resolve: (value: boolean) => void;
 }
@@ -32,29 +44,103 @@ export function useDialog(): DialogApi {
 
 export function DialogProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<DialogState | null>(null);
+  // The open dialog, readable synchronously so a second dialog can answer the
+  // first one, and the element that had focus before, to return it on close.
+  const openRef = useRef<DialogState | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const nextIdRef = useRef(0);
+  // When the last character key landed in the dialog, to spot a scanner's Enter.
+  const lastCharKeyAtRef = useRef(Number.NEGATIVE_INFINITY);
+
+  const show = useCallback((options: Omit<DialogState, 'id'>) => {
+    const next = { ...options, id: ++nextIdRef.current };
+    if (openRef.current) {
+      // Only one dialog at a time: the one already showing is cancelled so
+      // whoever is waiting on it doesn't hang (#39).
+      openRef.current.resolve(false);
+    } else {
+      returnFocusRef.current = document.activeElement as HTMLElement | null;
+    }
+    openRef.current = next;
+    setState(next);
+  }, []);
 
   const confirm = useCallback(
     (options: DialogOptions) =>
-      new Promise<boolean>((resolve) => setState({ ...options, mode: 'confirm', resolve })),
-    [],
+      new Promise<boolean>((resolve) => show({ ...options, mode: 'confirm', resolve })),
+    [show],
   );
   const alert = useCallback(
     (options: DialogOptions) =>
-      new Promise<void>((resolve) =>
-        setState({ ...options, mode: 'alert', resolve: () => resolve() }),
-      ).then(() => undefined),
-    [],
+      new Promise<void>((resolve) => show({ ...options, mode: 'alert', resolve: () => resolve() })),
+    [show],
   );
 
-  const close = useCallback(
-    (value: boolean) => {
-      setState((s) => {
-        s?.resolve(value);
-        return null;
-      });
-    },
-    [],
-  );
+  const close = useCallback((value: boolean) => {
+    const current = openRef.current;
+    if (!current) return;
+    openRef.current = null;
+    setState(null);
+    current.resolve(value);
+  }, []);
+
+  // The page behind doesn't scroll while a dialog is open (#11).
+  useEffect(() => {
+    if (!state) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [state]);
+
+  // Give focus back to where it was once the dialog is gone, unless the code
+  // that opened it has already moved focus somewhere else.
+  useEffect(() => {
+    if (state) return;
+    const active = document.activeElement;
+    if (!active || active === document.body) returnFocusRef.current?.focus();
+    returnFocusRef.current = null;
+  }, [state]);
+
+  // Escape cancels; Tab and Shift+Tab stay on the dialog's buttons (#39); a
+  // scanner's Enter doesn't press a button.
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close(false);
+      return;
+    }
+    if (e.key.length === 1) {
+      lastCharKeyAtRef.current = e.timeStamp;
+      return;
+    }
+    if (e.key === 'Enter') {
+      // A scanner types its code then Enter within milliseconds. That Enter
+      // would press the focused button (e.g. "Add to card"), so ignore it; a
+      // person's Enter still works.
+      if (e.timeStamp - lastCharKeyAtRef.current <= ScanConstants.maxGapMs) e.preventDefault();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const buttons = Array.from(panelRef.current?.querySelectorAll('button') ?? []);
+    if (buttons.length === 0) return;
+    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const step = e.shiftKey ? -1 : 1;
+    // From the dialog itself (after a click on its text), Tab goes to the
+    // first button and Shift+Tab to the last.
+    const next =
+      index === -1
+        ? buttons[e.shiftKey ? buttons.length - 1 : 0]
+        : buttons[(index + step + buttons.length) % buttons.length];
+    e.preventDefault();
+    next.focus();
+  }
+
+  // On a danger dialog Cancel has focus, so a stray Enter (or a scanner's
+  // Enter) doesn't delete anything (#39).
+  const focusCancel = state?.mode === 'confirm' && state.tone === 'danger';
 
   return (
     <DialogContext.Provider value={{ confirm, alert }}>
@@ -65,9 +151,16 @@ export function DialogProvider({ children }: { children: ReactNode }) {
           onClick={() => close(false)}
         >
           <div
+            key={state.id}
+            ref={panelRef}
             role="dialog"
             aria-modal="true"
-            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
+            aria-label={state.title ?? state.message}
+            // Focusable, so a click on the dialog's text keeps focus inside it
+            // and Escape and Tab still work (#11).
+            tabIndex={-1}
+            onKeyDown={onKeyDown}
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             {state.title && <h2 className="text-lg font-bold text-slate-900">{state.title}</h2>}
@@ -75,6 +168,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
             <div className="mt-5 flex justify-end gap-2">
               {state.mode === 'confirm' && (
                 <button
+                  autoFocus={focusCancel}
                   onClick={() => close(false)}
                   className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
@@ -82,7 +176,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
                 </button>
               )}
               <button
-                autoFocus
+                autoFocus={!focusCancel}
                 onClick={() => close(true)}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold text-white ${
                   state.tone === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'

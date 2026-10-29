@@ -1,11 +1,11 @@
 {
-  "updated": "2026-10-28",
+  "updated": "2026-10-29",
   "web": {
     "overall": {
-      "lines": 8.92,
-      "statements": 9.32,
-      "functions": 8.45,
-      "branches": 7.99
+      "lines": 12.98,
+      "statements": 13.35,
+      "functions": 11.61,
+      "branches": 11.48
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 0
+        "lines": 87.69
       },
       "src/features/account": {
         "lines": 0
@@ -39,19 +39,19 @@
         "lines": 0
       },
       "src/features/products": {
-        "lines": 2.33
+        "lines": 3.41
       },
       "src/features/sales": {
-        "lines": 3.09
+        "lines": 2.97
       },
       "src/features/scan": {
-        "lines": 0
+        "lines": 37.78
       },
       "src/features/stringjobs": {
-        "lines": 13.97
+        "lines": 13.37
       },
       "src/lib": {
-        "lines": 81.05
+        "lines": 84.94
       },
       "src/types": {
         "lines": 33.33
@@ -77,7 +77,7 @@
         "lines": 0
       },
       "src/components/Dialog.tsx": {
-        "lines": 0
+        "lines": 91.93
       },
       "src/components/EmptyState.tsx": {
         "lines": 0
@@ -166,6 +166,9 @@
       "src/features/products/barcodeClash.ts": {
         "lines": 100
       },
+      "src/features/products/productSaveError.ts": {
+        "lines": 100
+      },
       "src/features/products/variantLabel.ts": {
         "lines": 100
       },
@@ -203,7 +206,7 @@
         "lines": 0
       },
       "src/features/scan/useScannerCapture.ts": {
-        "lines": 0
+        "lines": 100
       },
       "src/features/stringjobs/StringJobDetailPage.tsx": {
         "lines": 0
@@ -238,7 +241,13 @@
       "src/lib/heldSale.ts": {
         "lines": 62.5
       },
+      "src/lib/latestRequest.ts": {
+        "lines": 100
+      },
       "src/lib/money.ts": {
+        "lines": 100
+      },
+      "src/lib/numberInput.ts": {
         "lines": 100
       },
       "src/lib/paging.ts": {
@@ -251,6 +260,9 @@
         "lines": 100
       },
       "src/lib/saleMath.ts": {
+        "lines": 100
+      },
+      "src/lib/scanBuffer.ts": {
         "lines": 100
       },
       "src/lib/settings.ts": {

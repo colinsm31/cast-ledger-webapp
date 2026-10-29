@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { Customer, JsonValue, PurchaseHistoryRow, SaleLineKind } from '../../types/domain';
 import { customerName, stringingLineName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { useLatestRequest } from '../../lib/latestRequest';
 import { formatPhone } from '../../lib/phone';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { Spinner } from '../../components/Spinner';
@@ -62,6 +63,7 @@ export function CustomerDetailPage() {
   const [balancesError, setBalancesError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const startRequest = useLatestRequest();
   useBack('/customers');
 
   useEffect(() => {
@@ -73,7 +75,10 @@ export function CustomerDetailPage() {
 
   const load = useCallback(async () => {
     if (!customerId) return;
+    // Moving to another customer, answers for the previous one are ignored (#37).
+    const isLatest = startRequest();
     const custRes = await supabase.from('customers').select('*').eq('id', customerId).single();
+    if (!isLatest()) return;
     if (custRes.error) {
       setError(errorMessage(custRes.error));
       return;
@@ -85,6 +90,7 @@ export function CustomerDetailPage() {
       supabase.from('customer_store_credit').select('balance').eq('customer_id', customerId).maybeSingle(),
       supabase.from('gift_card_balance').select('code, balance').eq('customer_id', customerId),
     ]);
+    if (!isLatest()) return;
     const balancesLoadError = scRes.error ?? gcRes.error;
     setBalancesError(balancesLoadError ? `Couldn't load the balances: ${errorMessage(balancesLoadError)}` : null);
     setStoreCredit(scRes.data ? Number((scRes.data as { balance: number }).balance) : 0);
@@ -101,6 +107,7 @@ export function CustomerDetailPage() {
       .select(HISTORY_SELECT)
       .eq('customer_id', customerId)
       .order('sold_at', { ascending: false });
+    if (!isLatest()) return;
     setHistoryError(histRes.error ? `Couldn't load the purchase history: ${errorMessage(histRes.error)}` : null);
     if (!histRes.error && histRes.data) {
       const rows: PurchaseHistoryRow[] = [];
@@ -125,7 +132,7 @@ export function CustomerDetailPage() {
       }
       setHistory(rows);
     }
-  }, [customerId]);
+  }, [customerId, startRequest]);
 
   useEffect(() => {
     void load();

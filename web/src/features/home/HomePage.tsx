@@ -9,6 +9,7 @@ import { useHeldSale } from '../../lib/heldSale';
 import { useAuth } from '../../auth/AuthContext';
 import { resolveBarcode, routeForMatch, type BarcodeMatch, type ScannedProduct } from '../scan/resolveBarcode';
 import { useScannerCapture } from '../scan/useScannerCapture';
+import { useLatestRequest } from '../../lib/latestRequest';
 import { ScanFlowParams, sellProductPath, withParams } from '../scan/scanFlow';
 
 type UpcResult =
@@ -28,6 +29,9 @@ export function HomePage() {
   const [searchingNames, setSearchingNames] = useState(false);
   const [upcResult, setUpcResult] = useState<UpcResult>({ kind: 'idle' });
   const searchRef = useRef<HTMLInputElement>(null);
+  // Only the latest scan's lookup acts: a slow answer to an earlier scan
+  // never navigates away from a newer one (#37).
+  const startRequest = useLatestRequest();
 
   const term = query.trim();
   const isUpcQuery = looksLikeBarcode(term);
@@ -72,12 +76,14 @@ export function HomePage() {
   // A product stays on this screen so the cashier can choose sell vs. view.
   async function runUpc(raw: string) {
     const upc = normalizeBarcode(raw);
+    const isLatest = startRequest();
     setUpcResult({ kind: 'searching' });
     try {
       const match = await resolveBarcode(upc);
+      if (!isLatest()) return;
       if (!openMatch(match)) setUpcResult({ kind: 'notFoundUpc', upc });
     } catch (err) {
-      setUpcResult({ kind: 'error', message: errorMessage(err) });
+      if (isLatest()) setUpcResult({ kind: 'error', message: errorMessage(err) });
     }
   }
 
@@ -102,32 +108,39 @@ export function HomePage() {
   // code typed or scanned into the box (#18): look it up first, and only
   // treat it as a customer name if it matches nothing.
   async function runCodeOrName(code: string) {
+    const isLatest = startRequest();
     try {
-      if (openMatch(await resolveBarcode(code))) return;
+      const match = await resolveBarcode(code);
+      if (!isLatest() || openMatch(match)) return;
     } catch (err) {
-      setUpcResult({ kind: 'error', message: errorMessage(err) });
+      if (isLatest()) setUpcResult({ kind: 'error', message: errorMessage(err) });
       return;
     }
-    openNameMatch();
+    await openNameMatch(code, isLatest);
   }
 
-  function openNameMatch() {
-    if (matches.length > 0) {
-      // Enter jumps to the top predictive match.
-      navigate(`/customers/${matches[0].id}`);
-    } else if (!searchingNames) {
-      // No such customer — open the create screen prefilled with the typed name.
-      navigate(createCustomerUrl);
+  // Enter on a name: search for exactly what's typed now, rather than using
+  // the live matches, which may be from before the last few keys (#4). Opens
+  // the top match, or the create screen prefilled with the name.
+  async function openNameMatch(name: string, isLatest: () => boolean) {
+    let found: Customer[];
+    try {
+      found = await searchCustomers(name);
+    } catch (err) {
+      if (isLatest()) setUpcResult({ kind: 'error', message: errorMessage(err) });
+      return;
     }
+    if (!isLatest()) return;
+    navigate(found.length > 0 ? `/customers/${found[0].id}` : newCustomerUrl(name));
   }
 
-  const createCustomerUrl = `/customers/new?name=${encodeURIComponent(term)}`;
+  const createCustomerUrl = newCustomerUrl(term);
 
   function onSubmit() {
     if (!term) return;
     if (isUpcQuery) void runUpc(term);
     else if (mightBeCode(term)) void runCodeOrName(term);
-    else openNameMatch();
+    else void openNameMatch(term, startRequest());
   }
 
   return (
@@ -155,6 +168,9 @@ export function HomePage() {
           autoFocus
           value={query}
           onChange={(e) => {
+            // Typing replaces whatever was being looked up: a slow answer to an
+            // earlier scan or Enter must not navigate away mid-typing (#3).
+            startRequest();
             setQuery(e.target.value);
             if (upcResult.kind !== 'idle') setUpcResult({ kind: 'idle' });
           }}
@@ -340,4 +356,10 @@ function NavCard({ to, label }: { to: string; label: string }) {
       {label}
     </Link>
   );
+}
+
+// MARK: - Private Helpers
+
+function newCustomerUrl(name: string): string {
+  return `/customers/new?name=${encodeURIComponent(name)}`;
 }
