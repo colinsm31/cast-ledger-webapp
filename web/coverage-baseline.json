@@ -1,0 +1,61 @@
+{
+  "updated": "2026-10-28",
+  "web": {
+    "overall": {
+      "lines": 7.23,
+      "statements": 7.42,
+      "functions": 6.99,
+      "branches": 6.4
+    },
+    "byFolder": {
+      "src": {
+        "lines": 0
+      },
+      "src/app": {
+        "lines": 0
+      },
+      "src/auth": {
+        "lines": 0
+      },
+      "src/components": {
+        "lines": 0
+      },
+      "src/features/account": {
+        "lines": 0
+      },
+      "src/features/admin": {
+        "lines": 0
+      },
+      "src/features/categories": {
+        "lines": 0
+      },
+      "src/features/customers": {
+        "lines": 0
+      },
+      "src/features/home": {
+        "lines": 0
+      },
+      "src/features/lookups": {
+        "lines": 0
+      },
+      "src/features/products": {
+        "lines": 2.33
+      },
+      "src/features/sales": {
+        "lines": 3.09
+      },
+      "src/features/scan": {
+        "lines": 0
+      },
+      "src/features/stringjobs": {
+        "lines": 13.97
+      },
+      "src/lib": {
+        "lines": 58.38
+      },
+      "src/types": {
+        "lines": 33.33
+      }
+    }
+  }
+}

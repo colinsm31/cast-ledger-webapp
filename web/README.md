@@ -29,6 +29,11 @@ repo), put the local URL and anon key in `.env.localdb.local` and run
 - `npm run preview`: serve the production build locally
 - `npm run lint`: lint (oxlint)
 - `npm test`: unit tests (Vitest), e.g. register money math and barcode handling
+- `npm run coverage`: unit tests with coverage. Open `coverage/index.html` to see the untested lines.
+- `npm run coverage:check`: fails if coverage dropped below `coverage-baseline.json`
+  (overall, or any folder's lines, by more than 0.5 points). When a commit adds tests,
+  or adds a file without tests on purpose, run `npm run coverage:check -- --update` and
+  commit the new baseline with it. Not part of CI yet.
 
 CI (`.github/workflows/ci.yml`) runs lint, build and tests on every push and pull
 request.
