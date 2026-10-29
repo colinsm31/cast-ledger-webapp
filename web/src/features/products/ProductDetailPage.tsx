@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase';
 import type { ProductAvailable, ProductStock, ProductWithCategory } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
+import { LoadError } from '../../components/LoadError';
+import { useLatestRequest } from '../../lib/latestRequest';
 import { displayStored } from './AttributeInput';
 import { StockActions } from './StockActions';
 import { UnitsSection } from './UnitsSection';
@@ -22,6 +24,9 @@ export function ProductDetailPage() {
   const [stock, setStock] = useState<ProductStock | null>(null);
   const [availability, setAvailability] = useState<ProductAvailable | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A failed stock load, shown in place of the count so it never reads as 0 (#36).
+  const [stockError, setStockError] = useState<string | null>(null);
+  const startRequest = useLatestRequest();
 
   // Back goes to this product's brand list within its category.
   useBack(
@@ -32,11 +37,14 @@ export function ProductDetailPage() {
 
   const load = useCallback(async () => {
     if (!productId) return;
+    // Moving to another product, an answer for the previous one is ignored (#37).
+    const isLatest = startRequest();
     const { data: prod, error: prodErr } = await supabase
       .from('products')
       .select('*, categories(name)')
       .eq('id', productId)
       .single();
+    if (!isLatest()) return;
     if (prodErr) {
       setError(errorMessage(prodErr));
       return;
@@ -48,9 +56,12 @@ export function ProductDetailPage() {
       supabase.from('product_stock').select('*').eq('product_id', productId).maybeSingle(),
       supabase.from('product_available').select('*').eq('product_id', productId).maybeSingle(),
     ]);
+    if (!isLatest()) return;
+    const stockLoadError = stockRes.error ?? availRes.error;
+    setStockError(stockLoadError ? `Couldn't load the stock: ${errorMessage(stockLoadError)}` : null);
     setStock((stockRes.data as ProductStock) ?? null);
     setAvailability((availRes.data as ProductAvailable) ?? null);
-  }, [productId]);
+  }, [productId, startRequest]);
 
   useEffect(() => {
     void load();
@@ -135,7 +146,7 @@ export function ProductDetailPage() {
         <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-700">Stock</h2>
-            <div className="flex items-center gap-2">
+            {!stockError && <div className="flex items-center gap-2">
               <span className="text-sm">
                 <span className="font-semibold">{onHand}</span>{' '}
                 <span className="text-slate-400">on hand</span>
@@ -145,8 +156,9 @@ export function ProductDetailPage() {
                   low
                 </span>
               )}
-            </div>
+            </div>}
           </div>
+          {stockError && <LoadError message={stockError} onRetry={() => void load()} />}
           {availability && Number(availability.committed) > 0 && (
             <p className="text-xs text-slate-500">
               <span className="font-medium text-slate-700">{Number(availability.committed)}</span> committed to string jobs ·{' '}

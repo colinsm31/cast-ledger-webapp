@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { Customer, CustomerRacket, StringJob, StringJobStatus } from '../../types/domain';
 import { customerName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { useLatestRequest } from '../../lib/latestRequest';
 import { firstNumberProblem, parseNumberField } from '../../lib/numberInput';
 import { Spinner } from '../../components/Spinner';
 import { staffLabel, type StaffRef } from '../../lib/staff';
@@ -101,8 +102,12 @@ export function StringJobDetailPage() {
     setStrungBy(j.strung_by ?? '');
   }, []);
 
+  // Moving to another job, an answer for the previous one is ignored (#37).
+  const startRequest = useLatestRequest();
+
   useEffect(() => {
     if (!jobId) return;
+    const isLatest = startRequest();
     void (async () => {
       const [jobRes, productsRes, attrsRes, availRes] = await Promise.all([
         supabase
@@ -114,8 +119,12 @@ export function StringJobDetailPage() {
         supabase.from('attribute_defs').select('name, sort_order, categories(name)').order('sort_order'),
         supabase.from('product_available').select('product_id, available'),
       ]);
-      if (jobRes.error) {
-        setLoadError(errorMessage(jobRes.error));
+      if (!isLatest()) return;
+      // Without the catalog or what's available, the strings can't be shown
+      // or checked, so any failure is a load error rather than an empty list (#36).
+      const failure = jobRes.error ?? productsRes.error ?? attrsRes.error ?? availRes.error;
+      if (failure) {
+        setLoadError(errorMessage(failure));
         return;
       }
       hydrate(jobRes.data as unknown as JobRow);
@@ -127,7 +136,7 @@ export function StringJobDetailPage() {
       }
       setAvailableById(avail);
     })();
-  }, [jobId, hydrate]);
+  }, [jobId, hydrate, startRequest]);
 
   const brands = useMemo(
     () => Array.from(new Set(catalog.map((c) => c.brand).filter(Boolean))).sort(),
@@ -158,11 +167,13 @@ export function StringJobDetailPage() {
 
   async function reload() {
     if (!jobId) return;
+    const isLatest = startRequest();
     const { data, error: err } = await supabase
       .from('string_jobs')
       .select(JOB_SELECT)
       .eq('id', jobId)
       .single();
+    if (!isLatest()) return;
     if (err) setError(errorMessage(err));
     else hydrate(data as unknown as JobRow);
   }

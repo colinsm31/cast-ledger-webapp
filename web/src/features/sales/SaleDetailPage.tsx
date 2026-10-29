@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { JsonValue, SaleLineKind } from '../../types/domain';
 import { customerNameLastFirst, stringingLineName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { useLatestRequest } from '../../lib/latestRequest';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
 import { staffLabel, type StaffRef } from '../../lib/staff';
@@ -70,9 +71,12 @@ export function SaleDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const deliveryWarning = (useLocation().state as { deliveryWarning?: SaleDeliveryWarning } | null)?.deliveryWarning;
   useBack('/sales');
+  const startRequest = useLatestRequest();
 
   useEffect(() => {
     if (!saleId) return;
+    // Moving to another sale, an answer for the previous one is ignored (#37).
+    const isLatest = startRequest();
     void (async () => {
       const { data, error: err } = await supabase
         .from('sales')
@@ -88,10 +92,11 @@ export function SaleDetailPage() {
         )
         .eq('id', saleId)
         .single();
+      if (!isLatest()) return;
       if (err) setError(errorMessage(err));
       else setSale(data as unknown as SaleDetail);
     })();
-  }, [saleId]);
+  }, [saleId, startRequest]);
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
   if (!sale) return <Spinner label="Loading…" />;

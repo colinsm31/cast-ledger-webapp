@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase';
 import type { CustomerRacket, ProductWithCategory } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useDialog } from '../../components/Dialog';
+import { LoadError } from '../../components/LoadError';
+import { useLatestRequest } from '../../lib/latestRequest';
 
 // Standard tennis grip sizes.
 const GRIP_SIZES = ['4 1/8', '4 1/4', '4 3/8', '4 1/2', '4 5/8'];
@@ -44,12 +46,18 @@ export function CustomerRacketsPanel({
   // racket id → id of its open (entered/complete) string job, if any.
   const [openJobByRacket, setOpenJobByRacket] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  // A failed load of the racquets, the catalog or the open jobs. Without the
+  // open jobs, removing a racquet with a job in progress wouldn't be stopped,
+  // so a failure is shown rather than read as "none" (#36).
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const startRequest = useLatestRequest();
   const [adding, setAdding] = useState(Boolean(prefillBarcode));
   // Consumed once the racket is saved so a second "Add racket" starts blank.
   const [pendingBarcode, setPendingBarcode] = useState(prefillBarcode ?? '');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const isLatest = startRequest();
     const [racketsRes, catalogRes, jobsRes] = await Promise.all([
       supabase
         .from('customer_rackets')
@@ -65,8 +73,11 @@ export function CustomerRacketsPanel({
         .in('status', ['entered', 'complete'])
         .order('entered_at', { ascending: false }),
     ]);
-    if (racketsRes.error) setError(errorMessage(racketsRes.error));
-    else setRackets((racketsRes.data ?? []) as CustomerRacket[]);
+    if (!isLatest()) return;
+    const failure = racketsRes.error ?? catalogRes.error ?? jobsRes.error;
+    setLoadError(failure ? `Couldn't load the racquets: ${errorMessage(failure)}` : null);
+    if (failure) return;
+    setRackets((racketsRes.data ?? []) as CustomerRacket[]);
     // Only catalog products in the Rackets category are pickable.
     const cat = ((catalogRes.data ?? []) as unknown as ProductWithCategory[]).filter(
       (p) => p.categories?.name === 'Rackets',
@@ -79,7 +90,7 @@ export function CustomerRacketsPanel({
       if (!openJobs[j.customer_racket_id]) openJobs[j.customer_racket_id] = j.id;
     }
     setOpenJobByRacket(openJobs);
-  }, [customerId]);
+  }, [customerId, startRequest]);
 
   useEffect(() => {
     void load();
@@ -126,6 +137,7 @@ export function CustomerRacketsPanel({
         )}
       </div>
 
+      {loadError && <LoadError message={loadError} onRetry={() => void load()} />}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {adding && (

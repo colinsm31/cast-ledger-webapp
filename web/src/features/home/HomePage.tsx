@@ -9,6 +9,7 @@ import { useHeldSale } from '../../lib/heldSale';
 import { useAuth } from '../../auth/AuthContext';
 import { resolveBarcode, routeForMatch, type BarcodeMatch, type ScannedProduct } from '../scan/resolveBarcode';
 import { useScannerCapture } from '../scan/useScannerCapture';
+import { useLatestRequest } from '../../lib/latestRequest';
 import { ScanFlowParams, sellProductPath, withParams } from '../scan/scanFlow';
 
 type UpcResult =
@@ -28,6 +29,9 @@ export function HomePage() {
   const [searchingNames, setSearchingNames] = useState(false);
   const [upcResult, setUpcResult] = useState<UpcResult>({ kind: 'idle' });
   const searchRef = useRef<HTMLInputElement>(null);
+  // Only the latest scan's lookup acts: a slow answer to an earlier scan
+  // never navigates away from a newer one (#37).
+  const startRequest = useLatestRequest();
 
   const term = query.trim();
   const isUpcQuery = looksLikeBarcode(term);
@@ -72,12 +76,14 @@ export function HomePage() {
   // A product stays on this screen so the cashier can choose sell vs. view.
   async function runUpc(raw: string) {
     const upc = normalizeBarcode(raw);
+    const isLatest = startRequest();
     setUpcResult({ kind: 'searching' });
     try {
       const match = await resolveBarcode(upc);
+      if (!isLatest()) return;
       if (!openMatch(match)) setUpcResult({ kind: 'notFoundUpc', upc });
     } catch (err) {
-      setUpcResult({ kind: 'error', message: errorMessage(err) });
+      if (isLatest()) setUpcResult({ kind: 'error', message: errorMessage(err) });
     }
   }
 
@@ -102,10 +108,12 @@ export function HomePage() {
   // code typed or scanned into the box (#18): look it up first, and only
   // treat it as a customer name if it matches nothing.
   async function runCodeOrName(code: string) {
+    const isLatest = startRequest();
     try {
-      if (openMatch(await resolveBarcode(code))) return;
+      const match = await resolveBarcode(code);
+      if (!isLatest() || openMatch(match)) return;
     } catch (err) {
-      setUpcResult({ kind: 'error', message: errorMessage(err) });
+      if (isLatest()) setUpcResult({ kind: 'error', message: errorMessage(err) });
       return;
     }
     openNameMatch();

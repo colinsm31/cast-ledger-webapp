@@ -1,11 +1,11 @@
 {
-  "updated": "2026-10-28",
+  "updated": "2026-10-29",
   "web": {
     "overall": {
-      "lines": 9.52,
-      "statements": 10.08,
-      "functions": 8.76,
-      "branches": 8.95
+      "lines": 9.61,
+      "statements": 10.09,
+      "functions": 9.2,
+      "branches": 8.76
     },
     "byFolder": {
       "src": {
@@ -39,19 +39,19 @@
         "lines": 0
       },
       "src/features/products": {
-        "lines": 3.57
+        "lines": 3.41
       },
       "src/features/sales": {
-        "lines": 3.09
+        "lines": 3.01
       },
       "src/features/scan": {
         "lines": 0
       },
       "src/features/stringjobs": {
-        "lines": 14.06
+        "lines": 13.8
       },
       "src/lib": {
-        "lines": 82.27
+        "lines": 82.24
       },
       "src/types": {
         "lines": 33.33
@@ -240,6 +240,9 @@
       },
       "src/lib/heldSale.ts": {
         "lines": 62.5
+      },
+      "src/lib/latestRequest.ts": {
+        "lines": 81.81
       },
       "src/lib/money.ts": {
         "lines": 100
