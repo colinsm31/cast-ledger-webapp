@@ -39,6 +39,7 @@ export function PaymentScreen({
   giveBack = false,
   completeDisabled = false,
   onTendersChange,
+  notice,
   children,
 }: {
   total: number;
@@ -59,6 +60,8 @@ export function PaymentScreen({
   onTendersChange?: (tenders: Tender[]) => void;
   // Shown above the complete button (e.g. limits or a reason box).
   children?: ReactNode;
+  // Shown under the title, e.g. that the total changed since the ticket.
+  notice?: string | null;
 }) {
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [mode, setMode] = useState<'none' | PaymentMethod>('none');
@@ -91,6 +94,12 @@ export function PaymentScreen({
         </button>
         <h1 className="text-xl font-bold text-slate-900">{title}</h1>
       </div>
+
+      {notice && (
+        <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          ⚠ {notice}
+        </p>
+      )}
 
       {/* Running totals */}
       <section className="rounded-xl border border-slate-200 bg-white p-4">

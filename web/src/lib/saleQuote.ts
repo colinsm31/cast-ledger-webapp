@@ -1,0 +1,101 @@
+// The server's quote for a ticket (quote_sale): the total record_sale will
+// require, worked out by the same database function, plus every line that
+// can't be sold as it stands. The register asks for it when Payment Type is
+// pressed, so the payment screen never asks for an amount the server refuses.
+import { supabase } from './supabase';
+import { fromCents, toCents, type SaleTotals } from './saleMath';
+
+/** A ticket line as the register holds it. */
+export interface SaleLineInput {
+  productId?: string;
+  productUnitId?: string;
+  stringJobId?: string;
+  giftCardId?: string;
+  qty: number;
+  /** Unit price as typed (string) or stored (number). */
+  price: string | number;
+}
+
+/** One line in the shape quote_sale and record_sale take. */
+export type SaleLinePayload =
+  | { string_job_id: string; qty: number; unit_price: number }
+  | { gift_card_id: string; qty: number; unit_price: number }
+  | { product_id: string | undefined; product_unit_id?: string; qty: number; unit_price: number };
+
+export interface QuoteProblem {
+  /** 0-based position of the line on the ticket. */
+  line: number;
+  message: string;
+}
+
+export interface SaleQuote {
+  subtotal: number;
+  tax: number;
+  /** Percent, e.g. 8.25. */
+  taxRate: number;
+  total: number;
+  problems: QuoteProblem[];
+}
+
+interface QuoteRow {
+  subtotal: number | string;
+  tax: number | string;
+  tax_rate: number | string;
+  total: number | string;
+  problems: QuoteProblem[] | null;
+}
+
+export function toSaleLinePayload(line: SaleLineInput): SaleLinePayload {
+  const unit_price = Number(line.price) || 0;
+  if (line.stringJobId) return { string_job_id: line.stringJobId, qty: line.qty, unit_price };
+  if (line.giftCardId) return { gift_card_id: line.giftCardId, qty: line.qty, unit_price };
+  if (line.productUnitId) return { product_id: line.productId, product_unit_id: line.productUnitId, qty: 1, unit_price };
+  return { product_id: line.productId, qty: line.qty, unit_price };
+}
+
+export function parseSaleQuote(row: QuoteRow): SaleQuote {
+  return {
+    subtotal: Number(row.subtotal),
+    tax: Number(row.tax),
+    taxRate: Number(row.tax_rate),
+    total: Number(row.total),
+    problems: row.problems ?? [],
+  };
+}
+
+/** Throws the database error if the quote can't be had. */
+export async function fetchSaleQuote(lines: SaleLineInput[], customerId: string | null): Promise<SaleQuote> {
+  const { data, error } = await supabase.rpc('quote_sale', {
+    p_lines: lines.map(toSaleLinePayload),
+    p_customer_id: customerId,
+  });
+  if (error) throw error;
+  return parseSaleQuote(data as QuoteRow);
+}
+
+/** Each problem as "<line label>: <message>", in ticket order. */
+export function quoteProblemMessages(problems: QuoteProblem[], lineLabels: string[]): string[] {
+  return [...problems]
+    .sort((a, b) => a.line - b.line)
+    .map((p) => `${lineLabels[p.line] ?? `Line ${p.line + 1}`}: ${p.message}`);
+}
+
+/**
+ * What to tell the cashier when the server's total isn't what the ticket
+ * showed (the shop's tax settings changed while it was open), or null when
+ * they agree.
+ */
+export function quoteChangeNotice(shown: SaleTotals, shownTaxRate: number, quote: SaleQuote): string | null {
+  if (toCents(shown.total) === toCents(quote.total)) return null;
+  const amounts = `the total is $${fromCents(toCents(quote.total)).toFixed(2)}, not $${shown.total.toFixed(2)}`;
+  if (quote.taxRate !== shownTaxRate) {
+    return `The tax rate is now ${quote.taxRate}% (it was ${shownTaxRate}%), so ${amounts}.`;
+  }
+  return `The shop's tax settings changed, so ${amounts}.`;
+}
+
+/** record_sale refused the payments because they don't add up to its total. */
+export function isTotalMismatchError(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || !('message' in error)) return false;
+  return String((error as { message: unknown }).message).includes('must equal the sale total');
+}

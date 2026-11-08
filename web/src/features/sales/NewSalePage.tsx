@@ -9,6 +9,14 @@ import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
 import { useSettings } from '../../lib/settings';
 import { LoadError } from '../../components/LoadError';
 import { computeSaleTotals, fromCents, lineTotalCents } from '../../lib/saleMath';
+import {
+  fetchSaleQuote,
+  isTotalMismatchError,
+  quoteChangeNotice,
+  quoteProblemMessages,
+  toSaleLinePayload,
+  type SaleQuote,
+} from '../../lib/saleQuote';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useDialog } from '../../components/Dialog';
 import { useAuth } from '../../auth/AuthContext';
@@ -66,6 +74,12 @@ export function NewSalePage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [choosingPayment, setChoosingPayment] = useState(false);
+  // The server's quote the payment screen charges, and why it differs from the
+  // ticket if it does. Bumping paymentKey restarts the payment screen.
+  const [quote, setQuote] = useState<SaleQuote | null>(null);
+  const [quoteNotice, setQuoteNotice] = useState<string | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [paymentKey, setPaymentKey] = useState(0);
   const [gcForm, setGcForm] = useState(false);
   const [gcCode, setGcCode] = useState('');
   const [gcAmount, setGcAmount] = useState('');
@@ -432,7 +446,7 @@ export function NewSalePage() {
     [lines, taxRate, taxStringing],
   );
 
-  function openPayment() {
+  async function openPayment() {
     // Without the settings the tax, and so the total, isn't known.
     if (!settings) {
       setError(settingsError ?? 'The shop settings are still loading.');
@@ -453,7 +467,53 @@ export function NewSalePage() {
       }
     }
     setError(null);
+    setQuoting(true);
+    let fresh: SaleQuote;
+    try {
+      fresh = await fetchSaleQuote(lines, customer?.id ?? null);
+    } catch (err) {
+      setError(`Couldn't check the total with the server: ${errorMessage(err)}`);
+      return;
+    } finally {
+      setQuoting(false);
+    }
+    if (fresh.problems.length > 0) {
+      setError(
+        quoteProblemMessages(
+          fresh.problems,
+          lines.map((l) => l.label),
+        ).join('\n'),
+      );
+      return;
+    }
+    const notice = quoteChangeNotice({ subtotal, tax, total }, taxRate, fresh);
+    if (notice) reloadSettings();
+    setQuote(fresh);
+    setQuoteNotice(notice);
     setChoosingPayment(true);
+  }
+
+  // record_sale refused the payments because its total changed after the
+  // quote: get a fresh one and start the payment again at the new amount.
+  async function requote() {
+    try {
+      const fresh = await fetchSaleQuote(lines, customer?.id ?? null);
+      setQuote(fresh);
+      setQuoteNotice(
+        `The total changed while payment was being taken: it's now $${fresh.total.toFixed(2)}. Take payment again.`,
+      );
+      setPaymentKey((key) => key + 1);
+      setError(null);
+      reloadSettings();
+    } catch (err) {
+      setError(`The total changed, and the new total couldn't be checked: ${errorMessage(err)}`);
+    }
+  }
+
+  function closePayment() {
+    setChoosingPayment(false);
+    setQuote(null);
+    setQuoteNotice(null);
   }
 
   async function cancelSale() {
@@ -475,14 +535,7 @@ export function NewSalePage() {
     setSaving(true);
     setError(null);
     const { data, error: err } = await supabase.rpc('record_sale', {
-      p_lines: lines.map((l) => {
-        const unit_price = Number(l.price) || 0;
-        if (l.stringJobId) return { string_job_id: l.stringJobId, qty: l.qty, unit_price };
-        if (l.giftCardId) return { gift_card_id: l.giftCardId, qty: l.qty, unit_price };
-        if (l.productUnitId)
-          return { product_id: l.productId, product_unit_id: l.productUnitId, qty: 1, unit_price };
-        return { product_id: l.productId, qty: l.qty, unit_price };
-      }),
+      p_lines: lines.map(toSaleLinePayload),
       p_customer_id: customer?.id ?? null,
       p_payments: tenders.map((t) => ({
         method: t.method,
@@ -493,6 +546,10 @@ export function NewSalePage() {
     });
     if (err) {
       setSaving(false);
+      if (isTotalMismatchError(err)) {
+        await requote();
+        return;
+      }
       setError(errorMessage(err));
       return;
     }
@@ -512,14 +569,16 @@ export function NewSalePage() {
     navigate(`/sales/${data as string}`, { state: deliveryWarning ? { deliveryWarning } : undefined });
   }
 
-  if (choosingPayment) {
+  if (choosingPayment && quote) {
     return (
       <PaymentScreen
-        total={total}
+        key={paymentKey}
+        total={quote.total}
+        notice={quoteNotice}
         customerId={customer?.id ?? null}
         busy={saving}
         error={error}
-        onBack={() => setChoosingPayment(false)}
+        onBack={closePayment}
         onComplete={(tenders) => void completeSale(tenders)}
       />
     );
@@ -711,15 +770,15 @@ export function NewSalePage() {
         </p>
       ))}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="whitespace-pre-line text-sm text-red-600">{error}</p>}
 
       <div className="flex gap-2">
         <button
-          onClick={openPayment}
-          disabled={lines.length === 0 || !settings}
+          onClick={() => void openPayment()}
+          disabled={lines.length === 0 || !settings || quoting}
           className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-base font-semibold text-white hover:bg-green-700 disabled:opacity-50"
         >
-          Payment Type · ${total.toFixed(2)}
+          {quoting ? 'Checking…' : `Payment Type · $${total.toFixed(2)}`}
         </button>
         <button
           onClick={() => void cancelSale()}
