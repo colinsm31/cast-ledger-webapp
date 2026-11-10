@@ -4,6 +4,7 @@
 // pressed, so the payment screen never asks for an amount the server refuses.
 import { supabase } from './supabase';
 import { fromCents, toCents, type SaleTotals } from './saleMath';
+import { priceReasonOf } from './priceOverride';
 
 /** A ticket line as the register holds it. */
 export interface SaleLineInput {
@@ -14,13 +15,16 @@ export interface SaleLineInput {
   qty: number;
   /** Unit price as typed (string) or stored (number). */
   price: string | number;
+  /** Why the price differs from the list price, if it does. */
+  priceReason?: string;
 }
 
 /** One line in the shape quote_sale and record_sale take. */
-export type SaleLinePayload =
+export type SaleLinePayload = (
   | { string_job_id: string; qty: number; unit_price: number }
   | { gift_card_id: string; qty: number; unit_price: number }
-  | { product_id: string | undefined; product_unit_id?: string; qty: number; unit_price: number };
+  | { product_id: string | undefined; product_unit_id?: string; qty: number; unit_price: number }
+) & { price_reason?: string };
 
 export interface QuoteProblem {
   /** 0-based position of the line on the ticket. */
@@ -35,6 +39,8 @@ export interface SaleQuote {
   taxRate: number;
   total: number;
   problems: QuoteProblem[];
+  /** Each line's list price now, in ticket order (null: none to change from). */
+  listPrices: (number | null)[];
 }
 
 interface QuoteRow {
@@ -43,14 +49,19 @@ interface QuoteRow {
   tax_rate: number | string;
   total: number | string;
   problems: QuoteProblem[] | null;
+  lines?: { list_price: number | string | null }[] | null;
 }
 
 export function toSaleLinePayload(line: SaleLineInput): SaleLinePayload {
   const unit_price = Number(line.price) || 0;
-  if (line.stringJobId) return { string_job_id: line.stringJobId, qty: line.qty, unit_price };
-  if (line.giftCardId) return { gift_card_id: line.giftCardId, qty: line.qty, unit_price };
-  if (line.productUnitId) return { product_id: line.productId, product_unit_id: line.productUnitId, qty: 1, unit_price };
-  return { product_id: line.productId, qty: line.qty, unit_price };
+  const priceReason = priceReasonOf(line);
+  const reason = priceReason ? { price_reason: priceReason } : {};
+  if (line.stringJobId) return { string_job_id: line.stringJobId, qty: line.qty, unit_price, ...reason };
+  if (line.giftCardId) return { gift_card_id: line.giftCardId, qty: line.qty, unit_price, ...reason };
+  if (line.productUnitId) {
+    return { product_id: line.productId, product_unit_id: line.productUnitId, qty: 1, unit_price, ...reason };
+  }
+  return { product_id: line.productId, qty: line.qty, unit_price, ...reason };
 }
 
 export function parseSaleQuote(row: QuoteRow): SaleQuote {
@@ -60,6 +71,7 @@ export function parseSaleQuote(row: QuoteRow): SaleQuote {
     taxRate: Number(row.tax_rate),
     total: Number(row.total),
     problems: row.problems ?? [],
+    listPrices: (row.lines ?? []).map((line) => (line.list_price == null ? null : Number(line.list_price))),
   };
 }
 

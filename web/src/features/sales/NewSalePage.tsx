@@ -17,7 +17,15 @@ import {
   toSaleLinePayload,
   type SaleQuote,
 } from '../../lib/saleQuote';
+import {
+  applyServerListPrices,
+  isPriceChanged,
+  isPriceReasonError,
+  missingPriceReasons,
+  PRICE_REASON_LOOKUP_KIND,
+} from '../../lib/priceOverride';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
+import { PickOrAdd } from '../lookups/PickOrAdd';
 import { useDialog } from '../../components/Dialog';
 import { useAuth } from '../../auth/AuthContext';
 import { resolveBarcode, type ScannedProduct } from '../scan/resolveBarcode';
@@ -44,6 +52,10 @@ interface CartLine {
   giftCardId?: string;
   label: string;
   price: string; // editable
+  // The price the line was added at (see OverridableLine in lib/priceOverride),
+  // and why the price was changed from it.
+  listPrice?: number | null;
+  priceReason?: string;
   qty: number;
 }
 
@@ -80,6 +92,8 @@ export function NewSalePage() {
   const [quoteNotice, setQuoteNotice] = useState<string | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [paymentKey, setPaymentKey] = useState(0);
+  // Catalog prices that changed while the ticket was open.
+  const [priceNotice, setPriceNotice] = useState<string | null>(null);
   const [gcForm, setGcForm] = useState(false);
   const [gcCode, setGcCode] = useState('');
   const [gcAmount, setGcAmount] = useState('');
@@ -122,6 +136,7 @@ export function NewSalePage() {
       stringJobId: job.id,
       label: `Stringing — ${job.racketLabel}`,
       price: String(job.price ?? 0),
+      listPrice: job.price ?? null,
       qty: 1,
       racketLabel: job.racketLabel,
       ownerCustomerId: job.owner?.id,
@@ -331,7 +346,14 @@ export function NewSalePage() {
       }
       return [
         ...prev,
-        { key: p.id, productId: p.id, label: productLabel(p), price: String(p.sell_price ?? 0), qty: 1 },
+        {
+          key: p.id,
+          productId: p.id,
+          label: productLabel(p),
+          price: String(p.sell_price ?? 0),
+          listPrice: p.sell_price ?? null,
+          qty: 1,
+        },
       ];
     });
   }
@@ -358,6 +380,7 @@ export function NewSalePage() {
           serialized: true,
           label,
           price: String(u.product.sell_price ?? 0),
+          listPrice: u.product.sell_price ?? null,
           qty: 1,
         },
       ];
@@ -418,7 +441,14 @@ export function NewSalePage() {
     const gcId = data as string;
     setLines((prev) => [
       ...prev,
-      { key: `gc:${gcId}:${crypto.randomUUID()}`, giftCardId: gcId, label: `Gift card ${code}`, price: String(amt), qty: 1 },
+      {
+        key: `gc:${gcId}:${crypto.randomUUID()}`,
+        giftCardId: gcId,
+        label: `Gift card ${code}`,
+        price: String(amt),
+        listPrice: null,
+        qty: 1,
+      },
     ]);
     setGcForm(false);
     setGcCode('');
@@ -436,6 +466,10 @@ export function NewSalePage() {
 
   function setPrice(key: string, price: string) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, price } : l)));
+  }
+
+  function setPriceReason(key: string, priceReason: string) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, priceReason } : l)));
   }
 
   // Tax: products always taxed; stringing optionally; gift-card loads never.
@@ -466,7 +500,13 @@ export function NewSalePage() {
         return;
       }
     }
+    const missingReasons = missingPriceReasons(lines);
+    if (missingReasons.length > 0) {
+      setError(missingReasons.join('\n'));
+      return;
+    }
     setError(null);
+    setPriceNotice(null);
     setQuoting(true);
     let fresh: SaleQuote;
     try {
@@ -476,6 +516,19 @@ export function NewSalePage() {
       return;
     } finally {
       setQuoting(false);
+    }
+    // Catalog prices that moved while the ticket was open: unchanged lines take
+    // the new price. Stop so the cashier sees the new total, or gives a reason
+    // for a line that now differs from its list price.
+    const synced = applyServerListPrices(lines, fresh.listPrices);
+    if (synced.changed) {
+      setLines(synced.lines);
+      const nowMissing = missingPriceReasons(synced.lines);
+      if (synced.notices.length > 0) {
+        setPriceNotice(`Prices changed in the catalog: ${synced.notices.join(' ')} Check the ticket, then press Payment Type again.`);
+      }
+      if (nowMissing.length > 0) setError(nowMissing.join('\n'));
+      if (synced.notices.length > 0 || nowMissing.length > 0) return;
     }
     if (fresh.problems.length > 0) {
       setError(
@@ -548,6 +601,12 @@ export function NewSalePage() {
       setSaving(false);
       if (isTotalMismatchError(err)) {
         await requote();
+        return;
+      }
+      if (isPriceReasonError(err)) {
+        // A list price moved after the quote: back to the ticket to pick it up.
+        closePayment();
+        await openPayment();
         return;
       }
       setError(errorMessage(err));
@@ -691,7 +750,20 @@ export function NewSalePage() {
                       className="w-20 rounded border border-slate-300 px-2 py-0.5 text-sm"
                     />
                     <span className="ml-1">each</span>
+                    {isPriceChanged(l) && (
+                      <span className="ml-2 text-xs text-amber-700">List ${(l.listPrice ?? 0).toFixed(2)}</span>
+                    )}
                   </div>
+                  {isPriceChanged(l) && (
+                    <div className="mt-1 max-w-xs">
+                      <PickOrAdd
+                        kind={PRICE_REASON_LOOKUP_KIND}
+                        value={l.priceReason ?? ''}
+                        onChange={(reason) => setPriceReason(l.key, reason)}
+                        placeholder="Reason for the price change"
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   {l.serialized || l.stringJobId ? (
@@ -769,6 +841,12 @@ export function NewSalePage() {
           ⚠ {warning}
         </p>
       ))}
+
+      {priceNotice && (
+        <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          ⚠ {priceNotice}
+        </p>
+      )}
 
       {error && <p className="whitespace-pre-line text-sm text-red-600">{error}</p>}
 

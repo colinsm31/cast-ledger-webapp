@@ -1,11 +1,11 @@
 {
-  "updated": "2026-11-06",
+  "updated": "2026-11-08",
   "web": {
     "overall": {
-      "lines": 13.45,
-      "statements": 13.91,
-      "functions": 12.38,
-      "branches": 12.16
+      "lines": 14.41,
+      "statements": 14.82,
+      "functions": 13.41,
+      "branches": 13.23
     },
     "byFolder": {
       "src": {
@@ -42,7 +42,7 @@
         "lines": 3.41
       },
       "src/features/sales": {
-        "lines": 2.87
+        "lines": 2.8
       },
       "src/features/scan": {
         "lines": 37.78
@@ -51,7 +51,7 @@
         "lines": 13.37
       },
       "src/lib": {
-        "lines": 86.05
+        "lines": 87.71
       },
       "src/types": {
         "lines": 33.33
@@ -257,6 +257,9 @@
         "lines": 90
       },
       "src/lib/phone.ts": {
+        "lines": 100
+      },
+      "src/lib/priceOverride.ts": {
         "lines": 100
       },
       "src/lib/saleMath.ts": {

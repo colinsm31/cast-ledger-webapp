@@ -9,6 +9,7 @@ import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
 import { staffLabel, type StaffRef } from '../../lib/staff';
 import { hasReturnable } from './returnable';
+import { priceChangeNote } from '../../lib/priceOverride';
 
 /** Passed by the register when a sale went through but delivering its racquet failed. */
 export interface SaleDeliveryWarning {
@@ -29,6 +30,8 @@ interface SaleLineRaw {
   product_unit_id: string | null;
   qty: number;
   unit_price: number;
+  list_price: number | null;
+  price_reason: string | null;
   kind: SaleLineKind;
   products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
   gift_cards: { code: string } | null;
@@ -99,7 +102,7 @@ export function SaleDetailPage() {
             'id, sold_at, subtotal, tax, payment_method',
             'customers ( first_name, last_name )',
             'rung_by:profiles!sales_user_id_fkey ( email )',
-            'sale_lines ( id, product_id, product_unit_id, qty, unit_price, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
+            'sale_lines ( id, product_id, product_unit_id, qty, unit_price, list_price, price_reason, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
             'sale_payments ( method, amount )',
             'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( sale_line_id, qty ) )',
           ].join(', '),
@@ -169,6 +172,11 @@ export function SaleDetailPage() {
                 <p className="text-xs text-slate-500">
                   {line.qty} × ${Number(line.unit_price).toFixed(2)}
                 </p>
+                {priceChangeNote(line.list_price, line.unit_price, line.price_reason) && (
+                  <p className="text-xs text-amber-700">
+                    {priceChangeNote(line.list_price, line.unit_price, line.price_reason)}
+                  </p>
+                )}
               </div>
               <span className="font-semibold text-slate-900">
                 ${(line.qty * Number(line.unit_price)).toFixed(2)}

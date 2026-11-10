@@ -47,11 +47,43 @@ describe('toSaleLinePayload', () => {
   });
 });
 
+describe('toSaleLinePayload price reasons', () => {
+  it('sends a trimmed reason with the line', () => {
+    expect(toSaleLinePayload({ productId: 'p1', qty: 1, price: '15', priceReason: '  Price match ' })).toEqual({
+      product_id: 'p1',
+      qty: 1,
+      unit_price: 15,
+      price_reason: 'Price match',
+    });
+  });
+
+  it('leaves a blank reason off', () => {
+    expect(toSaleLinePayload({ stringJobId: 'j1', qty: 1, price: '25', priceReason: '   ' })).toEqual({
+      string_job_id: 'j1',
+      qty: 1,
+      unit_price: 25,
+    });
+  });
+});
+
 describe('parseSaleQuote', () => {
+  it("reads each line's list price, keeping none as null", () => {
+    expect(
+      parseSaleQuote({
+        subtotal: 45,
+        tax: 0,
+        tax_rate: 0,
+        total: 45,
+        problems: [],
+        lines: [{ list_price: '20.00' }, { list_price: null }],
+      }).listPrices,
+    ).toEqual([20, null]);
+  });
+
   it('turns the database numbers into numbers', () => {
     expect(
       parseSaleQuote({ subtotal: '20', tax: '1.80', tax_rate: '9.000', total: '21.80', problems: null }),
-    ).toEqual({ subtotal: 20, tax: 1.8, taxRate: 9, total: 21.8, problems: [] });
+    ).toEqual({ subtotal: 20, tax: 1.8, taxRate: 9, total: 21.8, problems: [], listPrices: [] });
   });
 });
 
@@ -69,6 +101,7 @@ describe('fetchSaleQuote', () => {
       taxRate: 8.25,
       total: 21.65,
       problems: [],
+      listPrices: [],
     });
     expect(rpc).toHaveBeenCalledWith('quote_sale', {
       p_lines: [{ product_id: 'p1', qty: 1, unit_price: 20 }],
@@ -103,7 +136,7 @@ describe('quoteProblemMessages', () => {
 
 describe('quoteChangeNotice', () => {
   const shown = { subtotal: 20, tax: 1.65, total: 21.65 };
-  const quote = { subtotal: 20, tax: 1.65, taxRate: 8.25, total: 21.65, problems: [] };
+  const quote = { subtotal: 20, tax: 1.65, taxRate: 8.25, total: 21.65, problems: [], listPrices: [] };
 
   it('says nothing when the server agrees with the ticket', () => {
     expect(quoteChangeNotice(shown, 8.25, quote)).toBeNull();
