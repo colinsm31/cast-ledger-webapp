@@ -1,10 +1,10 @@
 {
-  "updated": "2026-11-10",
+  "updated": "2026-11-11",
   "web": {
     "overall": {
-      "lines": 15.1,
-      "statements": 15.51,
-      "functions": 14.05,
+      "lines": 15.18,
+      "statements": 15.62,
+      "functions": 14.42,
       "branches": 13.86
     },
     "byFolder": {
@@ -42,7 +42,7 @@
         "lines": 3.41
       },
       "src/features/sales": {
-        "lines": 2.74
+        "lines": 3.1
       },
       "src/features/scan": {
         "lines": 37.78

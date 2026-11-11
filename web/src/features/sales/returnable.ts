@@ -35,3 +35,14 @@ export function returnableQty(lines: SaleLineForReturn[], refundedLines: Refunde
 export function hasReturnable(lines: SaleLineForReturn[], refundedLines: RefundedLine[]): boolean {
   return Object.values(returnableQty(lines, refundedLines)).some((q) => q > 0);
 }
+
+/** "2 items returned", from a refund's returned lines. */
+export function returnedItemsLabel(refundedLines: RefundedLine[]): string {
+  const count = refundedLines.reduce((sum, line) => sum + Number(line.qty), 0);
+  return `${count} ${count === 1 ? 'item' : 'items'} returned`;
+}
+
+/** Whether any item is chosen to return. A $0 item counts: it still goes back in stock. */
+export function hasItemsToReturn(returnQty: Record<string, number>): boolean {
+  return Object.values(returnQty).some((q) => q > 0);
+}

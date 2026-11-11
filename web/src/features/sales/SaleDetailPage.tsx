@@ -8,7 +8,7 @@ import { useLatestRequest } from '../../lib/latestRequest';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
 import { staffLabel, type StaffRef } from '../../lib/staff';
-import { hasReturnable } from './returnable';
+import { hasReturnable, returnedItemsLabel } from './returnable';
 import { priceChangeNote } from '../../lib/priceOverride';
 import { paymentLabel } from '../../lib/paymentMethods';
 
@@ -239,14 +239,19 @@ export function SaleDetailPage() {
                 <span className="text-slate-600">
                   {new Date(r.refunded_at).toLocaleString()}
                   {staffLabel(r.refunded_by) && ` · by ${staffLabel(r.refunded_by)}`}
+                  {` · ${returnedItemsLabel(r.refund_lines)}`}
                   {r.refund_payments
                     .filter((p) => p.method === 'check')
                     .map((p) => ` · ${paymentLabel(p.method, p.check_number)}`)
                     .join('')}
                 </span>
-                <span className="font-medium text-red-600">
-                  −${(Number(r.subtotal) + Number(r.tax)).toFixed(2)}
-                </span>
+                {Number(r.subtotal) + Number(r.tax) > 0 ? (
+                  <span className="font-medium text-red-600">
+                    −${(Number(r.subtotal) + Number(r.tax)).toFixed(2)}
+                  </span>
+                ) : (
+                  <span className="text-slate-500">nothing refunded</span>
+                )}
               </li>
             ))}
           </ul>

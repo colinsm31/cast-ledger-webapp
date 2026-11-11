@@ -11,7 +11,7 @@ import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useSettings } from '../../lib/settings';
 import { PAYMENT_METHOD_LABEL as METHOD_LABEL, paymentLabel, refundMethodsFor } from '../../lib/paymentMethods';
 import { CheckEntry } from './CheckEntry';
-import { isUnitLine, returnableQty } from './returnable';
+import { hasItemsToReturn, isUnitLine, returnableQty } from './returnable';
 import {
   allocateToOriginalPayments,
   computeSaleTotals,
@@ -153,6 +153,10 @@ export function RefundPage() {
   );
   const allocated = roundMoney(tenders.reduce((s, t) => s + t.amount, 0));
   const remainingToAllocate = roundMoney(total - allocated);
+  const itemsChosen = hasItemsToReturn(returnQty);
+  // A $0 refund (free items) returns stock with no money back, so it has no
+  // refund payments to place.
+  const showRefundTenders = total > 0 || tenders.length > 0;
 
   // What each payment type the sale used can still give back (a gift card
   // only to the card that paid), and which this refund over-sends to (a
@@ -222,7 +226,7 @@ export function RefundPage() {
   }
 
   async function process() {
-    if (total <= 0) {
+    if (!itemsChosen) {
       setError('Choose at least one item to return.');
       return;
     }
@@ -325,6 +329,7 @@ export function RefundPage() {
       <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (optional)" className={`${inputClass} w-full`} />
 
       {/* Refund tenders */}
+      {showRefundTenders && (
       <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
         {refundable.size > 0 && (
           <p className="text-xs text-slate-500">
@@ -391,6 +396,10 @@ export function RefundPage() {
           <GiftCardAdder defaultValue={remainingToAllocate} defaultCode={sale.sale_payments.find((p) => p.gift_cards)?.gift_cards?.code ?? ''} customerId={sale.customer_id} onCancel={() => setMode('none')} onAdd={(amt, id, code) => addTender({ method: 'gift_card', amount: amt, giftCardId: id, code })} onError={setError} />
         )}
       </section>
+      )}
+      {!showRefundTenders && itemsChosen && (
+        <p className="text-sm text-slate-500">These items sold for $0, so there's nothing to refund. They go back in stock.</p>
+      )}
 
       {needsMethodChangeReason && (
         <label className="block space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-4">
@@ -413,13 +422,17 @@ export function RefundPage() {
         onClick={() => void process()}
         disabled={
           saving ||
-          total <= 0 ||
+          !itemsChosen ||
           Math.abs(remainingToAllocate) > 0.005 ||
           (needsMethodChangeReason && !methodChangeReason.trim())
         }
         className="w-full rounded-lg bg-red-600 px-4 py-3 text-base font-semibold text-white hover:bg-red-700 disabled:opacity-50"
       >
-        {saving ? 'Processing…' : `Process refund · $${total.toFixed(2)}`}
+        {saving
+          ? 'Processing…'
+          : itemsChosen && total === 0
+            ? 'Return items · nothing to refund'
+            : `Process refund · $${total.toFixed(2)}`}
       </button>
     </div>
   );
