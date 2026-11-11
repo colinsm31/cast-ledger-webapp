@@ -10,6 +10,7 @@ import { useBack } from '../../app/BackContext';
 import { staffLabel, type StaffRef } from '../../lib/staff';
 import { hasReturnable } from './returnable';
 import { priceChangeNote } from '../../lib/priceOverride';
+import { paymentLabel } from '../../lib/paymentMethods';
 
 /** Passed by the register when a sale went through but delivering its racquet failed. */
 export interface SaleDeliveryWarning {
@@ -17,12 +18,6 @@ export interface SaleDeliveryWarning {
   message: string;
 }
 
-const PAYMENT_LABEL: Record<string, string> = {
-  credit: 'Credit',
-  cash: 'Cash',
-  gift_card: 'Gift Card',
-  store_credit: 'Store Credit',
-};
 
 interface SaleLineRaw {
   id: string;
@@ -46,7 +41,7 @@ interface SaleDetail {
   customers: { first_name: string; last_name: string } | null;
   rung_by: StaffRef | null;
   sale_lines: SaleLineRaw[];
-  sale_payments: Array<{ method: string; amount: number }>;
+  sale_payments: Array<{ method: string; amount: number; check_number: string | null }>;
   refunds: Array<{
     id: string;
     subtotal: number;
@@ -54,6 +49,7 @@ interface SaleDetail {
     refunded_at: string;
     refunded_by: StaffRef | null;
     refund_lines: { sale_line_id: string; qty: number }[];
+    refund_payments: { method: string; check_number: string | null }[];
   }>;
 }
 
@@ -103,8 +99,8 @@ export function SaleDetailPage() {
             'customers ( first_name, last_name )',
             'rung_by:profiles!sales_user_id_fkey ( email )',
             'sale_lines ( id, product_id, product_unit_id, qty, unit_price, list_price, price_reason, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
-            'sale_payments ( method, amount )',
-            'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( sale_line_id, qty ) )',
+            'sale_payments ( method, amount, check_number )',
+            'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( sale_line_id, qty ), refund_payments ( method, check_number ) )',
           ].join(', '),
         )
         .eq('id', saleId)
@@ -225,7 +221,7 @@ export function SaleDetailPage() {
           <ul className="space-y-1">
             {sale.sale_payments.map((p, i) => (
               <li key={i} className="flex justify-between text-sm">
-                <span className="text-slate-600">{PAYMENT_LABEL[p.method] ?? p.method}</span>
+                <span className="text-slate-600">{paymentLabel(p.method, p.check_number)}</span>
                 <span className="font-medium text-slate-900">${Number(p.amount).toFixed(2)}</span>
               </li>
             ))}
@@ -243,6 +239,10 @@ export function SaleDetailPage() {
                 <span className="text-slate-600">
                   {new Date(r.refunded_at).toLocaleString()}
                   {staffLabel(r.refunded_by) && ` · by ${staffLabel(r.refunded_by)}`}
+                  {r.refund_payments
+                    .filter((p) => p.method === 'check')
+                    .map((p) => ` · ${paymentLabel(p.method, p.check_number)}`)
+                    .join('')}
                 </span>
                 <span className="font-medium text-red-600">
                   −${(Number(r.subtotal) + Number(r.tax)).toFixed(2)}

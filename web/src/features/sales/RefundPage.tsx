@@ -8,6 +8,9 @@ import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
 import { useDialog } from '../../components/Dialog';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
+import { useSettings } from '../../lib/settings';
+import { PAYMENT_METHOD_LABEL as METHOD_LABEL, paymentLabel, refundMethodsFor } from '../../lib/paymentMethods';
+import { CheckEntry } from './CheckEntry';
 import { isUnitLine, returnableQty } from './returnable';
 import {
   allocateToOriginalPayments,
@@ -20,13 +23,6 @@ import {
   roundMoney,
   toCents,
 } from '../../lib/saleMath';
-
-const METHOD_LABEL: Record<PaymentMethod, string> = {
-  cash: 'Cash',
-  credit: 'Credit',
-  gift_card: 'Gift Card',
-  store_credit: 'Store Credit',
-};
 
 interface SaleLine {
   id: string;
@@ -65,6 +61,7 @@ interface Tender {
   amount: number;
   giftCardId?: string;
   code?: string;
+  checkNumber?: string;
 }
 
 // Payments keyed by what limits a refund: the type, or the gift card itself.
@@ -94,6 +91,7 @@ export function RefundPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const { settings } = useSettings();
 
   useEffect(() => {
     if (!saleId) return;
@@ -204,8 +202,10 @@ export function RefundPage() {
       refundable,
       (p) => refundSource(p.method, p.gift_card_id),
     );
+    // A refund check needs its own number, so check payments are left for the
+    // cashier to add with Check.
     setTenders(
-      allocations.map(({ payment, cents }) => ({
+      allocations.filter(({ payment }) => payment.method !== 'check').map(({ payment, cents }) => ({
         id: crypto.randomUUID(),
         method: payment.method,
         amount: fromCents(cents),
@@ -242,7 +242,12 @@ export function RefundPage() {
     const { error: err } = await supabase.rpc('record_refund', {
       p_sale_id: saleId,
       p_lines: lines,
-      p_payments: tenders.map((t) => ({ method: t.method, amount: t.amount, gift_card_id: t.giftCardId ?? null })),
+      p_payments: tenders.map((t) => ({
+        method: t.method,
+        amount: t.amount,
+        gift_card_id: t.giftCardId ?? null,
+        check_number: t.checkNumber ?? null,
+      })),
       p_reason: reason.trim() || null,
       p_note: null,
       p_method_change_reason: needsMethodChangeReason ? methodChangeReason.trim() : null,
@@ -340,7 +345,7 @@ export function RefundPage() {
             {tenders.map((t) => (
               <li key={t.id} className="flex items-center justify-between py-1.5 text-sm">
                 <span className="text-slate-700">
-                  {METHOD_LABEL[t.method]}
+                  {paymentLabel(t.method, t.checkNumber)}
                   {t.code ? ` · ${t.code}` : ''}
                 </span>
                 <div className="flex items-center gap-3">
@@ -353,7 +358,10 @@ export function RefundPage() {
         )}
         {remainingToAllocate > 0.005 && mode === 'none' && (
           <div className="grid grid-cols-2 gap-2">
-            {(['cash', 'credit', 'store_credit', 'gift_card'] as PaymentMethod[]).map((m) => (
+            {refundMethodsFor(
+              settings?.accept_checks ?? false,
+              sale.sale_payments.some((p) => p.method === 'check'),
+            ).map((m) => (
               <button key={m} onClick={() => setMode(m)} className="rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-800 hover:border-blue-300 hover:bg-blue-50">
                 {METHOD_LABEL[m]}
               </button>
@@ -369,6 +377,15 @@ export function RefundPage() {
           ) : (
             <p className="text-sm text-amber-700">This sale has no customer, so store credit can't be issued. <button onClick={() => setMode('none')} className="text-blue-600 hover:underline">Back</button></p>
           )
+        )}
+        {mode === 'check' && (
+          <CheckEntry
+            label="Refund check amount"
+            defaultValue={remainingToAllocate}
+            remaining={remainingToAllocate}
+            onCancel={() => setMode('none')}
+            onAdd={(amount, checkNumber) => addTender({ method: 'check', amount, checkNumber })}
+          />
         )}
         {mode === 'gift_card' && (
           <GiftCardAdder defaultValue={remainingToAllocate} defaultCode={sale.sale_payments.find((p) => p.gift_cards)?.gift_cards?.code ?? ''} customerId={sale.customer_id} onCancel={() => setMode('none')} onAdd={(amt, id, code) => addTender({ method: 'gift_card', amount: amt, giftCardId: id, code })} onError={setError} />

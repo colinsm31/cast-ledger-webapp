@@ -4,6 +4,8 @@ import type { GiftCardBalance, PaymentMethod } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { availableToApply, roundMoney } from '../../lib/saleMath';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
+import { PAYMENT_METHOD_LABEL, paymentLabel, saleMethodsFor } from '../../lib/paymentMethods';
+import { CheckEntry } from './CheckEntry';
 
 export interface Tender {
   id: string;
@@ -11,19 +13,13 @@ export interface Tender {
   amount: number;
   giftCardId?: string;
   code?: string;
+  checkNumber?: string;
 }
-
-const METHOD_LABEL: Record<PaymentMethod, string> = {
-  cash: 'Cash',
-  credit: 'Credit',
-  gift_card: 'Gift Card',
-  store_credit: 'Store Credit',
-};
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-const ALL_METHODS: PaymentMethod[] = ['cash', 'credit', 'gift_card', 'store_credit'];
+const DEFAULT_METHODS = saleMethodsFor(false);
 
 export function PaymentScreen({
   total,
@@ -35,7 +31,7 @@ export function PaymentScreen({
   title = 'Payment',
   backLabel = 'Back to ticket',
   completeLabel = 'Complete sale',
-  methods = ALL_METHODS,
+  methods = DEFAULT_METHODS,
   giveBack = false,
   completeDisabled = false,
   onTendersChange,
@@ -51,7 +47,7 @@ export function PaymentScreen({
   title?: string;
   backLabel?: string;
   completeLabel?: string;
-  // Payment types offered (default: all four).
+  // Payment types offered (default: all but checks).
   methods?: PaymentMethod[];
   // Money going back to the customer: store credit is added, not spent.
   giveBack?: boolean;
@@ -131,7 +127,7 @@ export function PaymentScreen({
           {tenders.map((t) => (
             <li key={t.id} className="flex items-center justify-between p-3 text-sm">
               <span className="font-medium text-slate-800">
-                {METHOD_LABEL[t.method]}
+                {paymentLabel(t.method, t.checkNumber)}
                 {t.code ? ` · ${t.code}` : ''}
               </span>
               <div className="flex items-center gap-3">
@@ -157,7 +153,7 @@ export function PaymentScreen({
               }}
               className="rounded-xl border border-slate-200 bg-white p-5 text-base font-semibold text-slate-900 hover:border-blue-300 hover:bg-blue-50"
             >
-              {METHOD_LABEL[m]}
+              {PAYMENT_METHOD_LABEL[m]}
             </button>
           ))}
         </div>
@@ -180,6 +176,15 @@ export function PaymentScreen({
           remaining={remaining}
           onCancel={() => setMode('none')}
           onSubmit={(applied) => addTender({ method: 'credit', amount: applied })}
+        />
+      )}
+      {mode === 'check' && (
+        <CheckEntry
+          label={giveBack ? 'Check amount to give back' : 'Check amount'}
+          defaultValue={remaining > 0 ? remaining : 0}
+          remaining={remaining}
+          onCancel={() => setMode('none')}
+          onAdd={(amount, checkNumber) => addTender({ method: 'check', amount, checkNumber })}
         />
       )}
       {mode === 'gift_card' && (

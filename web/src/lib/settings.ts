@@ -10,6 +10,7 @@ export interface Settings {
   default_reorder_point: number | null;
   block_oversell: boolean;
   week_starts_monday: boolean;
+  accept_checks: boolean;
 }
 
 interface SettingsRow {
@@ -19,6 +20,7 @@ interface SettingsRow {
   default_reorder_point: number | null;
   block_oversell: boolean;
   week_starts_monday: boolean;
+  accept_checks: boolean;
 }
 
 export const SETTINGS_LOAD_ERROR = "Couldn't load the shop settings";
@@ -37,6 +39,7 @@ export async function fetchSettings(): Promise<Settings> {
     default_reorder_point: r.default_reorder_point ?? null,
     block_oversell: r.block_oversell,
     week_starts_monday: r.week_starts_monday,
+    accept_checks: r.accept_checks,
   };
 }
 
@@ -93,6 +96,7 @@ export interface SettingsForm {
   defaultReorder: string;
   blockOversell: boolean;
   weekStartsMonday: boolean;
+  acceptChecks: boolean;
 }
 
 const PLAIN_NUMBER = /^\d+(\.\d+)?$/;
@@ -110,6 +114,7 @@ export function settingsToForm(settings: Settings): SettingsForm {
     defaultReorder: settings.default_reorder_point != null ? String(settings.default_reorder_point) : '',
     blockOversell: settings.block_oversell,
     weekStartsMonday: settings.week_starts_monday,
+    acceptChecks: settings.accept_checks,
   };
 }
 
@@ -144,6 +149,7 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
       default_reorder_point: defaultReorder ? Number(defaultReorder) : null,
       block_oversell: form.blockOversell,
       week_starts_monday: form.weekStartsMonday,
+      accept_checks: form.acceptChecks,
     },
   };
 }

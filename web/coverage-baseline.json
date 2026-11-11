@@ -1,11 +1,11 @@
 {
-  "updated": "2026-11-08",
+  "updated": "2026-11-10",
   "web": {
     "overall": {
-      "lines": 14.41,
-      "statements": 14.82,
-      "functions": 13.41,
-      "branches": 13.23
+      "lines": 14.62,
+      "statements": 15,
+      "functions": 13.6,
+      "branches": 13.5
     },
     "byFolder": {
       "src": {
@@ -42,7 +42,7 @@
         "lines": 3.41
       },
       "src/features/sales": {
-        "lines": 2.8
+        "lines": 2.74
       },
       "src/features/scan": {
         "lines": 37.78
@@ -51,7 +51,7 @@
         "lines": 13.37
       },
       "src/lib": {
-        "lines": 87.71
+        "lines": 88.12
       },
       "src/types": {
         "lines": 33.33
@@ -172,6 +172,9 @@
       "src/features/products/variantLabel.ts": {
         "lines": 100
       },
+      "src/features/sales/CheckEntry.tsx": {
+        "lines": 0
+      },
       "src/features/sales/GiftCardLookupPage.tsx": {
         "lines": 0
       },
@@ -255,6 +258,9 @@
       },
       "src/lib/passwordRules.ts": {
         "lines": 90
+      },
+      "src/lib/paymentMethods.ts": {
+        "lines": 100
       },
       "src/lib/phone.ts": {
         "lines": 100

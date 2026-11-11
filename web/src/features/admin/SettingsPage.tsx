@@ -115,6 +115,18 @@ export function SettingsPage() {
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-700">Payments</h2>
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={form.acceptChecks} onChange={(e) => update({ acceptChecks: e.target.checked })} />
+          Accept checks
+        </label>
+        <p className="text-xs text-slate-400">
+          Offers Check at payment, with its check number. Sales already paid by check can still be refunded by check
+          when this is off.
+        </p>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-700">Reports</h2>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={form.weekStartsMonday} onChange={(e) => update({ weekStartsMonday: e.target.checked })} />

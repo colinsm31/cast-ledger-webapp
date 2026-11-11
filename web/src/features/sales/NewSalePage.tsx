@@ -26,6 +26,7 @@ import {
 } from '../../lib/priceOverride';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { PickOrAdd } from '../lookups/PickOrAdd';
+import { saleMethodsFor } from '../../lib/paymentMethods';
 import { useDialog } from '../../components/Dialog';
 import { useAuth } from '../../auth/AuthContext';
 import { resolveBarcode, type ScannedProduct } from '../scan/resolveBarcode';
@@ -594,6 +595,7 @@ export function NewSalePage() {
         method: t.method,
         amount: t.amount,
         gift_card_id: t.giftCardId ?? null,
+        check_number: t.checkNumber ?? null,
       })),
       p_note: null,
     });
@@ -634,6 +636,7 @@ export function NewSalePage() {
         key={paymentKey}
         total={quote.total}
         notice={quoteNotice}
+        methods={saleMethodsFor(settings?.accept_checks ?? false)}
         customerId={customer?.id ?? null}
         busy={saving}
         error={error}
