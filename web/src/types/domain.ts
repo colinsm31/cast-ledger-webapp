@@ -114,7 +114,7 @@ export interface InventoryTxn {
 
 // ---- Sales (light POS) ----
 
-export type PaymentMethod = 'credit' | 'cash' | 'gift_card' | 'store_credit';
+export type PaymentMethod = 'credit' | 'cash' | 'gift_card' | 'store_credit' | 'check';
 
 // A sale line is the original charge, or (for a paid string job whose strings
 // changed) the difference charged for the new strings.

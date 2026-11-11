@@ -34,6 +34,8 @@ interface Summary {
   num_tickets: number;
   num_items: number;
   gift_cards_sold: number;
+  price_changes: number;
+  price_change_total: number;
 }
 
 interface TicketRow {
@@ -208,6 +210,8 @@ export function SalesListPage() {
             <CountRow label="Number of customers" value={summary.num_customers} />
             <CountRow label="Number of sales tickets" value={summary.num_tickets} />
             <CountRow label="Number of items sold (net of returns)" value={summary.num_items} />
+            <CountRow label="Price changes at the register" value={summary.price_changes} />
+            <MoneyRow label="Net effect of price changes" value={summary.price_change_total} />
             <p className="p-3 text-xs text-slate-500">
               Gift cards count as sales when they're spent, not when they're sold. Net receipts include
               gift cards sold, so they match the money taken in.
@@ -265,6 +269,8 @@ function normalizeSummary(r: Record<string, unknown>): Summary {
     num_tickets: n('num_tickets'),
     num_items: n('num_items'),
     gift_cards_sold: n('gift_cards_sold'),
+    price_changes: n('price_changes'),
+    price_change_total: n('price_change_total'),
   };
 }
 

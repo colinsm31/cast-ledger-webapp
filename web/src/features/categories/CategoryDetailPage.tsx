@@ -5,6 +5,14 @@ import type { AttributeDef, AttributeValueType, Category } from '../../types/dom
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
+import {
+  duplicateEnumValue,
+  enumValueChanges,
+  enumValueRowsFrom,
+  newEnumValueRow,
+  productsUpdatedNote,
+  type EnumValueRow,
+} from '../../lib/attributeValues';
 
 const VALUE_TYPES: { value: AttributeValueType; label: string }[] = [
   { value: 'number', label: 'Number' },
@@ -31,6 +39,7 @@ export function CategoryDetailPage() {
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!categoryId) return;
@@ -131,6 +140,7 @@ export function CategoryDetailPage() {
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {savedNote && <p className="text-sm text-green-700">{savedNote}</p>}
 
       <section className="space-y-2">
         {attributes.length === 0 ? (
@@ -143,11 +153,16 @@ export function CategoryDetailPage() {
                   <EditAttributeForm
                     attribute={attribute}
                     onCancel={() => setEditingId(null)}
-                    onSaved={async () => {
+                    onSaved={async (productsUpdated) => {
                       setEditingId(null);
+                      setError(null);
+                      setSavedNote(productsUpdatedNote(productsUpdated));
                       await load();
                     }}
-                    onError={setError}
+                    onError={(message) => {
+                      setSavedNote(null);
+                      setError(message);
+                    }}
                   />
                 </li>
               ) : (
@@ -175,7 +190,10 @@ export function CategoryDetailPage() {
                   </div>
                   <div className="flex shrink-0 gap-3">
                     <button
-                      onClick={() => setEditingId(attribute.id)}
+                      onClick={() => {
+                        setSavedNote(null);
+                        setEditingId(attribute.id);
+                      }}
                       className="text-xs text-blue-600 hover:underline"
                     >
                       Edit
@@ -327,19 +345,22 @@ function EditAttributeForm({
 }: {
   attribute: AttributeDef;
   onCancel: () => void;
-  onSaved: () => Promise<void>;
+  onSaved: (productsUpdated: number) => Promise<void>;
   onError: (message: string) => void;
 }) {
   const [name, setName] = useState(attribute.name);
   const [valueType, setValueType] = useState<AttributeValueType>(attribute.value_type);
   const [unit, setUnit] = useState(attribute.unit ?? '');
   const [required, setRequired] = useState(attribute.required);
-  const [enumRaw, setEnumRaw] = useState(enumList(attribute).join(', '));
+  const [enumRows, setEnumRows] = useState<EnumValueRow[]>(() => {
+    const rows = enumValueRowsFrom(enumList(attribute));
+    return rows.length > 0 ? rows : [newEnumValueRow()];
+  });
   const [saving, setSaving] = useState(false);
 
-  function parseEnum(): string[] {
-    return enumRaw.split(',').map((v) => v.trim()).filter(Boolean);
-  }
+  // Renames only apply while the attribute stays an enum; the server refuses
+  // them otherwise.
+  const wasEnum = attribute.value_type === 'enum';
 
   async function save() {
     const trimmedName = name.trim();
@@ -347,31 +368,34 @@ function EditAttributeForm({
       onError('Attribute name is required');
       return;
     }
-    if (valueType === 'enum' && parseEnum().length === 0) {
-      onError('An enum attribute needs at least one value');
-      return;
+    const { values, renames } = enumValueChanges(enumRows);
+    if (valueType === 'enum') {
+      if (values.length === 0) {
+        onError('An enum attribute needs at least one value');
+        return;
+      }
+      const duplicate = duplicateEnumValue(values);
+      if (duplicate) {
+        onError(`Enum value "${duplicate}" is listed twice`);
+        return;
+      }
     }
     setSaving(true);
-    const { error: err } = await supabase
-      .from('attribute_defs')
-      .update({
-        name: trimmedName,
-        value_type: valueType,
-        unit: unit.trim() || null,
-        required,
-        enum_values: valueType === 'enum' ? parseEnum() : null,
-      })
-      .eq('id', attribute.id);
+    const { data, error: err } = await supabase.rpc('update_attribute_def', {
+      p_id: attribute.id,
+      p_name: trimmedName,
+      p_value_type: valueType,
+      p_unit: unit,
+      p_required: required,
+      p_enum_values: valueType === 'enum' ? values : null,
+      p_value_renames: valueType === 'enum' && wasEnum ? renames : {},
+    });
     setSaving(false);
     if (err) {
-      onError(
-        errorMessage(err).includes('duplicate')
-          ? 'An attribute with that name already exists in this category.'
-          : errorMessage(err),
-      );
+      onError(errorMessage(err));
       return;
     }
-    await onSaved();
+    await onSaved(typeof data === 'number' ? data : 0);
   }
 
   return (
@@ -396,12 +420,7 @@ function EditAttributeForm({
           <input value={unit} onChange={(e) => setUnit(e.target.value)} className={inputClass} />
         </label>
       </div>
-      {valueType === 'enum' && (
-        <label className="block space-y-1">
-          <span className="text-xs font-medium text-slate-500">Values (comma-separated)</span>
-          <input value={enumRaw} onChange={(e) => setEnumRaw(e.target.value)} className={inputClass} />
-        </label>
-      )}
+      {valueType === 'enum' && <EnumValueRows rows={enumRows} showRenames={wasEnum} onChange={setEnumRows} />}
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
         Required
@@ -418,6 +437,69 @@ function EditAttributeForm({
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+// MARK: - Enum value rows
+
+function EnumValueRows({
+  rows,
+  showRenames,
+  onChange,
+}: {
+  rows: EnumValueRow[];
+  showRenames: boolean;
+  onChange: (rows: EnumValueRow[]) => void;
+}) {
+  function updateRow(key: string, value: string) {
+    onChange(rows.map((row) => (row.key === key ? { ...row, value } : row)));
+  }
+
+  function removeRow(key: string) {
+    onChange(rows.filter((row) => row.key !== key));
+  }
+
+  return (
+    <div className="space-y-1">
+      <span className="text-xs font-medium text-slate-500">Values</span>
+      <p className="text-xs text-slate-400">
+        Editing a value renames it on every product that uses it.
+      </p>
+      <ul className="space-y-1">
+        {rows.map((row) => {
+          const isRename = showRenames && row.original !== null && row.value.trim() !== row.original;
+          return (
+            <li key={row.key} className="space-y-0.5">
+              <div className="flex gap-2">
+                <input
+                  value={row.value}
+                  onChange={(e) => updateRow(row.key, e.target.value)}
+                  aria-label={row.original ? `Value ${row.original}` : 'New value'}
+                  className={inputClass}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeRow(row.key)}
+                  className="shrink-0 text-xs text-red-600 hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
+              {isRename && row.value.trim() !== '' && (
+                <p className="text-xs text-blue-700">Renaming from “{row.original}”</p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <button
+        type="button"
+        onClick={() => onChange([...rows, newEnumValueRow()])}
+        className="text-xs text-blue-600 hover:underline"
+      >
+        + Add value
+      </button>
     </div>
   );
 }

@@ -1,11 +1,11 @@
 {
-  "updated": "2026-10-29",
+  "updated": "2026-11-11",
   "web": {
     "overall": {
-      "lines": 12.98,
-      "statements": 13.35,
-      "functions": 11.61,
-      "branches": 11.48
+      "lines": 15.18,
+      "statements": 15.62,
+      "functions": 14.42,
+      "branches": 13.86
     },
     "byFolder": {
       "src": {
@@ -42,7 +42,7 @@
         "lines": 3.41
       },
       "src/features/sales": {
-        "lines": 2.97
+        "lines": 3.1
       },
       "src/features/scan": {
         "lines": 37.78
@@ -51,7 +51,7 @@
         "lines": 13.37
       },
       "src/lib": {
-        "lines": 84.94
+        "lines": 88.85
       },
       "src/types": {
         "lines": 33.33
@@ -172,6 +172,9 @@
       "src/features/products/variantLabel.ts": {
         "lines": 100
       },
+      "src/features/sales/CheckEntry.tsx": {
+        "lines": 0
+      },
       "src/features/sales/GiftCardLookupPage.tsx": {
         "lines": 0
       },
@@ -226,6 +229,9 @@
       "src/features/stringjobs/stringSummary.ts": {
         "lines": 100
       },
+      "src/lib/attributeValues.ts": {
+        "lines": 100
+      },
       "src/lib/barcode.ts": {
         "lines": 100
       },
@@ -256,10 +262,19 @@
       "src/lib/passwordRules.ts": {
         "lines": 90
       },
+      "src/lib/paymentMethods.ts": {
+        "lines": 100
+      },
       "src/lib/phone.ts": {
         "lines": 100
       },
+      "src/lib/priceOverride.ts": {
+        "lines": 100
+      },
       "src/lib/saleMath.ts": {
+        "lines": 100
+      },
+      "src/lib/saleQuote.ts": {
         "lines": 100
       },
       "src/lib/scanBuffer.ts": {

@@ -8,6 +8,9 @@ export interface HeldCartLine {
   stringJobId?: string;
   label: string;
   price: string;
+  /** Missing on tickets held before list prices were kept. */
+  listPrice?: number | null;
+  priceReason?: string;
   qty: number;
 }
 

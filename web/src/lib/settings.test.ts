@@ -15,6 +15,7 @@ const saved: Settings = {
   default_reorder_point: 2,
   block_oversell: true,
   week_starts_monday: false,
+  accept_checks: false,
 };
 
 function form(changes: Partial<SettingsForm>): SettingsForm {

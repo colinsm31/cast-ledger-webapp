@@ -9,7 +9,24 @@ import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
 import { useSettings } from '../../lib/settings';
 import { LoadError } from '../../components/LoadError';
 import { computeSaleTotals, fromCents, lineTotalCents } from '../../lib/saleMath';
+import {
+  fetchSaleQuote,
+  isTotalMismatchError,
+  quoteChangeNotice,
+  quoteProblemMessages,
+  toSaleLinePayload,
+  type SaleQuote,
+} from '../../lib/saleQuote';
+import {
+  applyServerListPrices,
+  isPriceChanged,
+  isPriceReasonError,
+  missingPriceReasons,
+  PRICE_REASON_LOOKUP_KIND,
+} from '../../lib/priceOverride';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
+import { PickOrAdd } from '../lookups/PickOrAdd';
+import { saleMethodsFor } from '../../lib/paymentMethods';
 import { useDialog } from '../../components/Dialog';
 import { useAuth } from '../../auth/AuthContext';
 import { resolveBarcode, type ScannedProduct } from '../scan/resolveBarcode';
@@ -36,6 +53,10 @@ interface CartLine {
   giftCardId?: string;
   label: string;
   price: string; // editable
+  // The price the line was added at (see OverridableLine in lib/priceOverride),
+  // and why the price was changed from it.
+  listPrice?: number | null;
+  priceReason?: string;
   qty: number;
 }
 
@@ -66,6 +87,14 @@ export function NewSalePage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [choosingPayment, setChoosingPayment] = useState(false);
+  // The server's quote the payment screen charges, and why it differs from the
+  // ticket if it does. Bumping paymentKey restarts the payment screen.
+  const [quote, setQuote] = useState<SaleQuote | null>(null);
+  const [quoteNotice, setQuoteNotice] = useState<string | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [paymentKey, setPaymentKey] = useState(0);
+  // Catalog prices that changed while the ticket was open.
+  const [priceNotice, setPriceNotice] = useState<string | null>(null);
   const [gcForm, setGcForm] = useState(false);
   const [gcCode, setGcCode] = useState('');
   const [gcAmount, setGcAmount] = useState('');
@@ -108,6 +137,7 @@ export function NewSalePage() {
       stringJobId: job.id,
       label: `Stringing — ${job.racketLabel}`,
       price: String(job.price ?? 0),
+      listPrice: job.price ?? null,
       qty: 1,
       racketLabel: job.racketLabel,
       ownerCustomerId: job.owner?.id,
@@ -317,7 +347,14 @@ export function NewSalePage() {
       }
       return [
         ...prev,
-        { key: p.id, productId: p.id, label: productLabel(p), price: String(p.sell_price ?? 0), qty: 1 },
+        {
+          key: p.id,
+          productId: p.id,
+          label: productLabel(p),
+          price: String(p.sell_price ?? 0),
+          listPrice: p.sell_price ?? null,
+          qty: 1,
+        },
       ];
     });
   }
@@ -344,6 +381,7 @@ export function NewSalePage() {
           serialized: true,
           label,
           price: String(u.product.sell_price ?? 0),
+          listPrice: u.product.sell_price ?? null,
           qty: 1,
         },
       ];
@@ -404,7 +442,14 @@ export function NewSalePage() {
     const gcId = data as string;
     setLines((prev) => [
       ...prev,
-      { key: `gc:${gcId}:${crypto.randomUUID()}`, giftCardId: gcId, label: `Gift card ${code}`, price: String(amt), qty: 1 },
+      {
+        key: `gc:${gcId}:${crypto.randomUUID()}`,
+        giftCardId: gcId,
+        label: `Gift card ${code}`,
+        price: String(amt),
+        listPrice: null,
+        qty: 1,
+      },
     ]);
     setGcForm(false);
     setGcCode('');
@@ -424,6 +469,10 @@ export function NewSalePage() {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, price } : l)));
   }
 
+  function setPriceReason(key: string, priceReason: string) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, priceReason } : l)));
+  }
+
   // Tax: products always taxed; stringing optionally; gift-card loads never.
   const taxRate = settings?.tax_rate ?? 0;
   const taxStringing = settings?.tax_stringing ?? false;
@@ -432,7 +481,7 @@ export function NewSalePage() {
     [lines, taxRate, taxStringing],
   );
 
-  function openPayment() {
+  async function openPayment() {
     // Without the settings the tax, and so the total, isn't known.
     if (!settings) {
       setError(settingsError ?? 'The shop settings are still loading.');
@@ -452,8 +501,73 @@ export function NewSalePage() {
         return;
       }
     }
+    const missingReasons = missingPriceReasons(lines);
+    if (missingReasons.length > 0) {
+      setError(missingReasons.join('\n'));
+      return;
+    }
     setError(null);
+    setPriceNotice(null);
+    setQuoting(true);
+    let fresh: SaleQuote;
+    try {
+      fresh = await fetchSaleQuote(lines, customer?.id ?? null);
+    } catch (err) {
+      setError(`Couldn't check the total with the server: ${errorMessage(err)}`);
+      return;
+    } finally {
+      setQuoting(false);
+    }
+    // Catalog prices that moved while the ticket was open: unchanged lines take
+    // the new price. Stop so the cashier sees the new total, or gives a reason
+    // for a line that now differs from its list price.
+    const synced = applyServerListPrices(lines, fresh.listPrices);
+    if (synced.changed) {
+      setLines(synced.lines);
+      const nowMissing = missingPriceReasons(synced.lines);
+      if (synced.notices.length > 0) {
+        setPriceNotice(`Prices changed in the catalog: ${synced.notices.join(' ')} Check the ticket, then press Payment Type again.`);
+      }
+      if (nowMissing.length > 0) setError(nowMissing.join('\n'));
+      if (synced.notices.length > 0 || nowMissing.length > 0) return;
+    }
+    if (fresh.problems.length > 0) {
+      setError(
+        quoteProblemMessages(
+          fresh.problems,
+          lines.map((l) => l.label),
+        ).join('\n'),
+      );
+      return;
+    }
+    const notice = quoteChangeNotice({ subtotal, tax, total }, taxRate, fresh);
+    if (notice) reloadSettings();
+    setQuote(fresh);
+    setQuoteNotice(notice);
     setChoosingPayment(true);
+  }
+
+  // record_sale refused the payments because its total changed after the
+  // quote: get a fresh one and start the payment again at the new amount.
+  async function requote() {
+    try {
+      const fresh = await fetchSaleQuote(lines, customer?.id ?? null);
+      setQuote(fresh);
+      setQuoteNotice(
+        `The total changed while payment was being taken: it's now $${fresh.total.toFixed(2)}. Take payment again.`,
+      );
+      setPaymentKey((key) => key + 1);
+      setError(null);
+      reloadSettings();
+    } catch (err) {
+      setError(`The total changed, and the new total couldn't be checked: ${errorMessage(err)}`);
+    }
+  }
+
+  function closePayment() {
+    setChoosingPayment(false);
+    setQuote(null);
+    setQuoteNotice(null);
   }
 
   async function cancelSale() {
@@ -475,24 +589,28 @@ export function NewSalePage() {
     setSaving(true);
     setError(null);
     const { data, error: err } = await supabase.rpc('record_sale', {
-      p_lines: lines.map((l) => {
-        const unit_price = Number(l.price) || 0;
-        if (l.stringJobId) return { string_job_id: l.stringJobId, qty: l.qty, unit_price };
-        if (l.giftCardId) return { gift_card_id: l.giftCardId, qty: l.qty, unit_price };
-        if (l.productUnitId)
-          return { product_id: l.productId, product_unit_id: l.productUnitId, qty: 1, unit_price };
-        return { product_id: l.productId, qty: l.qty, unit_price };
-      }),
+      p_lines: lines.map(toSaleLinePayload),
       p_customer_id: customer?.id ?? null,
       p_payments: tenders.map((t) => ({
         method: t.method,
         amount: t.amount,
         gift_card_id: t.giftCardId ?? null,
+        check_number: t.checkNumber ?? null,
       })),
       p_note: null,
     });
     if (err) {
       setSaving(false);
+      if (isTotalMismatchError(err)) {
+        await requote();
+        return;
+      }
+      if (isPriceReasonError(err)) {
+        // A list price moved after the quote: back to the ticket to pick it up.
+        closePayment();
+        await openPayment();
+        return;
+      }
       setError(errorMessage(err));
       return;
     }
@@ -512,14 +630,17 @@ export function NewSalePage() {
     navigate(`/sales/${data as string}`, { state: deliveryWarning ? { deliveryWarning } : undefined });
   }
 
-  if (choosingPayment) {
+  if (choosingPayment && quote) {
     return (
       <PaymentScreen
-        total={total}
+        key={paymentKey}
+        total={quote.total}
+        notice={quoteNotice}
+        methods={saleMethodsFor(settings?.accept_checks ?? false)}
         customerId={customer?.id ?? null}
         busy={saving}
         error={error}
-        onBack={() => setChoosingPayment(false)}
+        onBack={closePayment}
         onComplete={(tenders) => void completeSale(tenders)}
       />
     );
@@ -632,7 +753,20 @@ export function NewSalePage() {
                       className="w-20 rounded border border-slate-300 px-2 py-0.5 text-sm"
                     />
                     <span className="ml-1">each</span>
+                    {isPriceChanged(l) && (
+                      <span className="ml-2 text-xs text-amber-700">List ${(l.listPrice ?? 0).toFixed(2)}</span>
+                    )}
                   </div>
+                  {isPriceChanged(l) && (
+                    <div className="mt-1 max-w-xs">
+                      <PickOrAdd
+                        kind={PRICE_REASON_LOOKUP_KIND}
+                        value={l.priceReason ?? ''}
+                        onChange={(reason) => setPriceReason(l.key, reason)}
+                        placeholder="Reason for the price change"
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   {l.serialized || l.stringJobId ? (
@@ -711,15 +845,21 @@ export function NewSalePage() {
         </p>
       ))}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {priceNotice && (
+        <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          ⚠ {priceNotice}
+        </p>
+      )}
+
+      {error && <p className="whitespace-pre-line text-sm text-red-600">{error}</p>}
 
       <div className="flex gap-2">
         <button
-          onClick={openPayment}
-          disabled={lines.length === 0 || !settings}
+          onClick={() => void openPayment()}
+          disabled={lines.length === 0 || !settings || quoting}
           className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-base font-semibold text-white hover:bg-green-700 disabled:opacity-50"
         >
-          Payment Type · ${total.toFixed(2)}
+          {quoting ? 'Checking…' : `Payment Type · $${total.toFixed(2)}`}
         </button>
         <button
           onClick={() => void cancelSale()}
