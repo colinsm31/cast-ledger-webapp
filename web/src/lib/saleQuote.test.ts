@@ -68,14 +68,17 @@ describe('toSaleLinePayload price reasons', () => {
 });
 
 describe('toSaleLinePayload discounts', () => {
-  it('sends the discount as a number, with its trimmed reason', () => {
-    expect(
-      toSaleLinePayload({ productId: 'p1', qty: 2, price: '20', discount: ' 0.1 ', discountReason: ' Promotion ' }),
-    ).toEqual({ product_id: 'p1', qty: 2, unit_price: 20, discount: 0.1, discount_reason: 'Promotion' });
+  it('sends the discount as a number', () => {
+    expect(toSaleLinePayload({ productId: 'p1', qty: 2, price: '20', discount: ' 0.1 ' })).toEqual({
+      product_id: 'p1',
+      qty: 2,
+      unit_price: 20,
+      discount: 0.1,
+    });
   });
 
-  it('leaves a blank or 0 discount, and its reason, off', () => {
-    expect(toSaleLinePayload({ productId: 'p1', qty: 1, price: '20', discount: '0', discountReason: 'Promotion' })).toEqual({
+  it('leaves a blank or 0 discount off', () => {
+    expect(toSaleLinePayload({ productId: 'p1', qty: 1, price: '20', discount: '0' })).toEqual({
       product_id: 'p1',
       qty: 1,
       unit_price: 20,
@@ -86,12 +89,12 @@ describe('toSaleLinePayload discounts', () => {
 describe('toTicketPayload', () => {
   it('is null without a ticket discount', () => {
     expect(toTicketPayload(undefined)).toBeNull();
-    expect(toTicketPayload({ discount: '', discountReason: 'Loyalty' })).toBeNull();
+    expect(toTicketPayload({ discount: '' })).toBeNull();
   });
 
-  it('sends the discount, and the reason when there is one', () => {
+  it('sends the discount as a number', () => {
     expect(toTicketPayload({ discount: '0.1' })).toEqual({ discount: 0.1 });
-    expect(toTicketPayload({ discount: '5', discountReason: 'Loyalty' })).toEqual({ discount: 5, discount_reason: 'Loyalty' });
+    expect(toTicketPayload({ discount: '5' })).toEqual({ discount: 5 });
   });
 });
 
@@ -169,12 +172,12 @@ describe('fetchSaleQuote', () => {
   it('sends the ticket discount and the approval', async () => {
     rpc.mockResolvedValue({ data: { subtotal: 0, tax: 0, tax_rate: 0, total: 0, problems: [] }, error: null });
     await fetchSaleQuote([{ productId: 'p1', qty: 1, price: '20' }], null, {
-      ticket: { discount: '3', discountReason: ' Loyalty ' },
+      ticket: { discount: '3' },
       approvalId: 'a1',
     });
     expect(rpc).toHaveBeenCalledWith(
       'quote_sale',
-      expect.objectContaining({ p_ticket: { discount: 3, discount_reason: 'Loyalty' }, p_approval_id: 'a1' }),
+      expect.objectContaining({ p_ticket: { discount: 3 }, p_approval_id: 'a1' }),
     );
   });
 

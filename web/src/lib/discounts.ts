@@ -6,9 +6,6 @@
 // the register shows is the total the server quotes.
 import { fromCents, toCents } from './saleMath';
 
-/** The lookup list the quick-pick reasons come from. */
-export const DISCOUNT_REASON_LOOKUP_KIND = 'discount_reason';
-
 const PLAIN_NUMBER = /^\d*\.?\d+$|^\d+\.$/;
 /** The database keeps an entered discount to 4 decimal places (numeric(12,4)). */
 const MAX_FRACTION_DECIMALS = 4;
@@ -155,31 +152,19 @@ export function applyDiscounts(lines: DiscountableLine[], ticketDiscountText?: s
   }
 }
 
-/** The trimmed reason, or undefined when there's none. */
-export function discountReasonOf(line: { discountReason?: string }): string | undefined {
-  const reason = line.discountReason?.trim();
-  return reason ? reason : undefined;
-}
-
 /** What's wrong with the ticket's discount boxes, one message each, in ticket order. */
 export function discountProblems(
-  lines: (DiscountableLine & { label: string; discountReason?: string })[],
-  ticket: { discount?: string; discountReason?: string },
+  lines: (DiscountableLine & { label: string })[],
+  ticket: { discount?: string },
 ): string[] {
   const problems: string[] = [];
   for (const line of lines) {
     const parsed = parseDiscount(line.discount);
     if ('error' in parsed) problems.push(`${line.label}: discount: ${parsed.error}.`);
     else if (parsed.discount != null && line.giftCardId) problems.push(`${line.label}: a gift card sale can't be discounted.`);
-    else if (parsed.discount != null && !discountReasonOf(line)) {
-      problems.push(`${line.label}: give a reason for the discount.`);
-    }
   }
   const parsedTicket = parseDiscount(ticket.discount);
   if ('error' in parsedTicket) problems.push(`Ticket discount: ${parsedTicket.error}.`);
-  else if (parsedTicket.discount != null && !discountReasonOf(ticket)) {
-    problems.push('Ticket discount: give a reason.');
-  }
   const applied = applyDiscounts(lines, ticket.discount);
   if (applied.error) problems.push(`${applied.error}.`);
   return problems;

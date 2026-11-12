@@ -5,7 +5,7 @@
 import { supabase } from './supabase';
 import { fromCents, toCents, type SaleTotals } from './saleMath';
 import { priceReasonOf } from './priceOverride';
-import { discountReasonOf, discountValue } from './discounts';
+import { discountValue } from './discounts';
 
 /** A ticket line as the register holds it. */
 export interface SaleLineInput {
@@ -20,13 +20,11 @@ export interface SaleLineInput {
   priceReason?: string;
   /** The line's discount box, as typed (see lib/discounts). */
   discount?: string;
-  discountReason?: string;
 }
 
-/** The whole ticket's discount box and reason, as typed. */
+/** The whole ticket's discount box, as typed. */
 export interface TicketDiscountInput {
   discount?: string;
-  discountReason?: string;
 }
 
 /** What quote_sale and record_sale take besides the lines. */
@@ -41,7 +39,7 @@ export type SaleLinePayload = (
   | { string_job_id: string; qty: number; unit_price: number }
   | { gift_card_id: string; qty: number; unit_price: number }
   | { product_id: string | undefined; product_unit_id?: string; qty: number; unit_price: number }
-) & { price_reason?: string; discount?: number; discount_reason?: string };
+) & { price_reason?: string; discount?: number };
 
 export interface QuoteProblem {
   /** 0-based position of the line on the ticket; null for the whole ticket (its discount, the staff limit). */
@@ -82,11 +80,9 @@ export function toSaleLinePayload(line: SaleLineInput): SaleLinePayload {
   const unit_price = Number(line.price) || 0;
   const priceReason = priceReasonOf(line);
   const discount = discountValue(line.discount);
-  const discountReason = discountReasonOf(line);
   const reason = {
     ...(priceReason ? { price_reason: priceReason } : {}),
     ...(discount != null ? { discount } : {}),
-    ...(discount != null && discountReason ? { discount_reason: discountReason } : {}),
   };
   if (line.stringJobId) return { string_job_id: line.stringJobId, qty: line.qty, unit_price, ...reason };
   if (line.giftCardId) return { gift_card_id: line.giftCardId, qty: line.qty, unit_price, ...reason };
@@ -111,11 +107,9 @@ export function parseSaleQuote(row: QuoteRow): SaleQuote {
 }
 
 /** The ticket discount in the shape quote_sale and record_sale take, or null for none. */
-export function toTicketPayload(ticket: TicketDiscountInput | undefined): { discount: number; discount_reason?: string } | null {
+export function toTicketPayload(ticket: TicketDiscountInput | undefined): { discount: number } | null {
   const discount = discountValue(ticket?.discount);
-  if (discount == null) return null;
-  const reason = ticket ? discountReasonOf(ticket) : undefined;
-  return reason ? { discount, discount_reason: reason } : { discount };
+  return discount == null ? null : { discount };
 }
 
 /** The arguments quote_sale takes (record_sale takes these plus payments and a note). */

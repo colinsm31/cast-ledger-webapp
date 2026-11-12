@@ -25,7 +25,6 @@ import {
   describeDiscount,
   discountProblems,
   discountValue,
-  DISCOUNT_REASON_LOOKUP_KIND,
   isApprovalProblem,
 } from '../../lib/discounts';
 import {
@@ -79,9 +78,8 @@ interface CartLine {
   // and why the price was changed from it.
   listPrice?: number | null;
   priceReason?: string;
-  // The line's discount box (see lib/discounts) and why it was given.
+  // The line's discount box (see lib/discounts).
   discount?: string;
-  discountReason?: string;
   qty: number;
 }
 
@@ -120,9 +118,8 @@ export function NewSalePage() {
   const [paymentKey, setPaymentKey] = useState(0);
   // Catalog prices that changed while the ticket was open.
   const [priceNotice, setPriceNotice] = useState<string | null>(null);
-  // The whole ticket's discount box and reason, as typed.
+  // The whole ticket's discount box, as typed.
   const [ticketDiscount, setTicketDiscount] = useState('');
-  const [ticketDiscountReason, setTicketDiscountReason] = useState('');
   // Lines whose discount box is open, and whether the ticket's is.
   const [discountOpenKeys, setDiscountOpenKeys] = useState<Set<string>>(() => new Set());
   const [ticketDiscountOpen, setTicketDiscountOpen] = useState(false);
@@ -162,7 +159,6 @@ export function NewSalePage() {
     setCustomer(heldCustomer);
     setJobCtx(held?.stringJobId ? { id: held.stringJobId, deliver: held.deliverAfter } : null);
     setTicketDiscount(held?.ticketDiscount ?? '');
-    setTicketDiscountReason(held?.ticketDiscountReason ?? '');
     setTicketDiscountOpen(Boolean(held?.ticketDiscount));
     setDiscountOpenKeys(new Set(heldLines.filter((line) => line.discount).map((line) => line.key)));
     setRestored(true);
@@ -261,11 +257,10 @@ export function NewSalePage() {
             stringJobId: jobCtx?.id ?? null,
             deliverAfter: jobCtx?.deliver ?? false,
             ticketDiscount,
-            ticketDiscountReason,
           }
         : null,
     );
-  }, [restored, lines, customer, jobCtx, user, ticketDiscount, ticketDiscountReason]);
+  }, [restored, lines, customer, jobCtx, user, ticketDiscount]);
 
   // A changed ticket needs checking again before an admin approves it.
   useEffect(() => {
@@ -544,20 +539,17 @@ export function NewSalePage() {
       return next;
     });
     // Closing the box takes the discount off.
-    if (open) updateLine(key, { discount: '', discountReason: '' });
+    if (open) updateLine(key, { discount: '' });
   }
 
   function toggleTicketDiscount() {
-    if (ticketDiscountOpen) {
-      setTicketDiscount('');
-      setTicketDiscountReason('');
-    }
+    if (ticketDiscountOpen) setTicketDiscount('');
     setTicketDiscountOpen((open) => !open);
   }
 
   // What quote_sale and record_sale take besides the lines and customer.
   function quoteOptions(approval: string | null = approvalId): SaleQuoteOptions {
-    return { ticket: { discount: ticketDiscount, discountReason: ticketDiscountReason }, approvalId: approval };
+    return { ticket: { discount: ticketDiscount }, approvalId: approval };
   }
 
   // Tax: products always taxed; stringing optionally; gift-card loads never;
@@ -598,7 +590,7 @@ export function NewSalePage() {
     }
     const missingReasons = [
       ...missingPriceReasons(lines),
-      ...discountProblems(lines, { discount: ticketDiscount, discountReason: ticketDiscountReason }),
+      ...discountProblems(lines, { discount: ticketDiscount }),
     ];
     if (missingReasons.length > 0) {
       setError(missingReasons.join('\n'));
@@ -685,7 +677,6 @@ export function NewSalePage() {
     setCustomer(null);
     setJobCtx(null);
     setTicketDiscount('');
-    setTicketDiscountReason('');
     setTicketDiscountOpen(false);
     setDiscountOpenKeys(new Set());
     setApprovalId(null);
@@ -706,7 +697,6 @@ export function NewSalePage() {
         stringJobId: jobCtx?.id ?? null,
         deliverAfter: jobCtx?.deliver ?? false,
         ticketDiscount,
-        ticketDiscountReason,
       });
       clearTicket();
       setHoldName(null);
@@ -741,7 +731,6 @@ export function NewSalePage() {
       setCustomer(recalled.customer);
       setJobCtx(recalled.content.stringJobId ? { id: recalled.content.stringJobId, deliver: recalled.content.deliverAfter } : null);
       setTicketDiscount(recalled.content.ticketDiscount ?? '');
-      setTicketDiscountReason(recalled.content.ticketDiscountReason ?? '');
       setTicketDiscountOpen(Boolean(recalled.content.ticketDiscount));
       setDiscountOpenKeys(new Set(synced.lines.filter((line) => line.discount).map((line) => line.key)));
       setShowHeld(false);
@@ -983,12 +972,10 @@ export function NewSalePage() {
                     <LineDiscount
                       open={discountOpenKeys.has(l.key)}
                       discount={l.discount ?? ''}
-                      reason={l.discountReason ?? ''}
                       discountedPrice={discounted.lines[index].price}
                       undiscountedPrice={String(l.price)}
                       onToggle={() => toggleLineDiscount(l.key)}
                       onDiscount={(discount) => updateLine(l.key, { discount })}
-                      onReason={(reason) => updateLine(l.key, { discountReason: reason })}
                     />
                   )}
                 </div>
@@ -1033,10 +1020,8 @@ export function NewSalePage() {
           <TicketDiscount
             open={ticketDiscountOpen}
             discount={ticketDiscount}
-            reason={ticketDiscountReason}
             onToggle={toggleTicketDiscount}
             onDiscount={setTicketDiscount}
-            onReason={setTicketDiscountReason}
           />
         )}
         {discounted.discountCents > 0 && (
@@ -1171,26 +1156,22 @@ export function NewSalePage() {
   );
 }
 
-// A line's discount: a link that opens the box, what the number means, the
-// price after it, and the reason.
+// A line's discount: a link that opens the box, what the number means, and
+// the price after it.
 function LineDiscount({
   open,
   discount,
-  reason,
   discountedPrice,
   undiscountedPrice,
   onToggle,
   onDiscount,
-  onReason,
 }: {
   open: boolean;
   discount: string;
-  reason: string;
   discountedPrice: string;
   undiscountedPrice: string;
   onToggle: () => void;
   onDiscount: (discount: string) => void;
-  onReason: (reason: string) => void;
 }) {
   const value = discountValue(discount);
   const priceMoved = toCents(discountedPrice) !== toCents(undiscountedPrice);
@@ -1216,21 +1197,7 @@ function LineDiscount({
         )}
         {priceMoved && <span className="text-xs text-slate-500">→ ${discountedPrice} each</span>}
       </div>
-      {open && (
-        <>
-          <p className="text-xs text-slate-400">0.25 = 25% off · 3 = $3 off each · 1 = 100% off</p>
-          {value != null && (
-            <div className="max-w-xs">
-              <PickOrAdd
-                kind={DISCOUNT_REASON_LOOKUP_KIND}
-                value={reason}
-                onChange={onReason}
-                placeholder="Reason for the discount"
-              />
-            </div>
-          )}
-        </>
-      )}
+      {open && <p className="text-xs text-slate-400">0.25 = 25% off · 3 = $3 off each · 1 = 100% off</p>}
     </div>
   );
 }
@@ -1239,17 +1206,13 @@ function LineDiscount({
 function TicketDiscount({
   open,
   discount,
-  reason,
   onToggle,
   onDiscount,
-  onReason,
 }: {
   open: boolean;
   discount: string;
-  reason: string;
   onToggle: () => void;
   onDiscount: (discount: string) => void;
-  onReason: (reason: string) => void;
 }) {
   const value = discountValue(discount);
   return (
@@ -1274,21 +1237,9 @@ function TicketDiscount({
         )}
       </div>
       {open && (
-        <>
-          <p className="text-xs text-slate-400">
-            0.1 = 10% off · 5 = $5 off, shared across the items by price · gift cards aren’t discounted
-          </p>
-          {value != null && (
-            <div className="max-w-xs">
-              <PickOrAdd
-                kind={DISCOUNT_REASON_LOOKUP_KIND}
-                value={reason}
-                onChange={onReason}
-                placeholder="Reason for the ticket discount"
-              />
-            </div>
-          )}
-        </>
+        <p className="text-xs text-slate-400">
+          0.1 = 10% off · 5 = $5 off, shared across the items by price · gift cards aren’t discounted
+        </p>
       )}
     </div>
   );
