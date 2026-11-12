@@ -27,8 +27,8 @@ export type SaleLinePayload = (
 ) & { price_reason?: string };
 
 export interface QuoteProblem {
-  /** 0-based position of the line on the ticket. */
-  line: number;
+  /** 0-based position of the line on the ticket; null for the whole ticket (its discount, the staff limit). */
+  line: number | null;
   message: string;
 }
 
@@ -85,11 +85,14 @@ export async function fetchSaleQuote(lines: SaleLineInput[], customerId: string 
   return parseSaleQuote(data as QuoteRow);
 }
 
-/** Each problem as "<line label>: <message>", in ticket order. */
+/** Each line's problem as "<line label>: <message>", in ticket order, then the whole ticket's. */
 export function quoteProblemMessages(problems: QuoteProblem[], lineLabels: string[]): string[] {
-  return [...problems]
+  const lineMessages = problems
+    .filter((p): p is QuoteProblem & { line: number } => p.line !== null)
     .sort((a, b) => a.line - b.line)
     .map((p) => `${lineLabels[p.line] ?? `Line ${p.line + 1}`}: ${p.message}`);
+  const ticketMessages = problems.filter((p) => p.line === null).map((p) => p.message);
+  return [...lineMessages, ...ticketMessages];
 }
 
 /**

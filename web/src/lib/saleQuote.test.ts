@@ -132,6 +132,18 @@ describe('quoteProblemMessages', () => {
   it('falls back to the line number when the label is missing', () => {
     expect(quoteProblemMessages([{ line: 4, message: 'Gone' }], [])).toEqual(['Line 5: Gone']);
   });
+
+  it('puts whole-ticket problems last, as they are', () => {
+    expect(
+      quoteProblemMessages(
+        [
+          { line: null, message: '25% off is over the staff limit of 20%: an admin must approve it' },
+          { line: 0, message: 'Discount: give a reason' },
+        ],
+        ['Overgrip'],
+      ),
+    ).toEqual(['Overgrip: Discount: give a reason', '25% off is over the staff limit of 20%: an admin must approve it']);
+  });
 });
 
 describe('quoteChangeNotice', () => {
