@@ -9,6 +9,8 @@ const person = (id: string, first: string): Customer => ({
   phone_number: null,
   email: null,
   is_active: true,
+  tax_exempt: false,
+  tax_exempt_id: null,
   created_at: '',
   updated_at: '',
 });

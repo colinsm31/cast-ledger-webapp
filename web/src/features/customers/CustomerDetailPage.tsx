@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase';
 import type { Customer, JsonValue, PurchaseHistoryRow, SaleLineKind } from '../../types/domain';
 import { customerName, stringingLineName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
+import { exemptionChanged, parseTaxExemption, taxExemptLabel } from '../../lib/taxExempt';
+import { TaxExemptFields } from './TaxExemptFields';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { formatPhone } from '../../lib/phone';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
@@ -151,6 +153,11 @@ export function CustomerDetailPage() {
           <p className="text-sm text-slate-500">
             {[customer.phone_number, customer.email].filter(Boolean).join(' · ') || '—'}
           </p>
+          {taxExemptLabel(customer) && (
+            <p className="mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+              {taxExemptLabel(customer)}
+            </p>
+          )}
         </div>
         <button
           onClick={() => setEditing(true)}
@@ -402,6 +409,8 @@ function EditCustomerForm({
   // The saved number as stored; it's only reformatted if it's edited.
   const [phone, setPhone] = useState(customer.phone_number ?? '');
   const [email, setEmail] = useState(customer.email ?? '');
+  const [taxExempt, setTaxExempt] = useState(customer.tax_exempt);
+  const [taxExemptId, setTaxExemptId] = useState(customer.tax_exempt_id ?? '');
   const [saving, setSaving] = useState(false);
 
   const inputClass =
@@ -410,6 +419,11 @@ function EditCustomerForm({
   async function save() {
     if (!firstName.trim() || !lastName.trim()) {
       onError('First and last name are required');
+      return;
+    }
+    const exemption = parseTaxExemption(taxExempt, taxExemptId);
+    if ('error' in exemption) {
+      onError(exemption.error);
       return;
     }
     onError(null);
@@ -421,6 +435,8 @@ function EditCustomerForm({
         last_name: lastName.trim(),
         phone_number: phone.trim() || null,
         email: email.trim() || null,
+        // Sent only when changed: the database lets only admins change it.
+        ...(exemptionChanged(customer, exemption) ? exemption : {}),
       })
       .eq('id', customer.id);
     setSaving(false);
@@ -440,6 +456,7 @@ function EditCustomerForm({
       </div>
       <input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} placeholder="(555)123-4567" className={inputClass} inputMode="tel" />
       <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className={inputClass} />
+      <TaxExemptFields exempt={taxExempt} exemptId={taxExemptId} onExempt={setTaxExempt} onExemptId={setTaxExemptId} />
       <div className="flex gap-2">
         <button
           onClick={() => void save()}

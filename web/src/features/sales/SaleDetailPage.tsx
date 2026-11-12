@@ -48,6 +48,7 @@ interface SaleDetail {
   rung_by: StaffRef | null;
   ticket_discount: number | null;
   ticket_discount_reason: string | null;
+  tax_exempt_id: string | null;
   discount_approver: StaffRef | null;
   sale_lines: SaleLineRaw[];
   sale_payments: Array<{ method: string; amount: number; check_number: string | null }>;
@@ -104,7 +105,7 @@ export function SaleDetailPage() {
         .from('sales')
         .select(
           [
-            'id, sold_at, subtotal, tax, payment_method, ticket_discount, ticket_discount_reason',
+            'id, sold_at, subtotal, tax, payment_method, ticket_discount, ticket_discount_reason, tax_exempt_id',
             'customers ( first_name, last_name )',
             'rung_by:profiles!sales_user_id_fkey ( email )',
             'discount_approver:profiles!sales_discount_approved_by_fkey ( email )',
@@ -216,6 +217,12 @@ export function SaleDetailPage() {
             <div className="flex justify-between text-sm text-slate-600">
               <span>Tax</span>
               <span className="font-medium text-slate-900">${Number(sale.tax).toFixed(2)}</span>
+            </div>
+          )}
+          {sale.tax_exempt_id && (
+            <div className="flex justify-between text-sm text-slate-600">
+              <span>Tax exempt · {sale.tax_exempt_id}</span>
+              <span className="font-medium text-slate-900">No tax</span>
             </div>
           )}
           <div className="flex justify-between border-t border-slate-100 pt-1">

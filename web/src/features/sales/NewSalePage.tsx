@@ -43,6 +43,7 @@ import { useScannerCapture } from '../scan/useScannerCapture';
 import { ScanFlowParams, withParams } from '../scan/scanFlow';
 import { PaymentScreen, type Tender } from './PaymentScreen';
 import { DiscountApprovalDialog } from './DiscountApprovalDialog';
+import { taxExemptLabel, taxRateFor } from '../../lib/taxExempt';
 import type { SaleDeliveryWarning } from './SaleDetailPage';
 import { decideJobLine, ownerWarnings, type TicketJob } from './ticketJobs';
 import { fetchTicketJob, fetchUnpaidOpenJobs } from './ticketJobQueries';
@@ -535,8 +536,9 @@ export function NewSalePage() {
     return { ticket: { discount: ticketDiscount, discountReason: ticketDiscountReason }, approvalId: approval };
   }
 
-  // Tax: products always taxed; stringing optionally; gift-card loads never.
-  const taxRate = settings?.tax_rate ?? 0;
+  // Tax: products always taxed; stringing optionally; gift-card loads never;
+  // nothing for a tax-exempt customer.
+  const taxRate = taxRateFor(settings?.tax_rate ?? 0, customer);
   const taxStringing = settings?.tax_stringing ?? false;
   // Discounts come off each item first (see lib/discounts); totals and tax
   // are worked out on what each item finally costs.
@@ -603,6 +605,14 @@ export function NewSalePage() {
       }
       if (nowMissing.length > 0) setError(nowMissing.join('\n'));
       if (synced.notices.length > 0 || nowMissing.length > 0) return;
+    }
+    // The customer's exemption changed while the ticket was open: show the new total first.
+    if (customer && fresh.taxExemptId !== (customer.tax_exempt ? customer.tax_exempt_id : null)) {
+      setCustomer({ ...customer, tax_exempt: fresh.taxExemptId != null, tax_exempt_id: fresh.taxExemptId });
+      setPriceNotice(
+        `${customerName(customer)}'s tax exemption changed, so the tax changed. Check the ticket, then press Payment Type again.`,
+      );
+      return;
     }
     if (fresh.problems.length > 0) {
       setError(
@@ -922,6 +932,12 @@ export function NewSalePage() {
           <div className="flex items-center justify-between text-sm text-slate-600">
             <span>Tax{taxRate ? ` (${taxRate}%)` : ''}</span>
             <span className="font-medium text-slate-900">${tax.toFixed(2)}</span>
+          </div>
+        )}
+        {taxExemptLabel(customer) && (
+          <div className="flex items-center justify-between text-sm text-slate-600">
+            <span>{taxExemptLabel(customer)}</span>
+            <span className="font-medium text-slate-900">No tax</span>
           </div>
         )}
         <div className="flex items-center justify-between border-t border-slate-100 pt-1">

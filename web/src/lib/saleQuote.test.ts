@@ -121,6 +121,7 @@ describe('parseSaleQuote', () => {
       listPrices: [],
       discountTotal: 0,
       maxDiscountPercent: 0,
+      taxExemptId: null,
     });
   });
 
@@ -155,6 +156,7 @@ describe('fetchSaleQuote', () => {
       listPrices: [],
       discountTotal: 0,
       maxDiscountPercent: 0,
+      taxExemptId: null,
     });
     expect(rpc).toHaveBeenCalledWith('quote_sale', {
       p_lines: [{ product_id: 'p1', qty: 1, unit_price: 20 }],
@@ -215,7 +217,7 @@ describe('quoteProblemMessages', () => {
 
 describe('quoteChangeNotice', () => {
   const shown = { subtotal: 20, tax: 1.65, total: 21.65 };
-  const quote = { subtotal: 20, tax: 1.65, taxRate: 8.25, total: 21.65, problems: [], listPrices: [], discountTotal: 0, maxDiscountPercent: 0 };
+  const quote = { subtotal: 20, tax: 1.65, taxRate: 8.25, total: 21.65, problems: [], listPrices: [], discountTotal: 0, maxDiscountPercent: 0, taxExemptId: null };
 
   it('says nothing when the server agrees with the ticket', () => {
     expect(quoteChangeNotice(shown, 8.25, quote)).toBeNull();

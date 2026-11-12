@@ -163,6 +163,9 @@ export interface Customer {
   phone_number: string | null;
   email: string | null;
   is_active: boolean;
+  /** Sales to them charge no tax (0058); only an admin can change it. */
+  tax_exempt: boolean;
+  tax_exempt_id: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -2,10 +2,10 @@
   "updated": "2026-11-12",
   "web": {
     "overall": {
-      "lines": 17.73,
-      "statements": 18.23,
-      "functions": 16.39,
-      "branches": 16.96
+      "lines": 17.88,
+      "statements": 18.43,
+      "functions": 16.68,
+      "branches": 17.24
     },
     "byFolder": {
       "src": {
@@ -42,7 +42,7 @@
         "lines": 3.41
       },
       "src/features/sales": {
-        "lines": 2.85
+        "lines": 2.83
       },
       "src/features/scan": {
         "lines": 37.78
@@ -51,7 +51,7 @@
         "lines": 13.37
       },
       "src/lib": {
-        "lines": 91.2
+        "lines": 91.42
       },
       "src/types": {
         "lines": 33.33
@@ -126,6 +126,9 @@
       },
       "src/features/customers/RestringPage.tsx": {
         "lines": 100
+      },
+      "src/features/customers/TaxExemptFields.tsx": {
+        "lines": 0
       },
       "src/features/home/ComingSoon.tsx": {
         "lines": 0
@@ -297,6 +300,9 @@
       },
       "src/lib/supabase.ts": {
         "lines": 0
+      },
+      "src/lib/taxExempt.ts": {
+        "lines": 100
       },
       "src/types/domain.ts": {
         "lines": 33.33

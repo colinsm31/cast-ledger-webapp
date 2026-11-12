@@ -62,6 +62,8 @@ export interface SaleQuote {
   discountTotal: number;
   /** How far below its catalog price the furthest item is, in percent. */
   maxDiscountPercent: number;
+  /** The customer's exemption ID when the sale is tax-exempt, else null. */
+  taxExemptId: string | null;
 }
 
 interface QuoteRow {
@@ -73,6 +75,7 @@ interface QuoteRow {
   lines?: { list_price: number | string | null }[] | null;
   discount_total?: number | string | null;
   max_discount_percent?: number | string | null;
+  tax_exempt_id?: string | null;
 }
 
 export function toSaleLinePayload(line: SaleLineInput): SaleLinePayload {
@@ -103,6 +106,7 @@ export function parseSaleQuote(row: QuoteRow): SaleQuote {
     listPrices: (row.lines ?? []).map((line) => (line.list_price == null ? null : Number(line.list_price))),
     discountTotal: Number(row.discount_total ?? 0),
     maxDiscountPercent: Number(row.max_discount_percent ?? 0),
+    taxExemptId: row.tax_exempt_id ?? null,
   };
 }
 
