@@ -63,6 +63,17 @@ describe('saving a held ticket', () => {
     expect(getHeldSale(undefined)).toBeNull();
   });
 
+  it('keeps line and ticket discounts with their reasons', () => {
+    const discounted: HeldSale = {
+      ...held,
+      lines: [{ ...held.lines[0], discount: '0.1', discountReason: 'Promotion' }],
+      ticketDiscount: '3',
+      ticketDiscountReason: 'Loyalty',
+    };
+    setHeldSale('staff-1', discounted);
+    expect(getHeldSale('staff-1')).toEqual(discounted);
+  });
+
   it("records who started it, whatever the ticket says", () => {
     setHeldSale('staff-2', held);
     expect(getHeldSale('staff-2')?.userId).toBe('staff-2');

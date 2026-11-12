@@ -11,6 +11,9 @@ export interface HeldCartLine {
   /** Missing on tickets held before list prices were kept. */
   listPrice?: number | null;
   priceReason?: string;
+  /** The line's discount box and reason, as typed. */
+  discount?: string;
+  discountReason?: string;
   qty: number;
 }
 
@@ -21,6 +24,9 @@ export interface HeldSale {
   customer: Customer | null;
   stringJobId: string | null;
   deliverAfter: boolean;
+  /** The whole ticket's discount box and reason, as typed. Missing on older tickets. */
+  ticketDiscount?: string;
+  ticketDiscountReason?: string;
 }
 
 // One saved ticket per staff member, so one person's ticket is never shown
