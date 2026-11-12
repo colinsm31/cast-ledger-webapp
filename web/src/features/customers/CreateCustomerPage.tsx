@@ -4,26 +4,13 @@ import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { formatPhone } from '../../lib/phone';
 import { parseTaxExemption } from '../../lib/taxExempt';
+import { newCustomerRow, splitName } from '../../lib/newCustomer';
 import { TaxExemptFields } from './TaxExemptFields';
 import { useBack } from '../../app/BackContext';
 import { ScanFlowParams, withParams } from '../scan/scanFlow';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-
-// Split a typed name into first/last for prefill. Handles "Last, First",
-// "First Last", or a single token (→ first name).
-function splitName(raw: string): { first: string; last: string } {
-  const s = raw.trim();
-  if (!s) return { first: '', last: '' };
-  if (s.includes(',')) {
-    const [last, first] = s.split(',');
-    return { first: (first ?? '').trim(), last: (last ?? '').trim() };
-  }
-  const parts = s.split(/\s+/);
-  if (parts.length === 1) return { first: parts[0], last: '' };
-  return { first: parts[0], last: parts.slice(1).join(' ') };
-}
 
 export function CreateCustomerPage() {
   const navigate = useNavigate();
@@ -42,8 +29,9 @@ export function CreateCustomerPage() {
   const [error, setError] = useState<string | null>(null);
 
   async function handleSave() {
-    if (!firstName.trim() || !lastName.trim()) {
-      setError('First and last name are required');
+    const row = newCustomerRow({ firstName, lastName, phone, email });
+    if ('error' in row) {
+      setError(row.error);
       return;
     }
     const exemption = parseTaxExemption(taxExempt, taxExemptId);
@@ -55,13 +43,7 @@ export function CreateCustomerPage() {
     setError(null);
     const { data, error: err } = await supabase
       .from('customers')
-      .insert({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        phone_number: phone.trim() || null,
-        email: email.trim() || null,
-        ...exemption,
-      })
+      .insert({ ...row, ...exemption })
       .select('id')
       .single();
     setSaving(false);

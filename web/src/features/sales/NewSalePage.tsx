@@ -5,6 +5,8 @@ import type { Customer } from '../../types/domain';
 import { customerName, customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { searchCustomers } from '../../lib/customerSearch';
+import { createCustomer, newCustomerFormFrom, newCustomerRow, type NewCustomerForm } from '../../lib/newCustomer';
+import { formatPhone } from '../../lib/phone';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
 import { useSettings } from '../../lib/settings';
 import { LoadError } from '../../components/LoadError';
@@ -1174,6 +1176,8 @@ function CustomerBar({
   const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState<Customer[]>([]);
+  // A new customer being added from here, without leaving the ticket.
+  const [newCustomer, setNewCustomer] = useState<NewCustomerForm | null>(null);
 
   useEffect(() => {
     const term = query.trim();
@@ -1226,6 +1230,21 @@ function CustomerBar({
     );
   }
 
+  if (newCustomer) {
+    return (
+      <InlineNewCustomer
+        form={newCustomer}
+        onChange={setNewCustomer}
+        onCancel={() => setNewCustomer(null)}
+        onCreated={(created) => {
+          onChange(created);
+          setNewCustomer(null);
+          setPicking(false);
+        }}
+      />
+    );
+  }
+
   return (
     <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between">
@@ -1268,6 +1287,102 @@ function CustomerBar({
           {matches.length === 0 && <li className="px-2 py-2 text-sm text-slate-500">No matches.</li>}
         </ul>
       )}
+      <button
+        onClick={() => setNewCustomer(newCustomerFormFrom(query))}
+        className="text-sm font-medium text-blue-600 hover:underline"
+      >
+        + New customer{query.trim() ? ` “${query.trim()}”` : ''}
+      </button>
+    </section>
+  );
+}
+
+// A customer created at the register: the essentials only, then attached to
+// the ticket. The rest (rackets, an exemption) is on their page later.
+function InlineNewCustomer({
+  form,
+  onChange,
+  onCancel,
+  onCreated,
+}: {
+  form: NewCustomerForm;
+  onChange: (form: NewCustomerForm) => void;
+  onCancel: () => void;
+  onCreated: (customer: Customer) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputClass =
+    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+
+  async function save() {
+    const row = newCustomerRow(form);
+    if ('error' in row) {
+      setError(row.error);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      onCreated(await createCustomer(row));
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+      <p className="text-xs font-medium text-slate-500">New customer</p>
+      <div className="flex gap-2">
+        <input
+          autoFocus
+          value={form.firstName}
+          onChange={(e) => onChange({ ...form, firstName: e.target.value })}
+          placeholder="First name *"
+          aria-label="First name"
+          className={inputClass}
+        />
+        <input
+          value={form.lastName}
+          onChange={(e) => onChange({ ...form, lastName: e.target.value })}
+          placeholder="Last name *"
+          aria-label="Last name"
+          className={inputClass}
+        />
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={form.phone}
+          onChange={(e) => onChange({ ...form, phone: formatPhone(e.target.value) })}
+          placeholder="(555)123-4567"
+          aria-label="Phone number"
+          inputMode="tel"
+          className={inputClass}
+        />
+        <input
+          value={form.email}
+          onChange={(e) => onChange({ ...form, email: e.target.value })}
+          placeholder="Email"
+          aria-label="Email"
+          inputMode="email"
+          className={inputClass}
+        />
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          onClick={() => void save()}
+          disabled={saving}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Add and attach'}
+        </button>
+        <button onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+          Back to search
+        </button>
+      </div>
     </section>
   );
 }
