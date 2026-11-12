@@ -2,10 +2,10 @@
   "updated": "2026-11-12",
   "web": {
     "overall": {
-      "lines": 19.41,
-      "statements": 19.95,
-      "functions": 19.21,
-      "branches": 19.79
+      "lines": 19.71,
+      "statements": 20.28,
+      "functions": 19.81,
+      "branches": 20.24
     },
     "byFolder": {
       "src": {
@@ -42,7 +42,7 @@
         "lines": 3.39
       },
       "src/features/sales": {
-        "lines": 3.87
+        "lines": 3.58
       },
       "src/features/scan": {
         "lines": 37.78
@@ -51,7 +51,7 @@
         "lines": 13.37
       },
       "src/lib": {
-        "lines": 89.83
+        "lines": 90.09
       },
       "src/types": {
         "lines": 33.33
@@ -184,6 +184,9 @@
       "src/features/sales/GiftCardLookupPage.tsx": {
         "lines": 0
       },
+      "src/features/sales/HeldTicketsPanel.tsx": {
+        "lines": 0
+      },
       "src/features/sales/NewSalePage.tsx": {
         "lines": 0
       },
@@ -268,6 +271,9 @@
       "src/lib/heldSale.ts": {
         "lines": 62.5
       },
+      "src/lib/heldTickets.ts": {
+        "lines": 93.54
+      },
       "src/lib/latestRequest.ts": {
         "lines": 100
       },
@@ -317,7 +323,7 @@
         "lines": 100
       },
       "src/lib/settings.ts": {
-        "lines": 66.66
+        "lines": 68.51
       },
       "src/lib/staff.ts": {
         "lines": 100

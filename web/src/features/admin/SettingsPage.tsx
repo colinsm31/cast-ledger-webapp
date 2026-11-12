@@ -115,6 +115,15 @@ export function SettingsPage() {
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-700">Register</h2>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-slate-500">Held tickets expire after (hours)</span>
+          <input value={form.heldTicketHours} onChange={(e) => update({ heldTicketHours: e.target.value })} inputMode="numeric" className={inputClass} placeholder="72" />
+        </label>
+        <p className="text-xs text-slate-400">A ticket put on hold is thrown away after this long if nobody recalls it.</p>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-700">Payments</h2>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={form.acceptChecks} onChange={(e) => update({ acceptChecks: e.target.checked })} />

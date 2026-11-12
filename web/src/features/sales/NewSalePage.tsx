@@ -46,6 +46,14 @@ import { ScanFlowParams, withParams } from '../scan/scanFlow';
 import { PaymentScreen, type Tender } from './PaymentScreen';
 import { DiscountApprovalDialog } from './DiscountApprovalDialog';
 import { ProductFinder, QuickPicks } from './ProductFinder';
+import { HeldTicketsPanel } from './HeldTicketsPanel';
+import {
+  currentListPrices,
+  defaultHoldName,
+  holdTicket,
+  recallHeldTicket,
+  type HeldTicketRow,
+} from '../../lib/heldTickets';
 import { taxExemptLabel, taxRateFor } from '../../lib/taxExempt';
 import type { SaleDeliveryWarning } from './SaleDetailPage';
 import { decideJobLine, ownerWarnings, type TicketJob } from './ticketJobs';
@@ -124,6 +132,11 @@ export function NewSalePage() {
   const [approving, setApproving] = useState(false);
   const [approvalId, setApprovalId] = useState<string | null>(null);
   const [finding, setFinding] = useState(false);
+  // Held tickets: the list, the name for the ticket being held, and what happened.
+  const [showHeld, setShowHeld] = useState(false);
+  const [holdName, setHoldName] = useState<string | null>(null);
+  const [holdBusy, setHoldBusy] = useState(false);
+  const [holdNotice, setHoldNotice] = useState<string | null>(null);
   const [gcForm, setGcForm] = useState(false);
   const [gcCode, setGcCode] = useState('');
   const [gcAmount, setGcAmount] = useState('');
@@ -666,6 +679,79 @@ export function NewSalePage() {
     setQuoteNotice(null);
   }
 
+  // Back to an empty register (the ticket was held, or another recalled over it).
+  function clearTicket() {
+    setLines([]);
+    setCustomer(null);
+    setJobCtx(null);
+    setTicketDiscount('');
+    setTicketDiscountReason('');
+    setTicketDiscountOpen(false);
+    setDiscountOpenKeys(new Set());
+    setApprovalId(null);
+    setError(null);
+    setPriceNotice(null);
+  }
+
+  async function holdCurrentTicket() {
+    const name = holdName?.trim();
+    if (!name) {
+      setError('Give the held ticket a name.');
+      return;
+    }
+    setHoldBusy(true);
+    try {
+      await holdTicket(name, customer?.id ?? null, {
+        lines,
+        stringJobId: jobCtx?.id ?? null,
+        deliverAfter: jobCtx?.deliver ?? false,
+        ticketDiscount,
+        ticketDiscountReason,
+      });
+      clearTicket();
+      setHoldName(null);
+      setHoldNotice(`“${name}” is on hold. Recall it from Held tickets at any register.`);
+      focusScan();
+    } catch (err) {
+      setError(`The ticket wasn't held: ${errorMessage(err)}`);
+    } finally {
+      setHoldBusy(false);
+    }
+  }
+
+  // Put a held ticket on this register, at today's prices.
+  async function recallTicket(row: HeldTicketRow) {
+    if (lines.length > 0) {
+      const ok = await confirm({
+        title: 'Replace this ticket?',
+        message: 'The ticket on screen will be thrown away. Hold it first to keep it.',
+        confirmLabel: 'Replace',
+        cancelLabel: 'Keep this ticket',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
+    setHoldNotice(null);
+    try {
+      const recalled = await recallHeldTicket(row.id);
+      const recalledLines = recalled.content.lines as CartLine[];
+      const synced = applyServerListPrices(recalledLines, await currentListPrices(recalledLines));
+      clearTicket();
+      setLines(synced.lines);
+      setCustomer(recalled.customer);
+      setJobCtx(recalled.content.stringJobId ? { id: recalled.content.stringJobId, deliver: recalled.content.deliverAfter } : null);
+      setTicketDiscount(recalled.content.ticketDiscount ?? '');
+      setTicketDiscountReason(recalled.content.ticketDiscountReason ?? '');
+      setTicketDiscountOpen(Boolean(recalled.content.ticketDiscount));
+      setDiscountOpenKeys(new Set(synced.lines.filter((line) => line.discount).map((line) => line.key)));
+      setShowHeld(false);
+      setHoldNotice(`Recalled “${recalled.name}”.`);
+      if (synced.notices.length > 0) setPriceNotice(`Prices changed while it was on hold: ${synced.notices.join(' ')}`);
+    } catch (err) {
+      setError(`The ticket couldn't be recalled: ${errorMessage(err)}`);
+    }
+  }
+
   async function cancelSale() {
     if (lines.length > 0) {
       const ok = await confirm({
@@ -752,10 +838,22 @@ export function NewSalePage() {
     <div className="max-w-2xl space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-slate-900">New sale</h1>
-        <button onClick={() => navigate('/sales')} className="text-sm text-blue-600 hover:underline">
-          Sales history
-        </button>
+        <div className="flex gap-4">
+          <button onClick={() => setShowHeld((open) => !open)} className="text-sm text-blue-600 hover:underline">
+            Held tickets
+          </button>
+          <button onClick={() => navigate('/sales')} className="text-sm text-blue-600 hover:underline">
+            Sales history
+          </button>
+        </div>
       </div>
+
+      {showHeld && <HeldTicketsPanel onRecall={(row) => void recallTicket(row)} onClose={() => setShowHeld(false)} />}
+      {holdNotice && (
+        <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          {holdNotice}
+        </p>
+      )}
 
       {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
 
@@ -1031,12 +1129,44 @@ export function NewSalePage() {
           {quoting ? 'Checking…' : `Payment Type · $${total.toFixed(2)}`}
         </button>
         <button
+          onClick={() => setHoldName(defaultHoldName(customer))}
+          disabled={lines.length === 0}
+          className="rounded-lg border border-slate-300 px-4 py-3 text-base font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        >
+          Hold
+        </button>
+        <button
           onClick={() => void cancelSale()}
           className="rounded-lg border border-red-300 px-4 py-3 text-base font-medium text-red-700 hover:bg-red-50"
         >
           Cancel Sale
         </button>
       </div>
+      {holdName !== null && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3">
+          <input
+            autoFocus
+            value={holdName}
+            onChange={(e) => setHoldName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void holdCurrentTicket();
+            }}
+            aria-label="Name for the held ticket"
+            maxLength={60}
+            className="min-w-[12rem] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <button
+            onClick={() => void holdCurrentTicket()}
+            disabled={holdBusy}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {holdBusy ? 'Holding…' : 'Hold ticket'}
+          </button>
+          <button onClick={() => setHoldName(null)} className="text-sm text-slate-500 hover:underline">
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -21,6 +21,7 @@ const saved: Settings = {
   shop_address: '12 Court St\nSpringfield',
   return_policy: null,
   receipt_footer: null,
+  held_ticket_hours: 72,
 };
 
 function form(changes: Partial<SettingsForm>): SettingsForm {
@@ -59,6 +60,15 @@ describe('parseSettingsForm', () => {
     expect(parseSettingsForm(form({ returnPolicy: 'x'.repeat(1001) }))).toEqual({
       error: 'Return policy: use at most 1000 characters.',
     });
+  });
+
+  it('keeps held tickets for 1 to 720 whole hours', () => {
+    for (const heldTicketHours of ['0', '721', '1.5', '', 'a day']) {
+      expect(parseSettingsForm(form({ heldTicketHours }))).toEqual({
+        error: 'Held tickets expire after: enter whole hours from 1 to 720 (30 days).',
+      });
+    }
+    expect(parseSettingsForm(form({ heldTicketHours: ' 24 ' }))).toHaveProperty('settings.held_ticket_hours', 24);
   });
 
   it('needs a staff discount limit from 0 to 100, to the hundredth', () => {
