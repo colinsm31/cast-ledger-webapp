@@ -43,6 +43,7 @@ import { useScannerCapture } from '../scan/useScannerCapture';
 import { ScanFlowParams, withParams } from '../scan/scanFlow';
 import { PaymentScreen, type Tender } from './PaymentScreen';
 import { DiscountApprovalDialog } from './DiscountApprovalDialog';
+import { ProductFinder, QuickPicks } from './ProductFinder';
 import { taxExemptLabel, taxRateFor } from '../../lib/taxExempt';
 import type { SaleDeliveryWarning } from './SaleDetailPage';
 import { decideJobLine, ownerWarnings, type TicketJob } from './ticketJobs';
@@ -120,6 +121,7 @@ export function NewSalePage() {
   const [approvalPercent, setApprovalPercent] = useState<number | null>(null);
   const [approving, setApproving] = useState(false);
   const [approvalId, setApprovalId] = useState<string | null>(null);
+  const [finding, setFinding] = useState(false);
   const [gcForm, setGcForm] = useState(false);
   const [gcCode, setGcCode] = useState('');
   const [gcAmount, setGcAmount] = useState('');
@@ -375,6 +377,13 @@ export function NewSalePage() {
 
   // Hardware scanner fired while focus was off the scan box.
   useScannerCapture((code) => void addByBarcode(code), scanRef);
+
+  // A product found by name or a quick pick: added like a scan, then back to scanning.
+  function pickProduct(p: ScannedProduct) {
+    setScanMsg(null);
+    addProduct(p);
+    focusScan();
+  }
 
   function addProduct(p: ScannedProduct) {
     // Serialized products are sold by scanning a specific unit, not the model.
@@ -771,6 +780,16 @@ export function NewSalePage() {
           </button>
           <button
             onClick={() => {
+              setFinding((v) => !v);
+              setScanMsg(null);
+            }}
+            aria-pressed={finding}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Find by name
+          </button>
+          <button
+            onClick={() => {
               setGcForm((v) => !v);
               setScanMsg(null);
             }}
@@ -779,6 +798,8 @@ export function NewSalePage() {
             Sell gift card
           </button>
         </div>
+        <ProductFinder open={finding} onPick={pickProduct} productLabel={productLabel} />
+        <QuickPicks onPick={pickProduct} />
         {gcForm && (
           <div className="flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
             <label className="flex-1 min-w-[10rem] space-y-1">

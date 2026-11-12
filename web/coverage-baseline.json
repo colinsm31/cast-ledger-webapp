@@ -4,8 +4,8 @@
     "overall": {
       "lines": 19.17,
       "statements": 19.64,
-      "functions": 19.16,
-      "branches": 19.25
+      "functions": 19.07,
+      "branches": 19.37
     },
     "byFolder": {
       "src": {
@@ -39,10 +39,10 @@
         "lines": 0
       },
       "src/features/products": {
-        "lines": 3.41
+        "lines": 3.39
       },
       "src/features/sales": {
-        "lines": 4.17
+        "lines": 3.98
       },
       "src/features/scan": {
         "lines": 37.78
@@ -51,7 +51,7 @@
         "lines": 13.37
       },
       "src/lib": {
-        "lines": 89.31
+        "lines": 89.53
       },
       "src/types": {
         "lines": 33.33
@@ -190,6 +190,9 @@
       "src/features/sales/PaymentScreen.tsx": {
         "lines": 0
       },
+      "src/features/sales/ProductFinder.tsx": {
+        "lines": 0
+      },
       "src/features/sales/ReceiptPage.tsx": {
         "lines": 0
       },
@@ -287,6 +290,9 @@
         "lines": 100
       },
       "src/lib/priceOverride.ts": {
+        "lines": 100
+      },
+      "src/lib/productSearch.ts": {
         "lines": 100
       },
       "src/lib/receipt.ts": {

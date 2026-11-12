@@ -46,6 +46,7 @@ export function ProductFormPage() {
   const [reorderPoint, setReorderPoint] = useState('');
   const [upc, setUpc] = useState(prefillUpc);
   const [sku, setSku] = useState('');
+  const [quickPick, setQuickPick] = useState(false);
   const [attrValues, setAttrValues] = useState<Record<string, string>>({});
 
   const [loading, setLoading] = useState(isEdit);
@@ -130,6 +131,7 @@ export function ProductFormPage() {
       setReorderPoint(p.reorder_point != null ? String(p.reorder_point) : '');
       setUpc(p.barcode ?? '');
       setSku(p.sku ?? '');
+      setQuickPick(p.quick_pick);
       const prefilled: Record<string, string> = {};
       for (const [key, value] of Object.entries(p.attributes ?? {})) {
         prefilled[key] = value == null ? '' : String(value);
@@ -183,6 +185,7 @@ export function ProductFormPage() {
       reorder_point: optionalNumber(reorderPoint),
       barcode: normalizeBarcode(upc) || null,
       sku: sku.trim() || null,
+      quick_pick: quickPick,
     };
 
     if (isEdit && productId) {
@@ -263,6 +266,11 @@ export function ProductFormPage() {
         <label className="block space-y-1">
           <span className="text-xs font-medium text-slate-500">Reorder point</span>
           <input value={reorderPoint} onChange={(e) => setReorderPoint(e.target.value)} className={inputClass} inputMode="numeric" />
+        </label>
+
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={quickPick} onChange={(e) => setQuickPick(e.target.checked)} />
+          Quick pick: show as a one-tap button at the register
         </label>
 
         <div className="flex gap-2">

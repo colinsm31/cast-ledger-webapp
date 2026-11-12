@@ -53,6 +53,8 @@ export interface Product {
   // stock is the count of in_stock units and each unit has its own barcode.
   is_serialized: boolean;
   is_active: boolean;
+  /** Shown as a one-tap button at the register (0060). */
+  quick_pick: boolean;
   created_at: string;
   updated_at: string;
 }
