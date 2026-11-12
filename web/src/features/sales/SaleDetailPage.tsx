@@ -144,6 +144,12 @@ export function SaleDetailPage() {
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
+          <Link
+            to={`/sales/${sale.id}/receipt`}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Print receipt
+          </Link>
           {canRefund && (
             <Link
               to={`/sales/${sale.id}/refund`}
