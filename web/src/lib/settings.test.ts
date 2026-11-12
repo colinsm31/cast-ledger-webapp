@@ -17,6 +17,10 @@ const saved: Settings = {
   week_starts_monday: false,
   accept_checks: false,
   staff_discount_cap: 20,
+  shop_name: 'Ace Racquets',
+  shop_address: '12 Court St\nSpringfield',
+  return_policy: null,
+  receipt_footer: null,
 };
 
 function form(changes: Partial<SettingsForm>): SettingsForm {
@@ -42,6 +46,18 @@ describe('parseSettingsForm', () => {
     }
     expect(parseSettingsForm(form({ taxRate: '8.2501' }))).toEqual({
       error: 'Sales tax rate: use at most 3 decimal places.',
+    });
+  });
+
+  it('trims the receipt text, saves blank as none, and limits its length', () => {
+    expect(parseSettingsForm(form({ shopName: '  Ace  ', receiptFooter: '   ' }))).toMatchObject({
+      settings: { shop_name: 'Ace', receipt_footer: null },
+    });
+    expect(parseSettingsForm(form({ shopName: 'x'.repeat(101) }))).toEqual({
+      error: 'Shop name: use at most 100 characters.',
+    });
+    expect(parseSettingsForm(form({ returnPolicy: 'x'.repeat(1001) }))).toEqual({
+      error: 'Return policy: use at most 1000 characters.',
     });
   });
 

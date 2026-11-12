@@ -2,10 +2,10 @@
   "updated": "2026-11-12",
   "web": {
     "overall": {
-      "lines": 17.88,
-      "statements": 18.43,
-      "functions": 16.68,
-      "branches": 17.24
+      "lines": 18.67,
+      "statements": 19.17,
+      "functions": 18.07,
+      "branches": 18.17
     },
     "byFolder": {
       "src": {
@@ -42,7 +42,7 @@
         "lines": 3.41
       },
       "src/features/sales": {
-        "lines": 2.83
+        "lines": 2.85
       },
       "src/features/scan": {
         "lines": 37.78
@@ -51,7 +51,7 @@
         "lines": 13.37
       },
       "src/lib": {
-        "lines": 91.42
+        "lines": 89.05
       },
       "src/types": {
         "lines": 33.33
@@ -283,6 +283,12 @@
       "src/lib/priceOverride.ts": {
         "lines": 100
       },
+      "src/lib/receipt.ts": {
+        "lines": 62.16
+      },
+      "src/lib/saleLines.ts": {
+        "lines": 75
+      },
       "src/lib/saleMath.ts": {
         "lines": 100
       },
@@ -293,7 +299,7 @@
         "lines": 100
       },
       "src/lib/settings.ts": {
-        "lines": 63.04
+        "lines": 66.66
       },
       "src/lib/staff.ts": {
         "lines": 100

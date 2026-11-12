@@ -139,6 +139,27 @@ export function SettingsPage() {
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-700">Receipts</h2>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-slate-500">Shop name</span>
+          <input value={form.shopName} onChange={(e) => update({ shopName: e.target.value })} className={inputClass} />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-slate-500">Address and phone (one line each)</span>
+          <textarea value={form.shopAddress} onChange={(e) => update({ shopAddress: e.target.value })} rows={3} className={inputClass} />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-slate-500">Return policy</span>
+          <textarea value={form.returnPolicy} onChange={(e) => update({ returnPolicy: e.target.value })} rows={3} className={inputClass} />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-slate-500">Footer</span>
+          <input value={form.receiptFooter} onChange={(e) => update({ receiptFooter: e.target.value })} className={inputClass} placeholder="Thanks for playing!" />
+        </label>
+        <p className="text-xs text-slate-400">Printed on every receipt. Leave a line empty to leave it off.</p>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-700">Reports</h2>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={form.weekStartsMonday} onChange={(e) => update({ weekStartsMonday: e.target.checked })} />
