@@ -11,6 +11,8 @@ export interface Settings {
   block_oversell: boolean;
   week_starts_monday: boolean;
   accept_checks: boolean;
+  /** Percent below catalog price staff can sell without an admin's approval. */
+  staff_discount_cap: number;
 }
 
 interface SettingsRow {
@@ -21,6 +23,7 @@ interface SettingsRow {
   block_oversell: boolean;
   week_starts_monday: boolean;
   accept_checks: boolean;
+  staff_discount_cap: number | string;
 }
 
 export const SETTINGS_LOAD_ERROR = "Couldn't load the shop settings";
@@ -40,6 +43,7 @@ export async function fetchSettings(): Promise<Settings> {
     block_oversell: r.block_oversell,
     week_starts_monday: r.week_starts_monday,
     accept_checks: r.accept_checks,
+    staff_discount_cap: Number(r.staff_discount_cap),
   };
 }
 
@@ -97,6 +101,7 @@ export interface SettingsForm {
   blockOversell: boolean;
   weekStartsMonday: boolean;
   acceptChecks: boolean;
+  staffDiscountCap: string;
 }
 
 const PLAIN_NUMBER = /^\d+(\.\d+)?$/;
@@ -115,6 +120,7 @@ export function settingsToForm(settings: Settings): SettingsForm {
     blockOversell: settings.block_oversell,
     weekStartsMonday: settings.week_starts_monday,
     acceptChecks: settings.accept_checks,
+    staffDiscountCap: String(settings.staff_discount_cap),
   };
 }
 
@@ -141,6 +147,14 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
     return { error: 'Default reorder point: enter a whole number, or leave it empty.' };
   }
 
+  const staffDiscountCap = form.staffDiscountCap.trim();
+  if (!PLAIN_NUMBER.test(staffDiscountCap) || Number(staffDiscountCap) > 100) {
+    return { error: 'Staff discount limit: enter a percent from 0 to 100, like 20.' };
+  }
+  if (decimals(staffDiscountCap) > 2) {
+    return { error: 'Staff discount limit: use at most 2 decimal places.' };
+  }
+
   return {
     settings: {
       tax_rate: Number(taxRate),
@@ -150,6 +164,7 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
       block_oversell: form.blockOversell,
       week_starts_monday: form.weekStartsMonday,
       accept_checks: form.acceptChecks,
+      staff_discount_cap: Number(staffDiscountCap),
     },
   };
 }

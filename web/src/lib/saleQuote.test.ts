@@ -10,6 +10,7 @@ const {
   quoteChangeNotice,
   quoteProblemMessages,
   toSaleLinePayload,
+  toTicketPayload,
 } = await import('./saleQuote');
 
 describe('toSaleLinePayload', () => {
@@ -66,6 +67,34 @@ describe('toSaleLinePayload price reasons', () => {
   });
 });
 
+describe('toSaleLinePayload discounts', () => {
+  it('sends the discount as a number, with its trimmed reason', () => {
+    expect(
+      toSaleLinePayload({ productId: 'p1', qty: 2, price: '20', discount: ' 0.1 ', discountReason: ' Promotion ' }),
+    ).toEqual({ product_id: 'p1', qty: 2, unit_price: 20, discount: 0.1, discount_reason: 'Promotion' });
+  });
+
+  it('leaves a blank or 0 discount, and its reason, off', () => {
+    expect(toSaleLinePayload({ productId: 'p1', qty: 1, price: '20', discount: '0', discountReason: 'Promotion' })).toEqual({
+      product_id: 'p1',
+      qty: 1,
+      unit_price: 20,
+    });
+  });
+});
+
+describe('toTicketPayload', () => {
+  it('is null without a ticket discount', () => {
+    expect(toTicketPayload(undefined)).toBeNull();
+    expect(toTicketPayload({ discount: '', discountReason: 'Loyalty' })).toBeNull();
+  });
+
+  it('sends the discount, and the reason when there is one', () => {
+    expect(toTicketPayload({ discount: '0.1' })).toEqual({ discount: 0.1 });
+    expect(toTicketPayload({ discount: '5', discountReason: 'Loyalty' })).toEqual({ discount: 5, discount_reason: 'Loyalty' });
+  });
+});
+
 describe('parseSaleQuote', () => {
   it("reads each line's list price, keeping none as null", () => {
     expect(
@@ -83,7 +112,30 @@ describe('parseSaleQuote', () => {
   it('turns the database numbers into numbers', () => {
     expect(
       parseSaleQuote({ subtotal: '20', tax: '1.80', tax_rate: '9.000', total: '21.80', problems: null }),
-    ).toEqual({ subtotal: 20, tax: 1.8, taxRate: 9, total: 21.8, problems: [], listPrices: [] });
+    ).toEqual({
+      subtotal: 20,
+      tax: 1.8,
+      taxRate: 9,
+      total: 21.8,
+      problems: [],
+      listPrices: [],
+      discountTotal: 0,
+      maxDiscountPercent: 0,
+      taxExemptId: null,
+    });
+  });
+
+  it('reads the discount total and the furthest discount', () => {
+    const quote = parseSaleQuote({
+      subtotal: 33,
+      tax: 2.72,
+      tax_rate: 8.25,
+      total: 35.72,
+      problems: [],
+      discount_total: '7.00',
+      max_discount_percent: '17.50',
+    });
+    expect([quote.discountTotal, quote.maxDiscountPercent]).toEqual([7, 17.5]);
   });
 });
 
@@ -102,11 +154,28 @@ describe('fetchSaleQuote', () => {
       total: 21.65,
       problems: [],
       listPrices: [],
+      discountTotal: 0,
+      maxDiscountPercent: 0,
+      taxExemptId: null,
     });
     expect(rpc).toHaveBeenCalledWith('quote_sale', {
       p_lines: [{ product_id: 'p1', qty: 1, unit_price: 20 }],
       p_customer_id: 'c1',
+      p_ticket: null,
+      p_approval_id: null,
     });
+  });
+
+  it('sends the ticket discount and the approval', async () => {
+    rpc.mockResolvedValue({ data: { subtotal: 0, tax: 0, tax_rate: 0, total: 0, problems: [] }, error: null });
+    await fetchSaleQuote([{ productId: 'p1', qty: 1, price: '20' }], null, {
+      ticket: { discount: '3', discountReason: ' Loyalty ' },
+      approvalId: 'a1',
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      'quote_sale',
+      expect.objectContaining({ p_ticket: { discount: 3, discount_reason: 'Loyalty' }, p_approval_id: 'a1' }),
+    );
   });
 
   it('passes a failure on', async () => {
@@ -132,11 +201,23 @@ describe('quoteProblemMessages', () => {
   it('falls back to the line number when the label is missing', () => {
     expect(quoteProblemMessages([{ line: 4, message: 'Gone' }], [])).toEqual(['Line 5: Gone']);
   });
+
+  it('puts whole-ticket problems last, as they are', () => {
+    expect(
+      quoteProblemMessages(
+        [
+          { line: null, message: '25% off is over the staff limit of 20%: an admin must approve it' },
+          { line: 0, message: 'Discount: give a reason' },
+        ],
+        ['Overgrip'],
+      ),
+    ).toEqual(['Overgrip: Discount: give a reason', '25% off is over the staff limit of 20%: an admin must approve it']);
+  });
 });
 
 describe('quoteChangeNotice', () => {
   const shown = { subtotal: 20, tax: 1.65, total: 21.65 };
-  const quote = { subtotal: 20, tax: 1.65, taxRate: 8.25, total: 21.65, problems: [], listPrices: [] };
+  const quote = { subtotal: 20, tax: 1.65, taxRate: 8.25, total: 21.65, problems: [], listPrices: [], discountTotal: 0, maxDiscountPercent: 0, taxExemptId: null };
 
   it('says nothing when the server agrees with the ticket', () => {
     expect(quoteChangeNotice(shown, 8.25, quote)).toBeNull();

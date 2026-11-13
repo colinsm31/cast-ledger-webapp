@@ -127,6 +127,18 @@ export function SettingsPage() {
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-700">Discounts</h2>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-slate-500">Staff discount limit (%)</span>
+          <input value={form.staffDiscountCap} onChange={(e) => update({ staffDiscountCap: e.target.value })} inputMode="decimal" className={inputClass} placeholder="20" />
+        </label>
+        <p className="text-xs text-slate-400">
+          How far below catalog price staff can sell an item, counting price changes and discounts together. Going
+          further needs an admin to approve it at the register. Admins have no limit.
+        </p>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-700">Reports</h2>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={form.weekStartsMonday} onChange={(e) => update({ weekStartsMonday: e.target.checked })} />

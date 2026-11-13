@@ -16,6 +16,7 @@ const saved: Settings = {
   block_oversell: true,
   week_starts_monday: false,
   accept_checks: false,
+  staff_discount_cap: 20,
 };
 
 function form(changes: Partial<SettingsForm>): SettingsForm {
@@ -44,6 +45,19 @@ describe('parseSettingsForm', () => {
     });
   });
 
+  it('needs a staff discount limit from 0 to 100, to the hundredth', () => {
+    for (const staffDiscountCap of ['', '20%', '-5', '100.5']) {
+      expect(parseSettingsForm(form({ staffDiscountCap }))).toEqual({
+        error: 'Staff discount limit: enter a percent from 0 to 100, like 20.',
+      });
+    }
+    expect(parseSettingsForm(form({ staffDiscountCap: '12.505' }))).toEqual({
+      error: 'Staff discount limit: use at most 2 decimal places.',
+    });
+    expect(parseSettingsForm(form({ staffDiscountCap: ' 0 ' }))).toHaveProperty('settings.staff_discount_cap', 0);
+    expect(parseSettingsForm(form({ staffDiscountCap: '100' }))).toHaveProperty('settings.staff_discount_cap', 100);
+  });
+
   it('needs a labor charge in whole cents, 0 for none', () => {
     expect(parseSettingsForm(form({ stringingLabor: '' }))).toHaveProperty('error');
     expect(parseSettingsForm(form({ stringingLabor: '$18' }))).toHaveProperty('error');
@@ -66,7 +80,7 @@ describe('parseSettingsForm', () => {
 describe('fetchSettings', () => {
   it('reads the settings row, with numbers as numbers', async () => {
     result = {
-      data: { ...saved, tax_rate: '8.250', stringing_labor: '18.00', default_reorder_point: null },
+      data: { ...saved, tax_rate: '8.250', stringing_labor: '18.00', default_reorder_point: null, staff_discount_cap: '20.00' },
       error: null,
     };
     await expect(fetchSettings()).resolves.toEqual({ ...saved, default_reorder_point: null });

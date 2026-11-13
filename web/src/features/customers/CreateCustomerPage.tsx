@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { formatPhone } from '../../lib/phone';
+import { parseTaxExemption } from '../../lib/taxExempt';
+import { TaxExemptFields } from './TaxExemptFields';
 import { useBack } from '../../app/BackContext';
 import { ScanFlowParams, withParams } from '../scan/scanFlow';
 
@@ -34,12 +36,19 @@ export function CreateCustomerPage() {
   const [lastName, setLastName] = useState(prefill.last);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [taxExempt, setTaxExempt] = useState(false);
+  const [taxExemptId, setTaxExemptId] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSave() {
     if (!firstName.trim() || !lastName.trim()) {
       setError('First and last name are required');
+      return;
+    }
+    const exemption = parseTaxExemption(taxExempt, taxExemptId);
+    if ('error' in exemption) {
+      setError(exemption.error);
       return;
     }
     setSaving(true);
@@ -51,6 +60,7 @@ export function CreateCustomerPage() {
         last_name: lastName.trim(),
         phone_number: phone.trim() || null,
         email: email.trim() || null,
+        ...exemption,
       })
       .select('id')
       .single();
@@ -87,6 +97,7 @@ export function CreateCustomerPage() {
         <Field label="Email">
           <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} inputMode="email" />
         </Field>
+        <TaxExemptFields exempt={taxExempt} exemptId={taxExemptId} onExempt={setTaxExempt} onExemptId={setTaxExemptId} />
       </section>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

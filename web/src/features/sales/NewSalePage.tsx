@@ -8,15 +8,24 @@ import { searchCustomers } from '../../lib/customerSearch';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
 import { useSettings } from '../../lib/settings';
 import { LoadError } from '../../components/LoadError';
-import { computeSaleTotals, fromCents, lineTotalCents } from '../../lib/saleMath';
+import { computeSaleTotals, fromCents, lineTotalCents, toCents } from '../../lib/saleMath';
 import {
   fetchSaleQuote,
   isTotalMismatchError,
   quoteChangeNotice,
   quoteProblemMessages,
-  toSaleLinePayload,
+  saleQuoteArgs,
   type SaleQuote,
+  type SaleQuoteOptions,
 } from '../../lib/saleQuote';
+import {
+  applyDiscounts,
+  describeDiscount,
+  discountProblems,
+  discountValue,
+  DISCOUNT_REASON_LOOKUP_KIND,
+  isApprovalProblem,
+} from '../../lib/discounts';
 import {
   applyServerListPrices,
   isPriceChanged,
@@ -33,6 +42,8 @@ import { resolveBarcode, type ScannedProduct } from '../scan/resolveBarcode';
 import { useScannerCapture } from '../scan/useScannerCapture';
 import { ScanFlowParams, withParams } from '../scan/scanFlow';
 import { PaymentScreen, type Tender } from './PaymentScreen';
+import { DiscountApprovalDialog } from './DiscountApprovalDialog';
+import { taxExemptLabel, taxRateFor } from '../../lib/taxExempt';
 import type { SaleDeliveryWarning } from './SaleDetailPage';
 import { decideJobLine, ownerWarnings, type TicketJob } from './ticketJobs';
 import { fetchTicketJob, fetchUnpaidOpenJobs } from './ticketJobQueries';
@@ -57,6 +68,9 @@ interface CartLine {
   // and why the price was changed from it.
   listPrice?: number | null;
   priceReason?: string;
+  // The line's discount box (see lib/discounts) and why it was given.
+  discount?: string;
+  discountReason?: string;
   qty: number;
 }
 
@@ -70,7 +84,7 @@ function productLabel(p: ScannedProduct): string {
 export function NewSalePage() {
   const navigate = useNavigate();
   const { confirm } = useDialog();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { settings, error: settingsError, reload: reloadSettings } = useSettings();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -95,6 +109,17 @@ export function NewSalePage() {
   const [paymentKey, setPaymentKey] = useState(0);
   // Catalog prices that changed while the ticket was open.
   const [priceNotice, setPriceNotice] = useState<string | null>(null);
+  // The whole ticket's discount box and reason, as typed.
+  const [ticketDiscount, setTicketDiscount] = useState('');
+  const [ticketDiscountReason, setTicketDiscountReason] = useState('');
+  // Lines whose discount box is open, and whether the ticket's is.
+  const [discountOpenKeys, setDiscountOpenKeys] = useState<Set<string>>(() => new Set());
+  const [ticketDiscountOpen, setTicketDiscountOpen] = useState(false);
+  // Discounts over the staff limit: the percent an admin must approve (the
+  // button shows while set), the dialog, and the approval once given.
+  const [approvalPercent, setApprovalPercent] = useState<number | null>(null);
+  const [approving, setApproving] = useState(false);
+  const [approvalId, setApprovalId] = useState<string | null>(null);
   const [gcForm, setGcForm] = useState(false);
   const [gcCode, setGcCode] = useState('');
   const [gcAmount, setGcAmount] = useState('');
@@ -119,6 +144,10 @@ export function NewSalePage() {
     setLines(heldLines);
     setCustomer(heldCustomer);
     setJobCtx(held?.stringJobId ? { id: held.stringJobId, deliver: held.deliverAfter } : null);
+    setTicketDiscount(held?.ticketDiscount ?? '');
+    setTicketDiscountReason(held?.ticketDiscountReason ?? '');
+    setTicketDiscountOpen(Boolean(held?.ticketDiscount));
+    setDiscountOpenKeys(new Set(heldLines.filter((line) => line.discount).map((line) => line.key)));
     setRestored(true);
     return { lines: heldLines, customer: heldCustomer };
   }
@@ -208,10 +237,23 @@ export function NewSalePage() {
     setHeldSale(
       user.id,
       lines.length > 0
-        ? { userId: user.id, lines, customer, stringJobId: jobCtx?.id ?? null, deliverAfter: jobCtx?.deliver ?? false }
+        ? {
+            userId: user.id,
+            lines,
+            customer,
+            stringJobId: jobCtx?.id ?? null,
+            deliverAfter: jobCtx?.deliver ?? false,
+            ticketDiscount,
+            ticketDiscountReason,
+          }
         : null,
     );
-  }, [restored, lines, customer, jobCtx, user]);
+  }, [restored, lines, customer, jobCtx, user, ticketDiscount, ticketDiscountReason]);
+
+  // A changed ticket needs checking again before an admin approves it.
+  useEffect(() => {
+    setApprovalPercent(null);
+  }, [lines, ticketDiscount, customer]);
 
   // Arrived with a product to ring up — from a home-screen scan ("Sell this
   // item") or back from the product form after creating one. The ticket has
@@ -465,23 +507,52 @@ export function NewSalePage() {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, qty } : l)));
   }
 
-  function setPrice(key: string, price: string) {
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, price } : l)));
+  function updateLine(key: string, changes: Partial<CartLine>) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...changes } : l)));
   }
 
-  function setPriceReason(key: string, priceReason: string) {
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, priceReason } : l)));
+  function toggleLineDiscount(key: string) {
+    const open = discountOpenKeys.has(key);
+    setDiscountOpenKeys((prev) => {
+      const next = new Set(prev);
+      if (open) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+    // Closing the box takes the discount off.
+    if (open) updateLine(key, { discount: '', discountReason: '' });
   }
 
-  // Tax: products always taxed; stringing optionally; gift-card loads never.
-  const taxRate = settings?.tax_rate ?? 0;
+  function toggleTicketDiscount() {
+    if (ticketDiscountOpen) {
+      setTicketDiscount('');
+      setTicketDiscountReason('');
+    }
+    setTicketDiscountOpen((open) => !open);
+  }
+
+  // What quote_sale and record_sale take besides the lines and customer.
+  function quoteOptions(approval: string | null = approvalId): SaleQuoteOptions {
+    return { ticket: { discount: ticketDiscount, discountReason: ticketDiscountReason }, approvalId: approval };
+  }
+
+  // Tax: products always taxed; stringing optionally; gift-card loads never;
+  // nothing for a tax-exempt customer.
+  const taxRate = taxRateFor(settings?.tax_rate ?? 0, customer);
   const taxStringing = settings?.tax_stringing ?? false;
+  // Discounts come off each item first (see lib/discounts); totals and tax
+  // are worked out on what each item finally costs.
+  const discounted = useMemo(() => applyDiscounts(lines, ticketDiscount), [lines, ticketDiscount]);
   const { subtotal, tax, total } = useMemo(
-    () => computeSaleTotals(lines, { taxRate, taxStringing }),
-    [lines, taxRate, taxStringing],
+    () =>
+      computeSaleTotals(
+        lines.map((line, index) => ({ ...line, price: discounted.lines[index].price })),
+        { taxRate, taxStringing },
+      ),
+    [lines, discounted, taxRate, taxStringing],
   );
 
-  async function openPayment() {
+  async function openPayment(approval: string | null = approvalId) {
     // Without the settings the tax, and so the total, isn't known.
     if (!settings) {
       setError(settingsError ?? 'The shop settings are still loading.');
@@ -501,17 +572,21 @@ export function NewSalePage() {
         return;
       }
     }
-    const missingReasons = missingPriceReasons(lines);
+    const missingReasons = [
+      ...missingPriceReasons(lines),
+      ...discountProblems(lines, { discount: ticketDiscount, discountReason: ticketDiscountReason }),
+    ];
     if (missingReasons.length > 0) {
       setError(missingReasons.join('\n'));
       return;
     }
     setError(null);
     setPriceNotice(null);
+    setApprovalPercent(null);
     setQuoting(true);
     let fresh: SaleQuote;
     try {
-      fresh = await fetchSaleQuote(lines, customer?.id ?? null);
+      fresh = await fetchSaleQuote(lines, customer?.id ?? null, quoteOptions(approval));
     } catch (err) {
       setError(`Couldn't check the total with the server: ${errorMessage(err)}`);
       return;
@@ -531,6 +606,14 @@ export function NewSalePage() {
       if (nowMissing.length > 0) setError(nowMissing.join('\n'));
       if (synced.notices.length > 0 || nowMissing.length > 0) return;
     }
+    // The customer's exemption changed while the ticket was open: show the new total first.
+    if (customer && fresh.taxExemptId !== (customer.tax_exempt ? customer.tax_exempt_id : null)) {
+      setCustomer({ ...customer, tax_exempt: fresh.taxExemptId != null, tax_exempt_id: fresh.taxExemptId });
+      setPriceNotice(
+        `${customerName(customer)}'s tax exemption changed, so the tax changed. Check the ticket, then press Payment Type again.`,
+      );
+      return;
+    }
     if (fresh.problems.length > 0) {
       setError(
         quoteProblemMessages(
@@ -538,6 +621,8 @@ export function NewSalePage() {
           lines.map((l) => l.label),
         ).join('\n'),
       );
+      // Only the staff limit stands in the way: offer an admin's approval.
+      if (!isAdmin && fresh.problems.every(isApprovalProblem)) setApprovalPercent(fresh.maxDiscountPercent);
       return;
     }
     const notice = quoteChangeNotice({ subtotal, tax, total }, taxRate, fresh);
@@ -551,7 +636,7 @@ export function NewSalePage() {
   // quote: get a fresh one and start the payment again at the new amount.
   async function requote() {
     try {
-      const fresh = await fetchSaleQuote(lines, customer?.id ?? null);
+      const fresh = await fetchSaleQuote(lines, customer?.id ?? null, quoteOptions());
       setQuote(fresh);
       setQuoteNotice(
         `The total changed while payment was being taken: it's now $${fresh.total.toFixed(2)}. Take payment again.`,
@@ -589,8 +674,7 @@ export function NewSalePage() {
     setSaving(true);
     setError(null);
     const { data, error: err } = await supabase.rpc('record_sale', {
-      p_lines: lines.map(toSaleLinePayload),
-      p_customer_id: customer?.id ?? null,
+      ...saleQuoteArgs(lines, customer?.id ?? null, quoteOptions()),
       p_payments: tenders.map((t) => ({
         method: t.method,
         amount: t.amount,
@@ -603,6 +687,13 @@ export function NewSalePage() {
       setSaving(false);
       if (isTotalMismatchError(err)) {
         await requote();
+        return;
+      }
+      if (isApprovalProblem({ line: null, message: errorMessage(err) })) {
+        // The approval expired or was used elsewhere: back to the ticket to ask again.
+        setApprovalId(null);
+        closePayment();
+        await openPayment(null);
         return;
       }
       if (isPriceReasonError(err)) {
@@ -740,7 +831,7 @@ export function NewSalePage() {
           <p className="p-6 text-center text-sm text-slate-500">Scan an item to add it to the ticket.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {lines.map((l) => (
+            {lines.map((l, index) => (
               <li key={l.key} className="flex items-center gap-3 p-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-slate-900">{l.label}</p>
@@ -748,7 +839,7 @@ export function NewSalePage() {
                     <span>$</span>
                     <input
                       value={l.price}
-                      onChange={(e) => setPrice(l.key, e.target.value)}
+                      onChange={(e) => updateLine(l.key, { price: e.target.value })}
                       inputMode="decimal"
                       className="w-20 rounded border border-slate-300 px-2 py-0.5 text-sm"
                     />
@@ -762,10 +853,22 @@ export function NewSalePage() {
                       <PickOrAdd
                         kind={PRICE_REASON_LOOKUP_KIND}
                         value={l.priceReason ?? ''}
-                        onChange={(reason) => setPriceReason(l.key, reason)}
+                        onChange={(reason) => updateLine(l.key, { priceReason: reason })}
                         placeholder="Reason for the price change"
                       />
                     </div>
+                  )}
+                  {!l.giftCardId && (
+                    <LineDiscount
+                      open={discountOpenKeys.has(l.key)}
+                      discount={l.discount ?? ''}
+                      reason={l.discountReason ?? ''}
+                      discountedPrice={discounted.lines[index].price}
+                      undiscountedPrice={String(l.price)}
+                      onToggle={() => toggleLineDiscount(l.key)}
+                      onDiscount={(discount) => updateLine(l.key, { discount })}
+                      onReason={(reason) => updateLine(l.key, { discountReason: reason })}
+                    />
                   )}
                 </div>
                 <div className="flex items-center gap-1">
@@ -792,7 +895,7 @@ export function NewSalePage() {
                   )}
                 </div>
                 <div className="w-20 text-right text-sm font-semibold text-slate-900">
-                  ${fromCents(lineTotalCents(l)).toFixed(2)}
+                  ${fromCents(lineTotalCents({ ...l, price: discounted.lines[index].price })).toFixed(2)}
                 </div>
                 <button onClick={() => setQty(l.key, 0)} className="text-xs text-red-600 hover:underline">
                   Remove
@@ -805,6 +908,22 @@ export function NewSalePage() {
 
       {/* Totals */}
       <section className="space-y-1 rounded-xl border border-slate-200 bg-white p-4">
+        {lines.some((l) => !l.giftCardId) && (
+          <TicketDiscount
+            open={ticketDiscountOpen}
+            discount={ticketDiscount}
+            reason={ticketDiscountReason}
+            onToggle={toggleTicketDiscount}
+            onDiscount={setTicketDiscount}
+            onReason={setTicketDiscountReason}
+          />
+        )}
+        {discounted.discountCents > 0 && (
+          <div className="flex items-center justify-between text-sm text-slate-600">
+            <span>Discounts</span>
+            <span className="font-medium text-green-700">−${fromCents(discounted.discountCents).toFixed(2)}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between text-sm text-slate-600">
           <span>Subtotal</span>
           <span className="font-medium text-slate-900">${subtotal.toFixed(2)}</span>
@@ -813,6 +932,12 @@ export function NewSalePage() {
           <div className="flex items-center justify-between text-sm text-slate-600">
             <span>Tax{taxRate ? ` (${taxRate}%)` : ''}</span>
             <span className="font-medium text-slate-900">${tax.toFixed(2)}</span>
+          </div>
+        )}
+        {taxExemptLabel(customer) && (
+          <div className="flex items-center justify-between text-sm text-slate-600">
+            <span>{taxExemptLabel(customer)}</span>
+            <span className="font-medium text-slate-900">No tax</span>
           </div>
         )}
         <div className="flex items-center justify-between border-t border-slate-100 pt-1">
@@ -852,6 +977,27 @@ export function NewSalePage() {
       )}
 
       {error && <p className="whitespace-pre-line text-sm text-red-600">{error}</p>}
+      {discounted.error && !error && <p className="text-sm text-red-600">{discounted.error}.</p>}
+      {approvalPercent != null && (
+        <button
+          onClick={() => setApproving(true)}
+          className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+        >
+          Ask an admin to approve {approvalPercent}% off
+        </button>
+      )}
+      {approving && approvalPercent != null && (
+        <DiscountApprovalDialog
+          percent={approvalPercent}
+          staffLimit={settings?.staff_discount_cap ?? null}
+          onCancel={() => setApproving(false)}
+          onApproved={(id) => {
+            setApproving(false);
+            setApprovalId(id);
+            void openPayment(id);
+          }}
+        />
+      )}
 
       <div className="flex gap-2">
         <button
@@ -868,6 +1014,129 @@ export function NewSalePage() {
           Cancel Sale
         </button>
       </div>
+    </div>
+  );
+}
+
+// A line's discount: a link that opens the box, what the number means, the
+// price after it, and the reason.
+function LineDiscount({
+  open,
+  discount,
+  reason,
+  discountedPrice,
+  undiscountedPrice,
+  onToggle,
+  onDiscount,
+  onReason,
+}: {
+  open: boolean;
+  discount: string;
+  reason: string;
+  discountedPrice: string;
+  undiscountedPrice: string;
+  onToggle: () => void;
+  onDiscount: (discount: string) => void;
+  onReason: (reason: string) => void;
+}) {
+  const value = discountValue(discount);
+  const priceMoved = toCents(discountedPrice) !== toCents(undiscountedPrice);
+  return (
+    <div className="mt-1 space-y-1 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={onToggle} className="text-xs text-blue-600 hover:underline">
+          {open ? 'Remove discount' : 'Discount'}
+        </button>
+        {open && (
+          <>
+            <input
+              autoFocus
+              value={discount}
+              onChange={(e) => onDiscount(e.target.value)}
+              inputMode="decimal"
+              placeholder="0.1 or 3"
+              aria-label="Discount"
+              className="w-20 rounded border border-slate-300 px-2 py-0.5 text-sm"
+            />
+            {value != null && <span className="text-xs text-green-700">{describeDiscount(value)}</span>}
+          </>
+        )}
+        {priceMoved && <span className="text-xs text-slate-500">→ ${discountedPrice} each</span>}
+      </div>
+      {open && (
+        <>
+          <p className="text-xs text-slate-400">0.25 = 25% off · 3 = $3 off each · 1 = 100% off</p>
+          {value != null && (
+            <div className="max-w-xs">
+              <PickOrAdd
+                kind={DISCOUNT_REASON_LOOKUP_KIND}
+                value={reason}
+                onChange={onReason}
+                placeholder="Reason for the discount"
+              />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// The whole ticket's discount, in the totals.
+function TicketDiscount({
+  open,
+  discount,
+  reason,
+  onToggle,
+  onDiscount,
+  onReason,
+}: {
+  open: boolean;
+  discount: string;
+  reason: string;
+  onToggle: () => void;
+  onDiscount: (discount: string) => void;
+  onReason: (reason: string) => void;
+}) {
+  const value = discountValue(discount);
+  return (
+    <div className="space-y-1 pb-1 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={onToggle} className="text-xs text-blue-600 hover:underline">
+          {open ? 'Remove ticket discount' : 'Discount the whole ticket'}
+        </button>
+        {open && (
+          <>
+            <input
+              autoFocus
+              value={discount}
+              onChange={(e) => onDiscount(e.target.value)}
+              inputMode="decimal"
+              placeholder="0.1 or 5"
+              aria-label="Ticket discount"
+              className="w-20 rounded border border-slate-300 px-2 py-0.5 text-sm"
+            />
+            {value != null && <span className="text-xs text-green-700">{describeDiscount(value, 'the ticket')}</span>}
+          </>
+        )}
+      </div>
+      {open && (
+        <>
+          <p className="text-xs text-slate-400">
+            0.1 = 10% off · 5 = $5 off, shared across the items by price · gift cards aren’t discounted
+          </p>
+          {value != null && (
+            <div className="max-w-xs">
+              <PickOrAdd
+                kind={DISCOUNT_REASON_LOOKUP_KIND}
+                value={reason}
+                onChange={onReason}
+                placeholder="Reason for the ticket discount"
+              />
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

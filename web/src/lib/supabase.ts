@@ -15,7 +15,7 @@ export const isSupabaseConfigured = Boolean(url && anonKey);
 
 // Falls back to placeholders when unconfigured so the module still imports;
 // the app routes to a "setup needed" screen instead of crashing.
-export const supabase = createClient(
-  url ?? 'https://placeholder.supabase.co',
-  anonKey ?? 'placeholder-anon-key',
-);
+export const supabaseUrl = url ?? 'https://placeholder.supabase.co';
+export const supabaseAnonKey = anonKey ?? 'placeholder-anon-key';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);

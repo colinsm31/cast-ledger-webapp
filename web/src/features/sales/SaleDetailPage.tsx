@@ -10,7 +10,9 @@ import { useBack } from '../../app/BackContext';
 import { staffLabel, type StaffRef } from '../../lib/staff';
 import { hasReturnable, returnedItemsLabel } from './returnable';
 import { priceChangeNote } from '../../lib/priceOverride';
+import { savedDiscountCents, savedDiscountNote, savedTicketDiscountNote } from '../../lib/discounts';
 import { paymentLabel } from '../../lib/paymentMethods';
+import { fromCents } from '../../lib/saleMath';
 
 /** Passed by the register when a sale went through but delivering its racquet failed. */
 export interface SaleDeliveryWarning {
@@ -27,6 +29,10 @@ interface SaleLineRaw {
   unit_price: number;
   list_price: number | null;
   price_reason: string | null;
+  price_before_discount: number | null;
+  line_discount: number | null;
+  ticket_discount_each: number | null;
+  discount_reason: string | null;
   kind: SaleLineKind;
   products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
   gift_cards: { code: string } | null;
@@ -40,6 +46,10 @@ interface SaleDetail {
   payment_method: string | null;
   customers: { first_name: string; last_name: string } | null;
   rung_by: StaffRef | null;
+  ticket_discount: number | null;
+  ticket_discount_reason: string | null;
+  tax_exempt_id: string | null;
+  discount_approver: StaffRef | null;
   sale_lines: SaleLineRaw[];
   sale_payments: Array<{ method: string; amount: number; check_number: string | null }>;
   refunds: Array<{
@@ -95,10 +105,11 @@ export function SaleDetailPage() {
         .from('sales')
         .select(
           [
-            'id, sold_at, subtotal, tax, payment_method',
+            'id, sold_at, subtotal, tax, payment_method, ticket_discount, ticket_discount_reason, tax_exempt_id',
             'customers ( first_name, last_name )',
             'rung_by:profiles!sales_user_id_fkey ( email )',
-            'sale_lines ( id, product_id, product_unit_id, qty, unit_price, list_price, price_reason, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
+            'discount_approver:profiles!sales_discount_approved_by_fkey ( email )',
+            'sale_lines ( id, product_id, product_unit_id, qty, unit_price, list_price, price_reason, price_before_discount, line_discount, ticket_discount_each, discount_reason, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
             'sale_payments ( method, amount, check_number )',
             'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( sale_line_id, qty ), refund_payments ( method, check_number ) )',
           ].join(', '),
@@ -115,6 +126,7 @@ export function SaleDetailPage() {
   if (!sale) return <Spinner label="Loading…" />;
 
   const refundedTotal = sale.refunds.reduce((s, r) => s + Number(r.subtotal) + Number(r.tax), 0);
+  const discountCents = savedDiscountCents(sale.sale_lines);
   const canRefund = hasReturnable(sale.sale_lines, sale.refunds.flatMap((r) => r.refund_lines));
 
   return (
@@ -168,11 +180,12 @@ export function SaleDetailPage() {
                 <p className="text-xs text-slate-500">
                   {line.qty} × ${Number(line.unit_price).toFixed(2)}
                 </p>
-                {priceChangeNote(line.list_price, line.unit_price, line.price_reason) && (
+                {priceChangeNote(line.list_price, line.price_before_discount ?? line.unit_price, line.price_reason) && (
                   <p className="text-xs text-amber-700">
-                    {priceChangeNote(line.list_price, line.unit_price, line.price_reason)}
+                    {priceChangeNote(line.list_price, line.price_before_discount ?? line.unit_price, line.price_reason)}
                   </p>
                 )}
+                {savedDiscountNote(line) && <p className="text-xs text-green-700">{savedDiscountNote(line)}</p>}
               </div>
               <span className="font-semibold text-slate-900">
                 ${(line.qty * Number(line.unit_price)).toFixed(2)}
@@ -181,6 +194,21 @@ export function SaleDetailPage() {
           ))}
         </ul>
         <div className="space-y-1 border-t border-slate-200 p-4">
+          {discountCents > 0 && (
+            <div className="flex justify-between text-sm text-slate-600">
+              <span>
+                Discounts
+                {savedTicketDiscountNote(sale.ticket_discount, sale.ticket_discount_reason) &&
+                  ` (ticket: ${savedTicketDiscountNote(sale.ticket_discount, sale.ticket_discount_reason)})`}
+              </span>
+              <span className="font-medium text-green-700">−${fromCents(discountCents).toFixed(2)}</span>
+            </div>
+          )}
+          {staffLabel(sale.discount_approver) && (
+            <p className="text-xs text-slate-500">
+              Discount over the staff limit approved by {staffLabel(sale.discount_approver)}
+            </p>
+          )}
           <div className="flex justify-between text-sm text-slate-600">
             <span>Subtotal</span>
             <span className="font-medium text-slate-900">${Number(sale.subtotal).toFixed(2)}</span>
@@ -189,6 +217,12 @@ export function SaleDetailPage() {
             <div className="flex justify-between text-sm text-slate-600">
               <span>Tax</span>
               <span className="font-medium text-slate-900">${Number(sale.tax).toFixed(2)}</span>
+            </div>
+          )}
+          {sale.tax_exempt_id && (
+            <div className="flex justify-between text-sm text-slate-600">
+              <span>Tax exempt · {sale.tax_exempt_id}</span>
+              <span className="font-medium text-slate-900">No tax</span>
             </div>
           )}
           <div className="flex justify-between border-t border-slate-100 pt-1">
