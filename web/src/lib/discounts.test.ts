@@ -112,17 +112,8 @@ describe('applyDiscounts', () => {
 describe('discountProblems', () => {
   const line = { label: 'Overgrip', qty: 1, price: '20' };
 
-  it('wants a reason for each discount', () => {
-    expect(discountProblems([{ ...line, discount: '0.1' }], { discount: '2' })).toEqual([
-      'Overgrip: give a reason for the discount.',
-      'Ticket discount: give a reason.',
-    ]);
-    expect(
-      discountProblems([{ ...line, discount: '0.1', discountReason: 'Promotion' }], {
-        discount: '2',
-        discountReason: ' Loyalty ',
-      }),
-    ).toEqual([]);
+  it('needs no reason for a discount', () => {
+    expect(discountProblems([{ ...line, discount: '0.1' }], { discount: '2' })).toEqual([]);
   });
 
   it('names a box that can’t be read, a gift card discount, and too much off', () => {
@@ -130,8 +121,8 @@ describe('discountProblems', () => {
       discountProblems(
         [
           { ...line, discount: 'ten' },
-          { label: 'Gift card 123', qty: 1, price: '25', giftCardId: 'g1', discount: '0.1', discountReason: 'x' },
-          { label: 'Balls', qty: 1, price: '2', discount: '3', discountReason: 'Damaged' },
+          { label: 'Gift card 123', qty: 1, price: '25', giftCardId: 'g1', discount: '0.1' },
+          { label: 'Balls', qty: 1, price: '2', discount: '3' },
         ],
         {},
       ),

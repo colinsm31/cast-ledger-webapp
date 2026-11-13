@@ -5,6 +5,8 @@ import type { Customer } from '../../types/domain';
 import { customerName, customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { searchCustomers } from '../../lib/customerSearch';
+import { createCustomer, newCustomerFormFrom, newCustomerRow, type NewCustomerForm } from '../../lib/newCustomer';
+import { formatPhone } from '../../lib/phone';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
 import { useSettings } from '../../lib/settings';
 import { LoadError } from '../../components/LoadError';
@@ -23,7 +25,6 @@ import {
   describeDiscount,
   discountProblems,
   discountValue,
-  DISCOUNT_REASON_LOOKUP_KIND,
   isApprovalProblem,
 } from '../../lib/discounts';
 import {
@@ -43,6 +44,15 @@ import { useScannerCapture } from '../scan/useScannerCapture';
 import { ScanFlowParams, withParams } from '../scan/scanFlow';
 import { PaymentScreen, type Tender } from './PaymentScreen';
 import { DiscountApprovalDialog } from './DiscountApprovalDialog';
+import { ProductFinder, QuickPicks } from './ProductFinder';
+import { HeldTicketsPanel } from './HeldTicketsPanel';
+import {
+  currentListPrices,
+  defaultHoldName,
+  holdTicket,
+  recallHeldTicket,
+  type HeldTicketRow,
+} from '../../lib/heldTickets';
 import { taxExemptLabel, taxRateFor } from '../../lib/taxExempt';
 import type { SaleDeliveryWarning } from './SaleDetailPage';
 import { decideJobLine, ownerWarnings, type TicketJob } from './ticketJobs';
@@ -68,9 +78,8 @@ interface CartLine {
   // and why the price was changed from it.
   listPrice?: number | null;
   priceReason?: string;
-  // The line's discount box (see lib/discounts) and why it was given.
+  // The line's discount box (see lib/discounts).
   discount?: string;
-  discountReason?: string;
   qty: number;
 }
 
@@ -109,9 +118,8 @@ export function NewSalePage() {
   const [paymentKey, setPaymentKey] = useState(0);
   // Catalog prices that changed while the ticket was open.
   const [priceNotice, setPriceNotice] = useState<string | null>(null);
-  // The whole ticket's discount box and reason, as typed.
+  // The whole ticket's discount box, as typed.
   const [ticketDiscount, setTicketDiscount] = useState('');
-  const [ticketDiscountReason, setTicketDiscountReason] = useState('');
   // Lines whose discount box is open, and whether the ticket's is.
   const [discountOpenKeys, setDiscountOpenKeys] = useState<Set<string>>(() => new Set());
   const [ticketDiscountOpen, setTicketDiscountOpen] = useState(false);
@@ -120,6 +128,12 @@ export function NewSalePage() {
   const [approvalPercent, setApprovalPercent] = useState<number | null>(null);
   const [approving, setApproving] = useState(false);
   const [approvalId, setApprovalId] = useState<string | null>(null);
+  const [finding, setFinding] = useState(false);
+  // Held tickets: the list, the name for the ticket being held, and what happened.
+  const [showHeld, setShowHeld] = useState(false);
+  const [holdName, setHoldName] = useState<string | null>(null);
+  const [holdBusy, setHoldBusy] = useState(false);
+  const [holdNotice, setHoldNotice] = useState<string | null>(null);
   const [gcForm, setGcForm] = useState(false);
   const [gcCode, setGcCode] = useState('');
   const [gcAmount, setGcAmount] = useState('');
@@ -145,7 +159,6 @@ export function NewSalePage() {
     setCustomer(heldCustomer);
     setJobCtx(held?.stringJobId ? { id: held.stringJobId, deliver: held.deliverAfter } : null);
     setTicketDiscount(held?.ticketDiscount ?? '');
-    setTicketDiscountReason(held?.ticketDiscountReason ?? '');
     setTicketDiscountOpen(Boolean(held?.ticketDiscount));
     setDiscountOpenKeys(new Set(heldLines.filter((line) => line.discount).map((line) => line.key)));
     setRestored(true);
@@ -244,11 +257,10 @@ export function NewSalePage() {
             stringJobId: jobCtx?.id ?? null,
             deliverAfter: jobCtx?.deliver ?? false,
             ticketDiscount,
-            ticketDiscountReason,
           }
         : null,
     );
-  }, [restored, lines, customer, jobCtx, user, ticketDiscount, ticketDiscountReason]);
+  }, [restored, lines, customer, jobCtx, user, ticketDiscount]);
 
   // A changed ticket needs checking again before an admin approves it.
   useEffect(() => {
@@ -375,6 +387,13 @@ export function NewSalePage() {
 
   // Hardware scanner fired while focus was off the scan box.
   useScannerCapture((code) => void addByBarcode(code), scanRef);
+
+  // A product found by name or a quick pick: added like a scan, then back to scanning.
+  function pickProduct(p: ScannedProduct) {
+    setScanMsg(null);
+    addProduct(p);
+    focusScan();
+  }
 
   function addProduct(p: ScannedProduct) {
     // Serialized products are sold by scanning a specific unit, not the model.
@@ -520,20 +539,17 @@ export function NewSalePage() {
       return next;
     });
     // Closing the box takes the discount off.
-    if (open) updateLine(key, { discount: '', discountReason: '' });
+    if (open) updateLine(key, { discount: '' });
   }
 
   function toggleTicketDiscount() {
-    if (ticketDiscountOpen) {
-      setTicketDiscount('');
-      setTicketDiscountReason('');
-    }
+    if (ticketDiscountOpen) setTicketDiscount('');
     setTicketDiscountOpen((open) => !open);
   }
 
   // What quote_sale and record_sale take besides the lines and customer.
   function quoteOptions(approval: string | null = approvalId): SaleQuoteOptions {
-    return { ticket: { discount: ticketDiscount, discountReason: ticketDiscountReason }, approvalId: approval };
+    return { ticket: { discount: ticketDiscount }, approvalId: approval };
   }
 
   // Tax: products always taxed; stringing optionally; gift-card loads never;
@@ -574,7 +590,7 @@ export function NewSalePage() {
     }
     const missingReasons = [
       ...missingPriceReasons(lines),
-      ...discountProblems(lines, { discount: ticketDiscount, discountReason: ticketDiscountReason }),
+      ...discountProblems(lines, { discount: ticketDiscount }),
     ];
     if (missingReasons.length > 0) {
       setError(missingReasons.join('\n'));
@@ -653,6 +669,76 @@ export function NewSalePage() {
     setChoosingPayment(false);
     setQuote(null);
     setQuoteNotice(null);
+  }
+
+  // Back to an empty register (the ticket was held, or another recalled over it).
+  function clearTicket() {
+    setLines([]);
+    setCustomer(null);
+    setJobCtx(null);
+    setTicketDiscount('');
+    setTicketDiscountOpen(false);
+    setDiscountOpenKeys(new Set());
+    setApprovalId(null);
+    setError(null);
+    setPriceNotice(null);
+  }
+
+  async function holdCurrentTicket() {
+    const name = holdName?.trim();
+    if (!name) {
+      setError('Give the held ticket a name.');
+      return;
+    }
+    setHoldBusy(true);
+    try {
+      await holdTicket(name, customer?.id ?? null, {
+        lines,
+        stringJobId: jobCtx?.id ?? null,
+        deliverAfter: jobCtx?.deliver ?? false,
+        ticketDiscount,
+      });
+      clearTicket();
+      setHoldName(null);
+      setHoldNotice(`“${name}” is on hold. Recall it from Held tickets at any register.`);
+      focusScan();
+    } catch (err) {
+      setError(`The ticket wasn't held: ${errorMessage(err)}`);
+    } finally {
+      setHoldBusy(false);
+    }
+  }
+
+  // Put a held ticket on this register, at today's prices.
+  async function recallTicket(row: HeldTicketRow) {
+    if (lines.length > 0) {
+      const ok = await confirm({
+        title: 'Replace this ticket?',
+        message: 'The ticket on screen will be thrown away. Hold it first to keep it.',
+        confirmLabel: 'Replace',
+        cancelLabel: 'Keep this ticket',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
+    setHoldNotice(null);
+    try {
+      const recalled = await recallHeldTicket(row.id);
+      const recalledLines = recalled.content.lines as CartLine[];
+      const synced = applyServerListPrices(recalledLines, await currentListPrices(recalledLines));
+      clearTicket();
+      setLines(synced.lines);
+      setCustomer(recalled.customer);
+      setJobCtx(recalled.content.stringJobId ? { id: recalled.content.stringJobId, deliver: recalled.content.deliverAfter } : null);
+      setTicketDiscount(recalled.content.ticketDiscount ?? '');
+      setTicketDiscountOpen(Boolean(recalled.content.ticketDiscount));
+      setDiscountOpenKeys(new Set(synced.lines.filter((line) => line.discount).map((line) => line.key)));
+      setShowHeld(false);
+      setHoldNotice(`Recalled “${recalled.name}”.`);
+      if (synced.notices.length > 0) setPriceNotice(`Prices changed while it was on hold: ${synced.notices.join(' ')}`);
+    } catch (err) {
+      setError(`The ticket couldn't be recalled: ${errorMessage(err)}`);
+    }
   }
 
   async function cancelSale() {
@@ -741,10 +827,22 @@ export function NewSalePage() {
     <div className="max-w-2xl space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-slate-900">New sale</h1>
-        <button onClick={() => navigate('/sales')} className="text-sm text-blue-600 hover:underline">
-          Sales history
-        </button>
+        <div className="flex gap-4">
+          <button onClick={() => setShowHeld((open) => !open)} className="text-sm text-blue-600 hover:underline">
+            Held tickets
+          </button>
+          <button onClick={() => navigate('/sales')} className="text-sm text-blue-600 hover:underline">
+            Sales history
+          </button>
+        </div>
       </div>
+
+      {showHeld && <HeldTicketsPanel onRecall={(row) => void recallTicket(row)} onClose={() => setShowHeld(false)} />}
+      {holdNotice && (
+        <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          {holdNotice}
+        </p>
+      )}
 
       {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
 
@@ -771,6 +869,16 @@ export function NewSalePage() {
           </button>
           <button
             onClick={() => {
+              setFinding((v) => !v);
+              setScanMsg(null);
+            }}
+            aria-pressed={finding}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Find by name
+          </button>
+          <button
+            onClick={() => {
               setGcForm((v) => !v);
               setScanMsg(null);
             }}
@@ -779,6 +887,8 @@ export function NewSalePage() {
             Sell gift card
           </button>
         </div>
+        <ProductFinder open={finding} onPick={pickProduct} productLabel={productLabel} />
+        <QuickPicks onPick={pickProduct} />
         {gcForm && (
           <div className="flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
             <label className="flex-1 min-w-[10rem] space-y-1">
@@ -862,12 +972,10 @@ export function NewSalePage() {
                     <LineDiscount
                       open={discountOpenKeys.has(l.key)}
                       discount={l.discount ?? ''}
-                      reason={l.discountReason ?? ''}
                       discountedPrice={discounted.lines[index].price}
                       undiscountedPrice={String(l.price)}
                       onToggle={() => toggleLineDiscount(l.key)}
                       onDiscount={(discount) => updateLine(l.key, { discount })}
-                      onReason={(reason) => updateLine(l.key, { discountReason: reason })}
                     />
                   )}
                 </div>
@@ -912,10 +1020,8 @@ export function NewSalePage() {
           <TicketDiscount
             open={ticketDiscountOpen}
             discount={ticketDiscount}
-            reason={ticketDiscountReason}
             onToggle={toggleTicketDiscount}
             onDiscount={setTicketDiscount}
-            onReason={setTicketDiscountReason}
           />
         )}
         {discounted.discountCents > 0 && (
@@ -1008,36 +1114,64 @@ export function NewSalePage() {
           {quoting ? 'Checking…' : `Payment Type · $${total.toFixed(2)}`}
         </button>
         <button
+          onClick={() => setHoldName(defaultHoldName(customer))}
+          disabled={lines.length === 0}
+          className="rounded-lg border border-slate-300 px-4 py-3 text-base font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        >
+          Hold
+        </button>
+        <button
           onClick={() => void cancelSale()}
           className="rounded-lg border border-red-300 px-4 py-3 text-base font-medium text-red-700 hover:bg-red-50"
         >
           Cancel Sale
         </button>
       </div>
+      {holdName !== null && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3">
+          <input
+            autoFocus
+            value={holdName}
+            onChange={(e) => setHoldName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void holdCurrentTicket();
+            }}
+            aria-label="Name for the held ticket"
+            maxLength={60}
+            className="min-w-[12rem] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <button
+            onClick={() => void holdCurrentTicket()}
+            disabled={holdBusy}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {holdBusy ? 'Holding…' : 'Hold ticket'}
+          </button>
+          <button onClick={() => setHoldName(null)} className="text-sm text-slate-500 hover:underline">
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-// A line's discount: a link that opens the box, what the number means, the
-// price after it, and the reason.
+// A line's discount: a link that opens the box, what the number means, and
+// the price after it.
 function LineDiscount({
   open,
   discount,
-  reason,
   discountedPrice,
   undiscountedPrice,
   onToggle,
   onDiscount,
-  onReason,
 }: {
   open: boolean;
   discount: string;
-  reason: string;
   discountedPrice: string;
   undiscountedPrice: string;
   onToggle: () => void;
   onDiscount: (discount: string) => void;
-  onReason: (reason: string) => void;
 }) {
   const value = discountValue(discount);
   const priceMoved = toCents(discountedPrice) !== toCents(undiscountedPrice);
@@ -1063,21 +1197,7 @@ function LineDiscount({
         )}
         {priceMoved && <span className="text-xs text-slate-500">→ ${discountedPrice} each</span>}
       </div>
-      {open && (
-        <>
-          <p className="text-xs text-slate-400">0.25 = 25% off · 3 = $3 off each · 1 = 100% off</p>
-          {value != null && (
-            <div className="max-w-xs">
-              <PickOrAdd
-                kind={DISCOUNT_REASON_LOOKUP_KIND}
-                value={reason}
-                onChange={onReason}
-                placeholder="Reason for the discount"
-              />
-            </div>
-          )}
-        </>
-      )}
+      {open && <p className="text-xs text-slate-400">0.25 = 25% off · 3 = $3 off each · 1 = 100% off</p>}
     </div>
   );
 }
@@ -1086,17 +1206,13 @@ function LineDiscount({
 function TicketDiscount({
   open,
   discount,
-  reason,
   onToggle,
   onDiscount,
-  onReason,
 }: {
   open: boolean;
   discount: string;
-  reason: string;
   onToggle: () => void;
   onDiscount: (discount: string) => void;
-  onReason: (reason: string) => void;
 }) {
   const value = discountValue(discount);
   return (
@@ -1121,21 +1237,9 @@ function TicketDiscount({
         )}
       </div>
       {open && (
-        <>
-          <p className="text-xs text-slate-400">
-            0.1 = 10% off · 5 = $5 off, shared across the items by price · gift cards aren’t discounted
-          </p>
-          {value != null && (
-            <div className="max-w-xs">
-              <PickOrAdd
-                kind={DISCOUNT_REASON_LOOKUP_KIND}
-                value={reason}
-                onChange={onReason}
-                placeholder="Reason for the ticket discount"
-              />
-            </div>
-          )}
-        </>
+        <p className="text-xs text-slate-400">
+          0.1 = 10% off · 5 = $5 off, shared across the items by price · gift cards aren’t discounted
+        </p>
       )}
     </div>
   );
@@ -1153,6 +1257,8 @@ function CustomerBar({
   const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState<Customer[]>([]);
+  // A new customer being added from here, without leaving the ticket.
+  const [newCustomer, setNewCustomer] = useState<NewCustomerForm | null>(null);
 
   useEffect(() => {
     const term = query.trim();
@@ -1205,6 +1311,21 @@ function CustomerBar({
     );
   }
 
+  if (newCustomer) {
+    return (
+      <InlineNewCustomer
+        form={newCustomer}
+        onChange={setNewCustomer}
+        onCancel={() => setNewCustomer(null)}
+        onCreated={(created) => {
+          onChange(created);
+          setNewCustomer(null);
+          setPicking(false);
+        }}
+      />
+    );
+  }
+
   return (
     <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between">
@@ -1247,6 +1368,102 @@ function CustomerBar({
           {matches.length === 0 && <li className="px-2 py-2 text-sm text-slate-500">No matches.</li>}
         </ul>
       )}
+      <button
+        onClick={() => setNewCustomer(newCustomerFormFrom(query))}
+        className="text-sm font-medium text-blue-600 hover:underline"
+      >
+        + New customer{query.trim() ? ` “${query.trim()}”` : ''}
+      </button>
+    </section>
+  );
+}
+
+// A customer created at the register: the essentials only, then attached to
+// the ticket. The rest (rackets, an exemption) is on their page later.
+function InlineNewCustomer({
+  form,
+  onChange,
+  onCancel,
+  onCreated,
+}: {
+  form: NewCustomerForm;
+  onChange: (form: NewCustomerForm) => void;
+  onCancel: () => void;
+  onCreated: (customer: Customer) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputClass =
+    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+
+  async function save() {
+    const row = newCustomerRow(form);
+    if ('error' in row) {
+      setError(row.error);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      onCreated(await createCustomer(row));
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+      <p className="text-xs font-medium text-slate-500">New customer</p>
+      <div className="flex gap-2">
+        <input
+          autoFocus
+          value={form.firstName}
+          onChange={(e) => onChange({ ...form, firstName: e.target.value })}
+          placeholder="First name *"
+          aria-label="First name"
+          className={inputClass}
+        />
+        <input
+          value={form.lastName}
+          onChange={(e) => onChange({ ...form, lastName: e.target.value })}
+          placeholder="Last name *"
+          aria-label="Last name"
+          className={inputClass}
+        />
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={form.phone}
+          onChange={(e) => onChange({ ...form, phone: formatPhone(e.target.value) })}
+          placeholder="(555)123-4567"
+          aria-label="Phone number"
+          inputMode="tel"
+          className={inputClass}
+        />
+        <input
+          value={form.email}
+          onChange={(e) => onChange({ ...form, email: e.target.value })}
+          placeholder="Email"
+          aria-label="Email"
+          inputMode="email"
+          className={inputClass}
+        />
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          onClick={() => void save()}
+          disabled={saving}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Add and attach'}
+        </button>
+        <button onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+          Back to search
+        </button>
+      </div>
     </section>
   );
 }

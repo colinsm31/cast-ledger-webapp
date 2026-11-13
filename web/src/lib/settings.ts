@@ -18,6 +18,8 @@ export interface Settings {
   shop_address: string | null;
   return_policy: string | null;
   receipt_footer: string | null;
+  /** Hours a held ticket is kept before it expires (0061). */
+  held_ticket_hours: number;
 }
 
 interface SettingsRow {
@@ -33,6 +35,7 @@ interface SettingsRow {
   shop_address: string | null;
   return_policy: string | null;
   receipt_footer: string | null;
+  held_ticket_hours: number;
 }
 
 export const SETTINGS_LOAD_ERROR = "Couldn't load the shop settings";
@@ -57,6 +60,7 @@ export async function fetchSettings(): Promise<Settings> {
     shop_address: r.shop_address ?? null,
     return_policy: r.return_policy ?? null,
     receipt_footer: r.receipt_footer ?? null,
+    held_ticket_hours: r.held_ticket_hours,
   };
 }
 
@@ -119,6 +123,7 @@ export interface SettingsForm {
   shopAddress: string;
   returnPolicy: string;
   receiptFooter: string;
+  heldTicketHours: string;
 }
 
 /** The receipt text's limits, matching the database's (0059). */
@@ -150,6 +155,7 @@ export function settingsToForm(settings: Settings): SettingsForm {
     shopAddress: settings.shop_address ?? '',
     returnPolicy: settings.return_policy ?? '',
     receiptFooter: settings.receipt_footer ?? '',
+    heldTicketHours: String(settings.held_ticket_hours),
   };
 }
 
@@ -190,6 +196,11 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
   }
   const optionalText = (text: string) => text.trim() || null;
 
+  const heldTicketHours = form.heldTicketHours.trim();
+  if (!WHOLE_NUMBER.test(heldTicketHours) || Number(heldTicketHours) < 1 || Number(heldTicketHours) > 720) {
+    return { error: 'Held tickets expire after: enter whole hours from 1 to 720 (30 days).' };
+  }
+
   return {
     settings: {
       tax_rate: Number(taxRate),
@@ -204,6 +215,7 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
       shop_address: optionalText(form.shopAddress),
       return_policy: optionalText(form.returnPolicy),
       receipt_footer: optionalText(form.receiptFooter),
+      held_ticket_hours: Number(heldTicketHours),
     },
   };
 }
