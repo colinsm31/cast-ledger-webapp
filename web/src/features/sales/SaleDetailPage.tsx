@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { JsonValue, SaleLineKind } from '../../types/domain';
-import { customerNameLastFirst, stringingLineName } from '../../types/domain';
+import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { Spinner } from '../../components/Spinner';
@@ -12,6 +12,7 @@ import { hasReturnable, returnedItemsLabel } from './returnable';
 import { priceChangeNote } from '../../lib/priceOverride';
 import { savedDiscountCents, savedDiscountNote, savedTicketDiscountNote } from '../../lib/discounts';
 import { paymentLabel } from '../../lib/paymentMethods';
+import { saleLineLabel } from '../../lib/saleLines';
 import { fromCents } from '../../lib/saleMath';
 
 /** Passed by the register when a sale went through but delivering its racquet failed. */
@@ -61,17 +62,6 @@ interface SaleDetail {
     refund_lines: { sale_line_id: string; qty: number }[];
     refund_payments: { method: string; check_number: string | null }[];
   }>;
-}
-
-function lineLabel(line: SaleLineRaw): string {
-  if (line.products) {
-    const attrs = Object.values(line.products.attributes ?? {})
-      .filter((v) => v != null && v !== '')
-      .map(String);
-    return [line.products.brand, line.products.name, ...attrs].filter(Boolean).join(' ');
-  }
-  if (line.gift_cards) return `Gift card ${line.gift_cards.code}`;
-  return stringingLineName(line.kind); // string-job service line
 }
 
 export function SaleDetailPage() {
@@ -154,6 +144,12 @@ export function SaleDetailPage() {
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
+          <Link
+            to={`/sales/${sale.id}/receipt`}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Print receipt
+          </Link>
           {canRefund && (
             <Link
               to={`/sales/${sale.id}/refund`}
@@ -176,7 +172,7 @@ export function SaleDetailPage() {
           {sale.sale_lines.map((line, i) => (
             <li key={i} className="flex items-center justify-between p-3">
               <div>
-                <p className="font-medium text-slate-900">{lineLabel(line)}</p>
+                <p className="font-medium text-slate-900">{saleLineLabel(line)}</p>
                 <p className="text-xs text-slate-500">
                   {line.qty} × ${Number(line.unit_price).toFixed(2)}
                 </p>

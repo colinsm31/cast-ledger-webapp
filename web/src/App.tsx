@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { SignInPage } from './auth/SignInPage';
 import { PendingApprovalPage } from './auth/PendingApprovalPage';
+import { ReceiptPage } from './features/sales/ReceiptPage';
 import { AppShell } from './app/AppShell';
 import { Spinner } from './components/Spinner';
 import { EmptyState } from './components/EmptyState';
@@ -78,6 +79,8 @@ function Gate() {
 
   return (
     <Routes>
+      {/* Outside the app's frame, so only the receipt prints. */}
+      <Route path="/sales/:saleId/receipt" element={<ReceiptPage />} />
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
         {/* Retail screens — filled in over the next build steps. */}

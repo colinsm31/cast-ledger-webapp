@@ -13,6 +13,11 @@ export interface Settings {
   accept_checks: boolean;
   /** Percent below catalog price staff can sell without an admin's approval. */
   staff_discount_cap: number;
+  /** Receipt text (0059); null when not set. */
+  shop_name: string | null;
+  shop_address: string | null;
+  return_policy: string | null;
+  receipt_footer: string | null;
 }
 
 interface SettingsRow {
@@ -24,6 +29,10 @@ interface SettingsRow {
   week_starts_monday: boolean;
   accept_checks: boolean;
   staff_discount_cap: number | string;
+  shop_name: string | null;
+  shop_address: string | null;
+  return_policy: string | null;
+  receipt_footer: string | null;
 }
 
 export const SETTINGS_LOAD_ERROR = "Couldn't load the shop settings";
@@ -44,6 +53,10 @@ export async function fetchSettings(): Promise<Settings> {
     week_starts_monday: r.week_starts_monday,
     accept_checks: r.accept_checks,
     staff_discount_cap: Number(r.staff_discount_cap),
+    shop_name: r.shop_name ?? null,
+    shop_address: r.shop_address ?? null,
+    return_policy: r.return_policy ?? null,
+    receipt_footer: r.receipt_footer ?? null,
   };
 }
 
@@ -102,7 +115,19 @@ export interface SettingsForm {
   weekStartsMonday: boolean;
   acceptChecks: boolean;
   staffDiscountCap: string;
+  shopName: string;
+  shopAddress: string;
+  returnPolicy: string;
+  receiptFooter: string;
 }
+
+/** The receipt text's limits, matching the database's (0059). */
+export const RECEIPT_TEXT_LIMITS = {
+  shopName: { label: 'Shop name', max: 100 },
+  shopAddress: { label: 'Address', max: 300 },
+  returnPolicy: { label: 'Return policy', max: 1000 },
+  receiptFooter: { label: 'Receipt footer', max: 500 },
+} as const;
 
 const PLAIN_NUMBER = /^\d+(\.\d+)?$/;
 const WHOLE_NUMBER = /^\d+$/;
@@ -121,6 +146,10 @@ export function settingsToForm(settings: Settings): SettingsForm {
     weekStartsMonday: settings.week_starts_monday,
     acceptChecks: settings.accept_checks,
     staffDiscountCap: String(settings.staff_discount_cap),
+    shopName: settings.shop_name ?? '',
+    shopAddress: settings.shop_address ?? '',
+    returnPolicy: settings.return_policy ?? '',
+    receiptFooter: settings.receipt_footer ?? '',
   };
 }
 
@@ -155,6 +184,12 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
     return { error: 'Staff discount limit: use at most 2 decimal places.' };
   }
 
+  for (const field of Object.keys(RECEIPT_TEXT_LIMITS) as (keyof typeof RECEIPT_TEXT_LIMITS)[]) {
+    const { label, max } = RECEIPT_TEXT_LIMITS[field];
+    if (form[field].trim().length > max) return { error: `${label}: use at most ${max} characters.` };
+  }
+  const optionalText = (text: string) => text.trim() || null;
+
   return {
     settings: {
       tax_rate: Number(taxRate),
@@ -165,6 +200,10 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
       week_starts_monday: form.weekStartsMonday,
       accept_checks: form.acceptChecks,
       staff_discount_cap: Number(staffDiscountCap),
+      shop_name: optionalText(form.shopName),
+      shop_address: optionalText(form.shopAddress),
+      return_policy: optionalText(form.returnPolicy),
+      receipt_footer: optionalText(form.receiptFooter),
     },
   };
 }
