@@ -2,10 +2,10 @@
   "updated": "2026-11-20",
   "web": {
     "overall": {
-      "lines": 22.68,
-      "statements": 23.36,
-      "functions": 22.34,
-      "branches": 23.01
+      "lines": 25.2,
+      "statements": 25.75,
+      "functions": 24.8,
+      "branches": 24.92
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 87.69
+        "lines": 88.73
       },
       "src/features/account": {
         "lines": 0
@@ -39,19 +39,19 @@
         "lines": 0
       },
       "src/features/products": {
-        "lines": 3.64
+        "lines": 18.42
       },
       "src/features/sales": {
-        "lines": 3.6
+        "lines": 6.3
       },
       "src/features/scan": {
-        "lines": 44.68
+        "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 21.77
+        "lines": 21.3
       },
       "src/lib": {
-        "lines": 92.48
+        "lines": 92.68
       },
       "src/types": {
         "lines": 33.33
@@ -75,6 +75,9 @@
       },
       "src/auth/SignInPage.tsx": {
         "lines": 0
+      },
+      "src/components/Barcode.tsx": {
+        "lines": 100
       },
       "src/components/Dialog.tsx": {
         "lines": 91.93
@@ -160,6 +163,12 @@
       "src/features/products/StockActions.tsx": {
         "lines": 0
       },
+      "src/features/products/UnitLabelsPage.tsx": {
+        "lines": 0
+      },
+      "src/features/products/UnitRow.tsx": {
+        "lines": 98.38
+      },
       "src/features/products/UnitsSection.tsx": {
         "lines": 0
       },
@@ -172,6 +181,9 @@
       "src/features/products/productSaveError.ts": {
         "lines": 100
       },
+      "src/features/products/unitLabel.ts": {
+        "lines": 100
+      },
       "src/features/products/variantLabel.ts": {
         "lines": 100
       },
@@ -180,6 +192,9 @@
       },
       "src/features/sales/DiscountApprovalDialog.tsx": {
         "lines": 0
+      },
+      "src/features/sales/FrameReturnFields.tsx": {
+        "lines": 100
       },
       "src/features/sales/GiftCardLookupPage.tsx": {
         "lines": 0
@@ -211,6 +226,9 @@
       "src/features/sales/SalesListPage.tsx": {
         "lines": 0
       },
+      "src/features/sales/SoldRacketsPanel.tsx": {
+        "lines": 100
+      },
       "src/features/sales/returnable.ts": {
         "lines": 100
       },
@@ -224,7 +242,7 @@
         "lines": 21.05
       },
       "src/features/scan/scanFlow.ts": {
-        "lines": 0
+        "lines": 72.72
       },
       "src/features/scan/useScannerCapture.ts": {
         "lines": 100
@@ -362,6 +380,9 @@
         "lines": 87.5
       },
       "src/lib/taxExempt.ts": {
+        "lines": 100
+      },
+      "src/lib/unitStatus.ts": {
         "lines": 100
       },
       "src/types/domain.ts": {

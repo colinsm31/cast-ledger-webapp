@@ -1,28 +1,11 @@
+import { useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
-import type { ProductUnit, ProductUnitStatus } from '../../types/domain';
-import { sellUnitPath } from '../scan/scanFlow';
+import type { ProductUnit } from '../../types/domain';
+import { UnitRow } from './UnitRow';
+import { assignUnitLabels, labelsPath } from './unitLabel';
 import { ReceiveUnitsSheet } from './ReceiveUnitsSheet';
-
-// MARK: - Status styling
-
-const STATUS_STYLE: Record<ProductUnitStatus, string> = {
-  in_stock: 'bg-green-100 text-green-800',
-  sold: 'bg-slate-100 text-slate-600',
-  demo: 'bg-amber-100 text-amber-800',
-  assigned: 'bg-blue-100 text-blue-800',
-  retired: 'bg-red-100 text-red-700',
-};
-
-const STATUS_LABEL: Record<ProductUnitStatus, string> = {
-  in_stock: 'in stock',
-  sold: 'sold',
-  demo: 'demo',
-  assigned: 'assigned',
-  retired: 'retired',
-};
 
 // MARK: - UnitsSection
 //
@@ -47,7 +30,9 @@ export function UnitsSection({
       .from('product_units')
       .select('*')
       .eq('product_id', productId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      // Frames received together share a time; keep them in a steady order.
+      .order('id', { ascending: true });
     if (err) setError(errorMessage(err));
     else setUnits((data ?? []) as ProductUnit[]);
   }, [productId]);
@@ -57,6 +42,25 @@ export function UnitsSection({
   }, [load]);
 
   const inStock = units?.filter((u) => u.status === 'in_stock').length ?? 0;
+  // Frames still in the shop with nothing to scan: label them in one go (0068).
+  const unlabelled = units?.filter((u) => !u.barcode && u.status !== 'sold') ?? [];
+  const navigate = useNavigate();
+  const [labelling, setLabelling] = useState(false);
+
+  async function labelUnlabelled() {
+    const ids = unlabelled.map((u) => u.id);
+    setLabelling(true);
+    setError(null);
+    try {
+      await assignUnitLabels(ids);
+      navigate(labelsPath(ids));
+    } catch (err) {
+      setError(errorMessage(err));
+      await load();
+    } finally {
+      setLabelling(false);
+    }
+  }
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
@@ -76,6 +80,22 @@ export function UnitsSection({
         </div>
       </div>
 
+      {unlabelled.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <span>
+            {unlabelled.length} frame{unlabelled.length === 1 ? ' has' : 's have'} no barcode, so{' '}
+            {unlabelled.length === 1 ? 'it can’t' : 'they can’t'} be scanned.
+          </span>
+          <button
+            onClick={() => void labelUnlabelled()}
+            disabled={labelling}
+            className="rounded-lg border border-amber-600 px-3 py-1 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+          >
+            {labelling ? 'Labelling…' : `Print ${unlabelled.length === 1 ? 'a label' : `${unlabelled.length} labels`}`}
+          </button>
+        </div>
+      )}
+
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {units && units.length === 0 && (
@@ -87,23 +107,7 @@ export function UnitsSection({
       {units && units.length > 0 && (
         <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
           {units.map((u) => (
-            <li key={u.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <span className={u.barcode ? 'font-mono text-slate-900' : 'italic text-slate-400'}>
-                {u.barcode ?? 'No barcode'}
-              </span>
-              <div className="flex items-center gap-3">
-                {u.status === 'in_stock' && (
-                  <Link to={sellUnitPath(u.id)} className="text-xs font-medium text-blue-600 hover:underline">
-                    Sell
-                  </Link>
-                )}
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[u.status]}`}
-                >
-                  {STATUS_LABEL[u.status]}
-                </span>
-              </div>
-            </li>
+            <UnitRow key={u.id} unit={u} onChanged={load} />
           ))}
         </ul>
       )}

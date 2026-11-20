@@ -14,6 +14,7 @@ import { savedDiscountCents, savedDiscountNote, savedTicketDiscountNote } from '
 import { paymentLabel } from '../../lib/paymentMethods';
 import { saleLineLabel } from '../../lib/saleLines';
 import { fromCents } from '../../lib/saleMath';
+import { SoldRacketsPanel } from './SoldRacketsPanel';
 
 /** Passed by the register when a sale went through but delivering its racquet failed. */
 export interface SaleDeliveryWarning {
@@ -166,6 +167,10 @@ export function SaleDetailPage() {
           </Link>
         </div>
       </div>
+
+      <SoldRacketsPanel
+        unitIds={sale.sale_lines.map((line) => line.product_unit_id).filter((id): id is string => !!id)}
+      />
 
       <section className="rounded-xl border border-slate-200 bg-white">
         <ul className="divide-y divide-slate-100">

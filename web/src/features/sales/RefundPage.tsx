@@ -11,7 +11,16 @@ import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useSettings } from '../../lib/settings';
 import { PAYMENT_METHOD_LABEL as METHOD_LABEL, paymentLabel, refundMethodsFor } from '../../lib/paymentMethods';
 import { CheckEntry } from './CheckEntry';
-import { hasItemsToReturn, isUnitLine, returnableQty } from './returnable';
+import {
+  DEFAULT_FRAME_RETURN,
+  frameReturnLine,
+  frameReturnProblem,
+  hasItemsToReturn,
+  isUnitLine,
+  returnableQty,
+  type FrameReturn,
+} from './returnable';
+import { FrameReturnFields } from './FrameReturnFields';
 import {
   allocateToOriginalPayments,
   computeSaleTotals,
@@ -84,6 +93,8 @@ export function RefundPage() {
 
   const [sale, setSale] = useState<SaleData | null>(null);
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
+  // What happens to each racquet frame being returned (0070).
+  const [frameReturns, setFrameReturns] = useState<Record<string, FrameReturn>>({});
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [reason, setReason] = useState('');
   const [methodChangeReason, setMethodChangeReason] = useState('');
@@ -114,8 +125,8 @@ export function RefundPage() {
     })();
   }, [saleId]);
 
-  // Remaining returnable qty per product line (original minus already refunded).
-  // Remaining returnable qty per line (racquet units can't be returned yet).
+  // Remaining returnable qty per product line and racquet frame (original
+  // minus already refunded).
   const remaining = useMemo(
     () => (sale ? returnableQty(sale.sale_lines, (sale.refunds ?? []).flatMap((r) => r.refund_lines ?? [])) : {}),
     [sale],
@@ -234,6 +245,14 @@ export function RefundPage() {
       setError('Refund tender must equal the refund total.');
       return;
     }
+    const frameProblem = sale!.sale_lines
+      .filter((l) => isUnitLine(l) && (returnQty[l.id] ?? 0) > 0)
+      .map((l) => frameReturnProblem(frameReturns[l.id] ?? DEFAULT_FRAME_RETURN))
+      .find(Boolean);
+    if (frameProblem) {
+      setError(frameProblem);
+      return;
+    }
     if (needsMethodChangeReason && !methodChangeReason.trim()) {
       setError('Give a reason for refunding to a different payment type.');
       return;
@@ -242,7 +261,11 @@ export function RefundPage() {
     setError(null);
     const lines = sale!.sale_lines
       .filter((l) => (returnQty[l.id] ?? 0) > 0)
-      .map((l) => ({ sale_line_id: l.id, qty: returnQty[l.id] }));
+      .map((l) =>
+        isUnitLine(l)
+          ? frameReturnLine(l.id, frameReturns[l.id] ?? DEFAULT_FRAME_RETURN)
+          : { sale_line_id: l.id, qty: returnQty[l.id] },
+      );
     const { error: err } = await supabase.rpc('record_refund', {
       p_sale_id: saleId,
       p_lines: lines,
@@ -268,7 +291,6 @@ export function RefundPage() {
   if (!sale) return <Spinner label="Loading…" />;
 
   const returnableLines = sale.sale_lines.filter((l) => (remaining[l.id] ?? 0) > 0);
-  const unitLines = sale.sale_lines.filter(isUnitLine);
 
   return (
     <div className="max-w-2xl space-y-5">
@@ -286,31 +308,48 @@ export function RefundPage() {
 
       {/* Items */}
       <section className="rounded-xl border border-slate-200 bg-white">
-        {returnableLines.length === 0 && unitLines.length === 0 ? (
+        {returnableLines.length === 0 ? (
           <p className="p-6 text-center text-sm text-slate-500">Nothing left to return on this sale.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {returnableLines.map((l) => (
-              <li key={l.id} className="flex items-center gap-3 p-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-slate-900">{lineLabel(l.products)}</p>
-                  <p className="text-xs text-slate-500">
-                    ${Number(l.unit_price).toFixed(2)} each · {remaining[l.id]} returnable
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => setQty(l.id, (returnQty[l.id] ?? 0) - 1)} className="h-7 w-7 rounded border border-slate-300 hover:bg-slate-50">−</button>
-                  <span className="w-8 text-center text-sm font-medium">{returnQty[l.id] ?? 0}</span>
-                  <button onClick={() => setQty(l.id, (returnQty[l.id] ?? 0) + 1)} className="h-7 w-7 rounded border border-slate-300 hover:bg-slate-50">+</button>
-                </div>
-              </li>
-            ))}
-            {unitLines.map((l) => (
-              <li key={l.id} className="p-3">
-                <p className="truncate font-medium text-slate-500">{lineLabel(l.products)}</p>
-                <p className="text-xs text-slate-500">Racquet returns aren't supported yet.</p>
-              </li>
-            ))}
+            {returnableLines.map((l) =>
+              isUnitLine(l) ? (
+                <li key={l.id} className="p-3">
+                  <label className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={(returnQty[l.id] ?? 0) > 0}
+                      onChange={(e) => setQty(l.id, e.target.checked ? 1 : 0)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-slate-900">{lineLabel(l.products)}</span>
+                      <span className="text-xs text-slate-500">${Number(l.unit_price).toFixed(2)} · return this frame</span>
+                    </span>
+                  </label>
+                  {(returnQty[l.id] ?? 0) > 0 && (
+                    <FrameReturnFields
+                      frame={frameReturns[l.id] ?? DEFAULT_FRAME_RETURN}
+                      problem={frameReturnProblem(frameReturns[l.id] ?? DEFAULT_FRAME_RETURN)}
+                      onChange={(frame) => setFrameReturns((prev) => ({ ...prev, [l.id]: frame }))}
+                    />
+                  )}
+                </li>
+              ) : (
+                <li key={l.id} className="flex items-center gap-3 p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-slate-900">{lineLabel(l.products)}</p>
+                    <p className="text-xs text-slate-500">
+                      ${Number(l.unit_price).toFixed(2)} each · {remaining[l.id]} returnable
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setQty(l.id, (returnQty[l.id] ?? 0) - 1)} className="h-7 w-7 rounded border border-slate-300 hover:bg-slate-50">−</button>
+                    <span className="w-8 text-center text-sm font-medium">{returnQty[l.id] ?? 0}</span>
+                    <button onClick={() => setQty(l.id, (returnQty[l.id] ?? 0) + 1)} className="h-7 w-7 rounded border border-slate-300 hover:bg-slate-50">+</button>
+                  </div>
+                </li>
+              ),
+            )}
           </ul>
         )}
       </section>
