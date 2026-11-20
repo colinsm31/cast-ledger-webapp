@@ -2,10 +2,10 @@
   "updated": "2026-11-20",
   "web": {
     "overall": {
-      "lines": 20.38,
-      "statements": 21.04,
-      "functions": 20.7,
-      "branches": 20.55
+      "lines": 21.41,
+      "statements": 22.17,
+      "functions": 21.6,
+      "branches": 21.3
     },
     "byFolder": {
       "src": {
@@ -48,10 +48,10 @@
         "lines": 37.78
       },
       "src/features/stringjobs": {
-        "lines": 13.77
+        "lines": 17.12
       },
       "src/lib": {
-        "lines": 90.62
+        "lines": 91.11
       },
       "src/types": {
         "lines": 33.33
@@ -238,6 +238,9 @@
       "src/features/stringjobs/StringJobsPage.tsx": {
         "lines": 0
       },
+      "src/features/stringjobs/WorkloadPanel.tsx": {
+        "lines": 95.65
+      },
       "src/features/stringjobs/stringChange.ts": {
         "lines": 100
       },
@@ -332,6 +335,9 @@
         "lines": 100
       },
       "src/lib/stringJobPromise.ts": {
+        "lines": 100
+      },
+      "src/lib/stringerWorkload.ts": {
         "lines": 100
       },
       "src/lib/supabase.ts": {

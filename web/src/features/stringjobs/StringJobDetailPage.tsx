@@ -100,6 +100,7 @@ export function StringJobDetailPage() {
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
   const [strungBy, setStrungBy] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [pendingChange, setPendingChange] = useState<PendingStringChange | null>(null);
   const [changeTenders, setChangeTenders] = useState<Tender[]>([]);
@@ -112,6 +113,7 @@ export function StringJobDetailPage() {
     setPrice(j.price != null ? String(j.price) : '');
     setNotes(j.notes ?? '');
     setStrungBy(j.strung_by ?? '');
+    setAssignedTo(j.assigned_to ?? '');
   }, []);
 
   // Moving to another job, an answer for the previous one is ignored (#37).
@@ -119,6 +121,7 @@ export function StringJobDetailPage() {
   // Stringer saves are tracked on their own: only the latest pick is shown,
   // and never on a different job than the one it was saved for (#7).
   const startStringerSave = useLatestRequest();
+  const startAssignSave = useLatestRequest();
   const currentJobIdRef = useRef(jobId);
   currentJobIdRef.current = jobId;
 
@@ -325,6 +328,26 @@ export function StringJobDetailPage() {
       return;
     }
     setStrungBy((data as { strung_by: string | null }).strung_by ?? '');
+  }
+
+  // Assigning saves right away too, and is shown once saved (0064).
+  async function assign(value: string) {
+    if (!jobId) return;
+    const forJobId = jobId;
+    const isLatest = startAssignSave();
+    setError(null);
+    const { data, error: err } = await supabase
+      .from('string_jobs')
+      .update({ assigned_to: value.trim() || null })
+      .eq('id', forJobId)
+      .select('assigned_to')
+      .single();
+    if (!isLatest() || currentJobIdRef.current !== forJobId) return;
+    if (err) {
+      setError(`The assignment wasn't saved: ${errorMessage(err)}`);
+      return;
+    }
+    setAssignedTo((data as { assigned_to: string | null }).assigned_to ?? '');
   }
 
   async function advance(target: StringJobStatus) {
@@ -553,9 +576,20 @@ export function StringJobDetailPage() {
 
       {/* Stringer — recorded when the racket is strung (entered jobs). */}
       {status === 'entered' && !editing && (
-        <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-          <span className="text-xs font-medium text-slate-500">Strung by</span>
-          <PickOrAdd kind="stringer" value={strungBy} onChange={(v) => void setStringer(v)} placeholder="Who strung it?" />
+        <section className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="text-xs font-medium text-slate-500">Assigned to</span>
+            <PickOrAdd kind="stringer" value={assignedTo} onChange={(v) => void assign(v)} placeholder="Unassigned" />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs font-medium text-slate-500">Strung by</span>
+            <PickOrAdd
+              kind="stringer"
+              value={strungBy}
+              onChange={(v) => void setStringer(v)}
+              placeholder={assignedTo ? `${assignedTo} (assigned)` : 'Who strung it?'}
+            />
+          </label>
         </section>
       )}
       {status !== 'entered' && job.strung_by && (
@@ -576,8 +610,9 @@ export function StringJobDetailPage() {
             <>
               <button
                 onClick={() => void advance('complete')}
-                disabled={busy || !strungBy.trim()}
-                title={!strungBy.trim() ? 'Record who strung it first' : undefined}
+                // With nobody recorded, completing records the assigned stringer.
+                disabled={busy || !(strungBy.trim() || assignedTo.trim())}
+                title={!(strungBy.trim() || assignedTo.trim()) ? 'Record who strung it first' : undefined}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 Mark complete

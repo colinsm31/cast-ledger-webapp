@@ -241,6 +241,8 @@ export interface StringJob {
   // and whether it's a rush.
   promised_at: string | null;
   is_rush: boolean;
+  // The stringer a waiting job is assigned to (0064); null = unassigned.
+  assigned_to: string | null;
 
   entered_at: string;
   completed_at: string | null;

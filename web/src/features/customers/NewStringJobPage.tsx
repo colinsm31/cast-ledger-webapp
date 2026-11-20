@@ -26,6 +26,7 @@ import {
 } from '../stringjobs/stringJobForm';
 import { jobRowProblems } from '../stringjobs/stringRow';
 import { PromiseFields } from '../stringjobs/PromiseFields';
+import { PickOrAdd } from '../lookups/PickOrAdd';
 import { defaultPromise, fromLocalInput, promiseProblem, toLocalInput } from '../../lib/stringJobPromise';
 
 interface LastJob {
@@ -64,6 +65,7 @@ export function NewStringJobPage() {
   // Empty until the settings load, then the shop's default turnaround.
   const [promised, setPromised] = useState('');
   const [rush, setRush] = useState(false);
+  const [assignedTo, setAssignedTo] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -242,6 +244,7 @@ export function NewStringJobPage() {
         price: price > 0 ? price : null,
         promised_at: promisedAt.toISOString(),
         is_rush: rush,
+        assigned_to: assignedTo.trim() || null,
       })
       .select('id')
       .single();
@@ -369,6 +372,10 @@ export function NewStringJobPage() {
           onPromised={setPromised}
           onRush={setRush}
         />
+        <label className="mt-3 block max-w-xs space-y-1">
+          <span className="text-xs font-medium text-slate-500">Assign to</span>
+          <PickOrAdd kind="stringer" value={assignedTo} onChange={setAssignedTo} placeholder="Unassigned" />
+        </label>
       </section>
 
       <label className="flex items-center gap-2 text-sm text-slate-700">
