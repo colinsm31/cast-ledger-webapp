@@ -38,6 +38,8 @@ interface LastJob {
   cross_string: string | null;
   cross_specs: Record<string, unknown> | null;
   cross_tension: number | null;
+  main_customer_supplied: boolean;
+  cross_customer_supplied: boolean;
 }
 
 export function NewStringJobPage() {
@@ -82,7 +84,10 @@ export function NewStringJobPage() {
         supabase.from('attribute_defs').select('name, sort_order, categories(name)').order('sort_order'),
         supabase
           .from('string_jobs')
-          .select('main_brand, main_string, main_specs, main_tension, cross_brand, cross_string, cross_specs, cross_tension')
+          .select(
+            'main_brand, main_string, main_specs, main_tension, cross_brand, cross_string, cross_specs, cross_tension, ' +
+              'main_customer_supplied, cross_customer_supplied',
+          )
           .eq('customer_racket_id', racketId)
           .order('entered_at', { ascending: false })
           .limit(1)
@@ -115,8 +120,20 @@ export function NewStringJobPage() {
       // Preload from the racket's last string job, if any.
       const last = lastJobRes.data as LastJob | null;
       if (last) {
-        const mainsDraft = jobSideToRow(last.main_brand, last.main_string, last.main_specs, last.main_tension);
-        const crossesDraft = jobSideToRow(last.cross_brand, last.cross_string, last.cross_specs, last.cross_tension);
+        const mainsDraft = jobSideToRow(
+          last.main_brand,
+          last.main_string,
+          last.main_specs,
+          last.main_tension,
+          last.main_customer_supplied,
+        );
+        const crossesDraft = jobSideToRow(
+          last.cross_brand,
+          last.cross_string,
+          last.cross_specs,
+          last.cross_tension,
+          last.cross_customer_supplied,
+        );
         setMains(mainsDraft);
         if (!crossesDraft.name) {
           setCrosses(mainsDraft);
@@ -125,6 +142,7 @@ export function NewStringJobPage() {
           const sameString =
             mainsDraft.brand === crossesDraft.brand &&
             mainsDraft.name === crossesDraft.name &&
+            mainsDraft.customer === crossesDraft.customer &&
             JSON.stringify(mainsDraft.specs) === JSON.stringify(crossesDraft.specs);
           if (!sameString) setCrossStringEdited(true);
           if (mainsDraft.tension !== crossesDraft.tension) setCrossTensionEdited(true);
@@ -152,6 +170,7 @@ export function NewStringJobPage() {
         nc.brand = next.brand;
         nc.name = next.name;
         nc.specs = { ...next.specs };
+        nc.customer = next.customer;
       }
       if (!crossTensionEdited) nc.tension = next.tension;
       return nc;
@@ -160,7 +179,7 @@ export function NewStringJobPage() {
 
   function updateCrosses(patch: Partial<RowSel>) {
     if (patch.tension !== undefined) setCrossTensionEdited(true);
-    if (patch.brand !== undefined || patch.name !== undefined || patch.specs !== undefined) {
+    if (patch.brand !== undefined || patch.name !== undefined || patch.specs !== undefined || patch.customer !== undefined) {
       setCrossStringEdited(true);
     }
     setCrosses((prev) => ({ ...prev, ...patch }));
@@ -321,8 +340,9 @@ export function NewStringJobPage() {
           onCrosses={updateCrosses}
         />
         <p className="mt-2 text-xs text-slate-400">
-          Pick a string from the catalog. Crosses copy the mains string and tension automatically —
-          change the crosses row only for a hybrid or a different cross tension.
+          Pick a string from the catalog, or tick Own when the customer brought their own (labor only). Crosses copy
+          the mains string and tension automatically — change the crosses row only for a hybrid or a different cross
+          tension.
         </p>
         {rowProblems.length > 0 && (
           <ul className="mt-2 space-y-0.5 text-xs text-amber-700">

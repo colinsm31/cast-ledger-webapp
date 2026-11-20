@@ -37,9 +37,14 @@ export interface RowSel {
   name: string;
   specs: Record<string, string>;
   tension: string;
+  /** The customer's own string (0065): brand and name typed in, no catalog product. */
+  customer: boolean;
 }
 
-export const emptyRow: RowSel = { brand: '', name: '', specs: {}, tension: '' };
+export const emptyRow: RowSel = { brand: '', name: '', specs: {}, tension: '', customer: false };
+
+/** The most characters the database keeps for a customer's string brand or name. */
+export const CUSTOMER_STRING_MAX = 80;
 
 // Preferred column order for string attributes (color before gauge); any other
 // attributes keep their category sort order after these.
@@ -76,6 +81,7 @@ export function jobSideToRow(
   name: string | null,
   specs: Record<string, unknown> | null,
   tension: number | null,
+  customer = false,
 ): RowSel {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(specs ?? {})) {
@@ -86,16 +92,19 @@ export function jobSideToRow(
     name: name ?? '',
     specs: out,
     tension: tension != null ? String(tension) : '',
+    customer,
   };
 }
 
 // The specific string product a row resolves to, when brand + name + every
-// attribute value match exactly one catalog product.
+// attribute value match exactly one catalog product. The customer's own
+// string never does.
 export function resolveProduct(
   catalog: CatalogString[],
   dims: string[],
   row: RowSel,
 ): CatalogString | undefined {
+  if (row.customer) return undefined;
   return catalog.find(
     (c) =>
       c.brand === row.brand &&
@@ -111,8 +120,19 @@ export function rowPayload(
   row: RowSel,
   prefix: 'main' | 'cross',
 ): Record<string, unknown> {
+  if (row.customer) {
+    return {
+      [`${prefix}_customer_supplied`]: true,
+      [`${prefix}_product_id`]: null,
+      [`${prefix}_brand`]: row.brand.trim() || null,
+      [`${prefix}_string`]: row.name.trim() || null,
+      [`${prefix}_specs`]: {},
+      [`${prefix}_tension`]: optionalNumber(row.tension),
+    };
+  }
   if (!row.name) {
     return {
+      [`${prefix}_customer_supplied`]: false,
       [`${prefix}_product_id`]: null,
       [`${prefix}_brand`]: null,
       [`${prefix}_string`]: null,
@@ -122,6 +142,7 @@ export function rowPayload(
   }
   const product = resolveProduct(catalog, dims, row);
   return {
+    [`${prefix}_customer_supplied`]: false,
     [`${prefix}_product_id`]: product?.id ?? null,
     [`${prefix}_brand`]: row.brand || null,
     [`${prefix}_string`]: row.name,
@@ -164,6 +185,7 @@ export function StringJobTable({
             </th>
           ))}
           <th>Tension</th>
+          <th title="The customer brought this string">Own</th>
         </tr>
       </thead>
       <tbody>
@@ -231,11 +253,67 @@ function StringRowInputs({
           </td>
         ))}
         <td className="text-sm text-slate-800">{row.tension || '—'}</td>
+        <td className="text-sm text-slate-600">{row.customer ? 'Customer’s' : '—'}</td>
       </tr>
     );
   }
 
   const change = onChange ?? (() => {});
+  const ownString = (
+    <td>
+      <input
+        type="checkbox"
+        aria-label={`${label}: the customer’s own string`}
+        checked={row.customer}
+        onChange={(e) => change({ customer: e.target.checked, brand: '', name: '', specs: {} })}
+      />
+    </td>
+  );
+
+  // The customer's own string: typed in, nothing to pick from the catalog.
+  if (row.customer) {
+    return (
+      <tr>
+        <td className="pr-2 text-sm font-semibold text-slate-700">{label}</td>
+        <td>
+          <input
+            value={row.brand}
+            onChange={(e) => change({ brand: e.target.value })}
+            maxLength={CUSTOMER_STRING_MAX}
+            placeholder="Brand"
+            aria-label={`${label} brand`}
+            className={`${cellClass} min-w-[8rem]`}
+          />
+        </td>
+        <td>
+          <input
+            value={row.name}
+            onChange={(e) => change({ name: e.target.value })}
+            maxLength={CUSTOMER_STRING_MAX}
+            placeholder="Customer’s string"
+            aria-label={`${label} string`}
+            className={`${cellClass} min-w-[10rem]`}
+          />
+        </td>
+        {dims.map((d) => (
+          <td key={d} className="text-center text-sm text-slate-400">
+            —
+          </td>
+        ))}
+        <td>
+          <input
+            value={row.tension}
+            onChange={(e) => change({ tension: e.target.value })}
+            inputMode="decimal"
+            placeholder="lb"
+            aria-label={`${label} tension`}
+            className={`${cellClass} w-20`}
+          />
+        </td>
+        {ownString}
+      </tr>
+    );
+  }
 
   return (
     <tr>
@@ -298,6 +376,7 @@ function StringRowInputs({
           className={`${cellClass} w-20`}
         />
       </td>
+      {ownString}
     </tr>
   );
 }

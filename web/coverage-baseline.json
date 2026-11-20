@@ -2,10 +2,10 @@
   "updated": "2026-11-20",
   "web": {
     "overall": {
-      "lines": 21.41,
-      "statements": 22.17,
-      "functions": 21.6,
-      "branches": 21.3
+      "lines": 21.49,
+      "statements": 22.25,
+      "functions": 21.58,
+      "branches": 21.45
     },
     "byFolder": {
       "src": {
@@ -48,7 +48,7 @@
         "lines": 37.78
       },
       "src/features/stringjobs": {
-        "lines": 17.12
+        "lines": 17.98
       },
       "src/lib": {
         "lines": 91.11
@@ -245,7 +245,7 @@
         "lines": 100
       },
       "src/features/stringjobs/stringJobForm.tsx": {
-        "lines": 5.76
+        "lines": 6.25
       },
       "src/features/stringjobs/stringRow.ts": {
         "lines": 100

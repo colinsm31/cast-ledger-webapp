@@ -63,6 +63,23 @@ describe('stringSummary', () => {
     expect(stringSummary(job({ cross_string: 'NXT', cross_tension: 50 }))).toBe('NXT @50');
   });
 
+  it('marks the customer’s own string', () => {
+    expect(
+      stringSummary(
+        job({
+          main_brand: 'Luxilon',
+          main_string: 'ALU Power',
+          main_tension: 52,
+          main_customer_supplied: true,
+          cross_brand: 'Wilson',
+          cross_string: 'NXT',
+          cross_specs: { gauge: '16' },
+          cross_tension: 55,
+        }),
+      ),
+    ).toBe('Luxilon ALU Power (customer’s) @52 / Wilson NXT 16 @55');
+  });
+
   it('shows a dash when nothing is recorded', () => {
     expect(stringSummary(job({}))).toBe('—');
   });

@@ -108,8 +108,8 @@ export function StringJobDetailPage() {
 
   const hydrate = useCallback((j: JobRow) => {
     setJob(j);
-    setMains(jobSideToRow(j.main_brand, j.main_string, j.main_specs, j.main_tension));
-    setCrosses(jobSideToRow(j.cross_brand, j.cross_string, j.cross_specs, j.cross_tension));
+    setMains(jobSideToRow(j.main_brand, j.main_string, j.main_specs, j.main_tension, j.main_customer_supplied));
+    setCrosses(jobSideToRow(j.cross_brand, j.cross_string, j.cross_specs, j.cross_tension, j.cross_customer_supplied));
     setPrice(j.price != null ? String(j.price) : '');
     setNotes(j.notes ?? '');
     setStrungBy(j.strung_by ?? '');
