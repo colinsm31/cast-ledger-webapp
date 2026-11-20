@@ -2,10 +2,10 @@
   "updated": "2026-11-20",
   "web": {
     "overall": {
-      "lines": 21.49,
-      "statements": 22.25,
-      "functions": 21.58,
-      "branches": 21.45
+      "lines": 21.82,
+      "statements": 22.58,
+      "functions": 21.89,
+      "branches": 21.92
     },
     "byFolder": {
       "src": {
@@ -48,7 +48,7 @@
         "lines": 37.78
       },
       "src/features/stringjobs": {
-        "lines": 17.98
+        "lines": 20.77
       },
       "src/lib": {
         "lines": 91.11
@@ -229,6 +229,9 @@
       "src/features/scan/useScannerCapture.ts": {
         "lines": 100
       },
+      "src/features/stringjobs/LastSetupPanel.tsx": {
+        "lines": 100
+      },
       "src/features/stringjobs/PromiseFields.tsx": {
         "lines": 100
       },
@@ -241,11 +244,14 @@
       "src/features/stringjobs/WorkloadPanel.tsx": {
         "lines": 95.65
       },
+      "src/features/stringjobs/lastSetup.ts": {
+        "lines": 100
+      },
       "src/features/stringjobs/stringChange.ts": {
         "lines": 100
       },
       "src/features/stringjobs/stringJobForm.tsx": {
-        "lines": 6.25
+        "lines": 12.5
       },
       "src/features/stringjobs/stringRow.ts": {
         "lines": 100

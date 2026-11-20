@@ -13,7 +13,6 @@ import { Spinner } from '../../components/Spinner';
 import {
   cellClass,
   emptyRow,
-  jobSideToRow,
   resolveProduct,
   rowPayload,
   stringDims,
@@ -29,18 +28,14 @@ import { PromiseFields } from '../stringjobs/PromiseFields';
 import { PickOrAdd } from '../lookups/PickOrAdd';
 import { defaultPromise, fromLocalInput, promiseProblem, toLocalInput } from '../../lib/stringJobPromise';
 
-interface LastJob {
-  main_brand: string | null;
-  main_string: string | null;
-  main_specs: Record<string, unknown> | null;
-  main_tension: number | null;
-  cross_brand: string | null;
-  cross_string: string | null;
-  cross_specs: Record<string, unknown> | null;
-  cross_tension: number | null;
-  main_customer_supplied: boolean;
-  cross_customer_supplied: boolean;
-}
+import { SETUP_COLUMNS, setupToRows } from '../stringjobs/lastSetup';
+import { LastSetupPanel, type LastSetup } from '../stringjobs/LastSetupPanel';
+import type { StringSetup } from '../stringjobs/stringSummary';
+
+type PastJob = StringSetup & {
+  entered_at: string;
+  customer_rackets: { brand: string | null; model: string } | null;
+};
 
 export function NewStringJobPage() {
   const { customerId, racketId } = useParams<{ customerId: string; racketId: string }>();
@@ -70,11 +65,16 @@ export function NewStringJobPage() {
   const [assignedTo, setAssignedTo] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // "Same as last time": this racquet's last job, and the customer's last job
+  // on another racquet.
+  const [racketLast, setRacketLast] = useState<PastJob | null>(null);
+  const [customerLast, setCustomerLast] = useState<PastJob | null>(null);
 
   useEffect(() => {
     if (!racketId) return;
     void (async () => {
-      const [racketRes, customerRes, productsRes, attrsRes, lastJobRes, availRes, openJobRes] = await Promise.all([
+      const [racketRes, customerRes, productsRes, attrsRes, lastJobRes, availRes, openJobRes, customerLastRes] =
+        await Promise.all([
         supabase.from('customer_rackets').select('*').eq('id', racketId).single(),
         customerId
           ? supabase.from('customers').select('*').eq('id', customerId).single()
@@ -84,11 +84,9 @@ export function NewStringJobPage() {
         supabase.from('attribute_defs').select('name, sort_order, categories(name)').order('sort_order'),
         supabase
           .from('string_jobs')
-          .select(
-            'main_brand, main_string, main_specs, main_tension, cross_brand, cross_string, cross_specs, cross_tension, ' +
-              'main_customer_supplied, cross_customer_supplied',
-          )
+          .select(`${SETUP_COLUMNS}, entered_at, customer_rackets ( brand, model )`)
           .eq('customer_racket_id', racketId)
+          .neq('status', 'cancelled')
           .order('entered_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -100,6 +98,17 @@ export function NewStringJobPage() {
           .in('status', ['entered', 'complete'])
           .limit(1)
           .maybeSingle(),
+        customerId
+          ? supabase
+              .from('string_jobs')
+              .select(`${SETUP_COLUMNS}, entered_at, customer_rackets!inner ( brand, model, customer_id )`)
+              .eq('customer_rackets.customer_id', customerId)
+              .neq('customer_racket_id', racketId)
+              .neq('status', 'cancelled')
+              .order('entered_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
       ]);
       if (racketRes.error) {
         setLoadError(errorMessage(racketRes.error));
@@ -117,39 +126,29 @@ export function NewStringJobPage() {
       }
       setAvailableById(avail);
 
-      // Preload from the racket's last string job, if any.
-      const last = lastJobRes.data as LastJob | null;
-      if (last) {
-        const mainsDraft = jobSideToRow(
-          last.main_brand,
-          last.main_string,
-          last.main_specs,
-          last.main_tension,
-          last.main_customer_supplied,
-        );
-        const crossesDraft = jobSideToRow(
-          last.cross_brand,
-          last.cross_string,
-          last.cross_specs,
-          last.cross_tension,
-          last.cross_customer_supplied,
-        );
-        setMains(mainsDraft);
-        if (!crossesDraft.name) {
-          setCrosses(mainsDraft);
-        } else {
-          setCrosses(crossesDraft);
-          const sameString =
-            mainsDraft.brand === crossesDraft.brand &&
-            mainsDraft.name === crossesDraft.name &&
-            mainsDraft.customer === crossesDraft.customer &&
-            JSON.stringify(mainsDraft.specs) === JSON.stringify(crossesDraft.specs);
-          if (!sameString) setCrossStringEdited(true);
-          if (mainsDraft.tension !== crossesDraft.tension) setCrossTensionEdited(true);
-        }
-      }
+      // Start from the racquet's last setup, if it has one.
+      const last = lastJobRes.data as unknown as PastJob | null;
+      setRacketLast(last);
+      setCustomerLast(customerLastRes.data as unknown as PastJob | null);
+      if (last) applySetup(last);
     })();
   }, [racketId, customerId]);
+
+  // Fill both rows from a past job's setup.
+  function applySetup(job: StringSetup) {
+    const rows = setupToRows(job);
+    setMains(rows.mains);
+    setCrosses(rows.crosses);
+    setCrossStringEdited(rows.crossStringEdited);
+    setCrossTensionEdited(rows.crossTensionEdited);
+  }
+
+  const lastSetups: LastSetup[] = [
+    ...(racketLast ? [{ key: 'racket', label: 'Last time on this racquet', job: racketLast }] : []),
+    ...(customerLast
+      ? [{ key: 'customer', label: `Last time on ${racketName(customerLast.customer_rackets)}`, job: customerLast }]
+      : []),
+  ];
 
   useEffect(() => {
     if (settings && !promised) setPromised(toLocalInput(defaultPromise(new Date(), settings.stringing_turnaround_hours)));
@@ -329,6 +328,8 @@ export function NewStringJobPage() {
         </p>
       </div>
 
+      <LastSetupPanel setups={lastSetups} onUse={applySetup} />
+
       <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4">
         <StringJobTable
           dims={dims}
@@ -428,6 +429,10 @@ export function NewStringJobPage() {
       </div>
     </div>
   );
+}
+
+function racketName(racket: { brand: string | null; model: string } | null): string {
+  return racket ? `${racket.brand ? `${racket.brand} ` : ''}${racket.model}` : 'another racquet';
 }
 
 function racketLabel(racket: CustomerRacket): string {
