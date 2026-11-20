@@ -30,7 +30,9 @@ export function UnitsSection({
       .from('product_units')
       .select('*')
       .eq('product_id', productId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      // Frames received together share a time; keep them in a steady order.
+      .order('id', { ascending: true });
     if (err) setError(errorMessage(err));
     else setUnits((data ?? []) as ProductUnit[]);
   }, [productId]);
