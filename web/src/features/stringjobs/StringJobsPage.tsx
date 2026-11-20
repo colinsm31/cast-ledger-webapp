@@ -10,6 +10,7 @@ import { stringSummary } from './stringSummary';
 import { useBack } from '../../app/BackContext';
 import { PROMISE_STATE_CLASSES, promiseLabel, promiseState, sortOpenQueue } from '../../lib/stringJobPromise';
 import { RushBadge } from './PromiseFields';
+import { jobCode } from './jobTag';
 import { UNASSIGNED, filterByStringer } from '../../lib/stringerWorkload';
 import { useLookups } from '../lookups/useLookups';
 import { WorkloadPanel } from './WorkloadPanel';
@@ -176,6 +177,7 @@ export function StringJobsPage({
                       ) : (
                         <span className="font-medium text-slate-900">—</span>
                       )}
+                      <span className="text-xs font-semibold text-slate-500">{jobCode(job.job_number)}</span>
                       <StatusBadge status={job.status} />
                       <PaidBadge paid={!!job.paid_sale_id} />
                       {job.status === 'entered' && job.is_rush && <RushBadge />}

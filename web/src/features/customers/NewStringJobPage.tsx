@@ -59,6 +59,8 @@ export function NewStringJobPage() {
   const [crossTensionEdited, setCrossTensionEdited] = useState(false);
   const [manualPrice, setManualPrice] = useState('');
   const [payNow, setPayNow] = useState(false);
+  // Print the job's tag straight after entering it (unless paying first).
+  const [printTag, setPrintTag] = useState(true);
   // Empty until the settings load, then the shop's default turnaround.
   const [promised, setPromised] = useState('');
   const [rush, setRush] = useState(false);
@@ -274,6 +276,8 @@ export function NewStringJobPage() {
     // Pay now → open a sales ticket for the stringing in the customer's name.
     if (payNow && data) {
       navigate(`/sales/new?stringJob=${data.id}`);
+    } else if (printTag && data) {
+      navigate(`/string-jobs/${data.id}/tag`);
     } else {
       navigate(`/customers/${customerId}`);
     }
@@ -402,6 +406,10 @@ export function NewStringJobPage() {
       <label className="flex items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" checked={payNow} onChange={(e) => setPayNow(e.target.checked)} />
         Pay now (open a sales ticket after entering)
+      </label>
+      <label className="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" checked={printTag} onChange={(e) => setPrintTag(e.target.checked)} disabled={payNow} />
+        Print the job tag next{payNow ? ' (print it from the job after payment, marked PAID)' : ''}
       </label>
 
       {/* The price includes the stringing labor charge from the settings. */}

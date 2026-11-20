@@ -36,6 +36,7 @@ import {
 } from './stringChange';
 import { PaymentScreen, type Tender } from '../sales/PaymentScreen';
 import { PromiseFields, RushBadge } from './PromiseFields';
+import { jobCode } from './jobTag';
 import {
   PROMISE_STATE_CLASSES,
   fromLocalInput,
@@ -471,6 +472,7 @@ export function StringJobDetailPage() {
         )}
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold text-slate-900">{customer ? customerName(customer) : 'String job'}</h1>
+          <span className="text-sm font-semibold text-slate-500">{jobCode(job.job_number)}</span>
           <StatusBadge status={status} />
           {status !== 'cancelled' && (
             <span
@@ -482,6 +484,11 @@ export function StringJobDetailPage() {
             </span>
           )}
           {status === 'entered' && job.is_rush && <RushBadge />}
+          {status !== 'cancelled' && (
+            <Link to={`/string-jobs/${job.id}/tag`} className="ml-auto text-sm text-blue-600 hover:underline">
+              Print tag
+            </Link>
+          )}
         </div>
         <p className="text-sm text-slate-500">
           {racket?.brand ? `${racket.brand} ` : ''}

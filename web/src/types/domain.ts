@@ -243,6 +243,8 @@ export interface StringJob {
   is_rush: boolean;
   // The stringer a waiting job is assigned to (0064); null = unassigned.
   assigned_to: string | null;
+  // The job's number, printed on its tag as J<number> (0066).
+  job_number: number;
   // The customer brought this side's string (0065): no catalog product.
   main_customer_supplied: boolean;
   cross_customer_supplied: boolean;

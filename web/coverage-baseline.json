@@ -2,10 +2,10 @@
   "updated": "2026-11-20",
   "web": {
     "overall": {
-      "lines": 21.82,
-      "statements": 22.58,
-      "functions": 21.89,
-      "branches": 21.92
+      "lines": 22.68,
+      "statements": 23.36,
+      "functions": 22.34,
+      "branches": 23.01
     },
     "byFolder": {
       "src": {
@@ -39,19 +39,19 @@
         "lines": 0
       },
       "src/features/products": {
-        "lines": 3.39
+        "lines": 3.64
       },
       "src/features/sales": {
-        "lines": 3.61
+        "lines": 3.6
       },
       "src/features/scan": {
-        "lines": 37.78
+        "lines": 44.68
       },
       "src/features/stringjobs": {
-        "lines": 20.77
+        "lines": 21.77
       },
       "src/lib": {
-        "lines": 91.11
+        "lines": 92.48
       },
       "src/types": {
         "lines": 33.33
@@ -221,12 +221,18 @@
         "lines": 100
       },
       "src/features/scan/resolveBarcode.ts": {
-        "lines": 0
+        "lines": 21.05
       },
       "src/features/scan/scanFlow.ts": {
         "lines": 0
       },
       "src/features/scan/useScannerCapture.ts": {
+        "lines": 100
+      },
+      "src/features/stringjobs/JobTagPage.tsx": {
+        "lines": 0
+      },
+      "src/features/stringjobs/JobTagView.tsx": {
         "lines": 100
       },
       "src/features/stringjobs/LastSetupPanel.tsx": {
@@ -243,6 +249,9 @@
       },
       "src/features/stringjobs/WorkloadPanel.tsx": {
         "lines": 95.65
+      },
+      "src/features/stringjobs/jobTag.ts": {
+        "lines": 70
       },
       "src/features/stringjobs/lastSetup.ts": {
         "lines": 100
@@ -263,6 +272,9 @@
         "lines": 100
       },
       "src/lib/barcode.ts": {
+        "lines": 100
+      },
+      "src/lib/code128.ts": {
         "lines": 100
       },
       "src/lib/customerSearch.ts": {
@@ -347,7 +359,7 @@
         "lines": 100
       },
       "src/lib/supabase.ts": {
-        "lines": 0
+        "lines": 87.5
       },
       "src/lib/taxExempt.ts": {
         "lines": 100

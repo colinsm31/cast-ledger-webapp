@@ -32,6 +32,9 @@ describe('barcodeInUseMessage', () => {
     expect(barcodeInUseMessage({ kind: 'gift_card', code: 'GC-1', giftCardId: 'g1', customerId: null })).toBe(
       "GC-1 is already a gift card's code.",
     );
+    expect(barcodeInUseMessage({ kind: 'job', code: 'J1042', jobId: 'j1', customerId: 'c1' })).toBe(
+      "J1042 is a string job's tag number.",
+    );
   });
 
   it('leaves out a missing brand', () => {

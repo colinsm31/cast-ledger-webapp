@@ -33,7 +33,8 @@ export function stringSummary(job: StringSetup): string {
   return `${mains} / ${crosses}`;
 }
 
-function sideText(
+/** One side's setup: "Babolat RPM Blast 16 @55", marking the customer's own string. */
+export function sideText(
   brand: string | null,
   name: string | null,
   specs: Record<string, JsonValue> | null,
