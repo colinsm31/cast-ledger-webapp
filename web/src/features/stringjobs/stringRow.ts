@@ -1,4 +1,4 @@
-import type { CatalogString, RowSel } from './stringJobForm';
+import { CUSTOMER_STRING_MAX, type CatalogString, type RowSel } from './stringJobForm';
 import { NumberLimits, parseNumberField } from '../../lib/numberInput';
 
 /**
@@ -8,6 +8,14 @@ import { NumberLimits, parseNumberField } from '../../lib/numberInput';
  * has a tension, so the job knows which string to set aside and use up.
  */
 export function rowProblem(catalog: CatalogString[], dims: string[], row: RowSel): string | null {
+  // The customer's own string: just its name (and brand, if given) and a tension.
+  if (row.customer) {
+    if (!row.name.trim()) return 'enter the customer’s string';
+    if (row.name.trim().length > CUSTOMER_STRING_MAX || row.brand.trim().length > CUSTOMER_STRING_MAX) {
+      return `use at most ${CUSTOMER_STRING_MAX} characters for the brand and the string`;
+    }
+    return tensionProblem(row.tension);
+  }
   if (!row.brand) return 'choose a brand';
   if (!row.name) return 'choose a string';
 
@@ -25,10 +33,13 @@ export function rowProblem(catalog: CatalogString[], dims: string[], row: RowSel
   const matches = candidates.filter((c) => dims.every((dim) => c.attributes[dim] === row.specs[dim]));
   if (matches.length === 0) return 'that combination isn’t in the catalog';
   if (matches.length > 1) return 'more than one catalog string matches — check the catalog';
+  return tensionProblem(row.tension);
+}
 
-  const tension = parseNumberField(row.tension, 'Tension', 'decimal', { max: NumberLimits.maxTension });
+function tensionProblem(text: string): string | null {
+  const tension = parseNumberField(text, 'Tension', 'decimal', { max: NumberLimits.maxTension });
   if ('error' in tension) {
-    return Number(row.tension) > NumberLimits.maxTension
+    return Number(text) > NumberLimits.maxTension
       ? `the tension is too high (the most is ${NumberLimits.maxTension.toLocaleString('en-US')})`
       : 'the tension must be a number, like 52 or 52.5';
   }

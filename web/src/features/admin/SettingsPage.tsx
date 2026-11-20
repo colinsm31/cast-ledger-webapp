@@ -100,6 +100,11 @@ export function SettingsPage() {
           <input value={form.stringingLabor} onChange={(e) => update({ stringingLabor: e.target.value })} inputMode="decimal" className={inputClass} placeholder="0.00" />
         </label>
         <p className="text-xs text-slate-400">Added on top of the string price when pricing a string job.</p>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-slate-500">Promise string jobs after (hours)</span>
+          <input value={form.turnaroundHours} onChange={(e) => update({ turnaroundHours: e.target.value })} inputMode="numeric" className={inputClass} placeholder="24" />
+        </label>
+        <p className="text-xs text-slate-400">A new string job is promised this long after drop-off, unless staff pick a time.</p>
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">

@@ -35,6 +35,16 @@ import {
   type StringChangeQuote,
 } from './stringChange';
 import { PaymentScreen, type Tender } from '../sales/PaymentScreen';
+import { PromiseFields, RushBadge } from './PromiseFields';
+import { jobCode } from './jobTag';
+import {
+  PROMISE_STATE_CLASSES,
+  fromLocalInput,
+  promiseLabel,
+  promiseProblem,
+  promiseState,
+  toLocalInput,
+} from '../../lib/stringJobPromise';
 
 interface JobRow extends StringJob {
   customer_rackets:
@@ -91,6 +101,7 @@ export function StringJobDetailPage() {
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
   const [strungBy, setStrungBy] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [pendingChange, setPendingChange] = useState<PendingStringChange | null>(null);
   const [changeTenders, setChangeTenders] = useState<Tender[]>([]);
@@ -98,11 +109,12 @@ export function StringJobDetailPage() {
 
   const hydrate = useCallback((j: JobRow) => {
     setJob(j);
-    setMains(jobSideToRow(j.main_brand, j.main_string, j.main_specs, j.main_tension));
-    setCrosses(jobSideToRow(j.cross_brand, j.cross_string, j.cross_specs, j.cross_tension));
+    setMains(jobSideToRow(j.main_brand, j.main_string, j.main_specs, j.main_tension, j.main_customer_supplied));
+    setCrosses(jobSideToRow(j.cross_brand, j.cross_string, j.cross_specs, j.cross_tension, j.cross_customer_supplied));
     setPrice(j.price != null ? String(j.price) : '');
     setNotes(j.notes ?? '');
     setStrungBy(j.strung_by ?? '');
+    setAssignedTo(j.assigned_to ?? '');
   }, []);
 
   // Moving to another job, an answer for the previous one is ignored (#37).
@@ -110,6 +122,7 @@ export function StringJobDetailPage() {
   // Stringer saves are tracked on their own: only the latest pick is shown,
   // and never on a different job than the one it was saved for (#7).
   const startStringerSave = useLatestRequest();
+  const startAssignSave = useLatestRequest();
   const currentJobIdRef = useRef(jobId);
   currentJobIdRef.current = jobId;
 
@@ -318,6 +331,26 @@ export function StringJobDetailPage() {
     setStrungBy((data as { strung_by: string | null }).strung_by ?? '');
   }
 
+  // Assigning saves right away too, and is shown once saved (0064).
+  async function assign(value: string) {
+    if (!jobId) return;
+    const forJobId = jobId;
+    const isLatest = startAssignSave();
+    setError(null);
+    const { data, error: err } = await supabase
+      .from('string_jobs')
+      .update({ assigned_to: value.trim() || null })
+      .eq('id', forJobId)
+      .select('assigned_to')
+      .single();
+    if (!isLatest() || currentJobIdRef.current !== forJobId) return;
+    if (err) {
+      setError(`The assignment wasn't saved: ${errorMessage(err)}`);
+      return;
+    }
+    setAssignedTo((data as { assigned_to: string | null }).assigned_to ?? '');
+  }
+
   async function advance(target: StringJobStatus) {
     if (!jobId) return;
     setBusy(true);
@@ -439,6 +472,7 @@ export function StringJobDetailPage() {
         )}
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold text-slate-900">{customer ? customerName(customer) : 'String job'}</h1>
+          <span className="text-sm font-semibold text-slate-500">{jobCode(job.job_number)}</span>
           <StatusBadge status={status} />
           {status !== 'cancelled' && (
             <span
@@ -448,6 +482,12 @@ export function StringJobDetailPage() {
             >
               {job.paid_sale_id ? 'Paid' : 'Unpaid'}
             </span>
+          )}
+          {status === 'entered' && job.is_rush && <RushBadge />}
+          {status !== 'cancelled' && (
+            <Link to={`/string-jobs/${job.id}/tag`} className="ml-auto text-sm text-blue-600 hover:underline">
+              Print tag
+            </Link>
           )}
         </div>
         <p className="text-sm text-slate-500">
@@ -539,11 +579,24 @@ export function StringJobDetailPage() {
         )}
       </section>
 
+      <PromiseSection job={job} disabled={busy || editing} onSaved={reload} />
+
       {/* Stringer — recorded when the racket is strung (entered jobs). */}
       {status === 'entered' && !editing && (
-        <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-          <span className="text-xs font-medium text-slate-500">Strung by</span>
-          <PickOrAdd kind="stringer" value={strungBy} onChange={(v) => void setStringer(v)} placeholder="Who strung it?" />
+        <section className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="text-xs font-medium text-slate-500">Assigned to</span>
+            <PickOrAdd kind="stringer" value={assignedTo} onChange={(v) => void assign(v)} placeholder="Unassigned" />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs font-medium text-slate-500">Strung by</span>
+            <PickOrAdd
+              kind="stringer"
+              value={strungBy}
+              onChange={(v) => void setStringer(v)}
+              placeholder={assignedTo ? `${assignedTo} (assigned)` : 'Who strung it?'}
+            />
+          </label>
         </section>
       )}
       {status !== 'entered' && job.strung_by && (
@@ -564,8 +617,9 @@ export function StringJobDetailPage() {
             <>
               <button
                 onClick={() => void advance('complete')}
-                disabled={busy || !strungBy.trim()}
-                title={!strungBy.trim() ? 'Record who strung it first' : undefined}
+                // With nobody recorded, completing records the assigned stringer.
+                disabled={busy || !(strungBy.trim() || assignedTo.trim())}
+                title={!(strungBy.trim() || assignedTo.trim()) ? 'Record who strung it first' : undefined}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 Mark complete
@@ -615,6 +669,90 @@ export function StringJobDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// When the job was promised, changeable while it waits to be strung (0063).
+function PromiseSection({ job, disabled, onSaved }: { job: JobRow; disabled: boolean; onSaved: () => Promise<void> }) {
+  const [changing, setChanging] = useState(false);
+  const [promised, setPromised] = useState('');
+  const [rush, setRush] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const waiting = job.status === 'entered';
+  if (!waiting && !job.promised_at) return null;
+
+  const now = new Date();
+  const state = waiting ? promiseState(job.promised_at, now) : null;
+  const problem = changing ? promiseProblem(promised, now, new Date(job.entered_at)) : null;
+
+  function startChange() {
+    setPromised(job.promised_at ? toLocalInput(new Date(job.promised_at)) : '');
+    setRush(job.is_rush);
+    setError(null);
+    setChanging(true);
+  }
+
+  async function save() {
+    const promisedAt = fromLocalInput(promised);
+    if (problem || !promisedAt) {
+      setError(problem ?? 'Choose when the job will be ready.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const { error: err } = await supabase
+      .from('string_jobs')
+      .update({ promised_at: promisedAt.toISOString(), is_rush: rush })
+      .eq('id', job.id);
+    setSaving(false);
+    if (err) {
+      setError(errorMessage(err));
+      return;
+    }
+    setChanging(false);
+    await onSaved();
+  }
+
+  return (
+    <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-700">Promised</h2>
+        {waiting && !changing && (
+          <button onClick={startChange} disabled={disabled} className="text-xs text-blue-600 hover:underline disabled:opacity-50">
+            Change
+          </button>
+        )}
+      </div>
+      {changing ? (
+        <>
+          <PromiseFields promised={promised} rush={rush} problem={problem} onPromised={setPromised} onRush={setRush} />
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={() => void save()}
+              disabled={saving || !!problem}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button onClick={() => setChanging(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className={`text-sm ${state ? PROMISE_STATE_CLASSES[state] : 'text-slate-700'}`}>
+          {!job.promised_at
+            ? 'No promised time yet.'
+            : waiting
+              ? promiseLabel(job.promised_at, now)
+              : `Promised ${new Date(job.promised_at).toLocaleString()}`}
+          {waiting && job.is_rush ? ' · rush' : ''}
+        </p>
+      )}
+    </section>
   );
 }
 

@@ -237,6 +237,17 @@ export interface StringJob {
   notes: string | null;
   // The sale that paid for this job, if any (null = unpaid).
   paid_sale_id: string | null;
+  // When the customer was told it would be ready (null on jobs before 0063),
+  // and whether it's a rush.
+  promised_at: string | null;
+  is_rush: boolean;
+  // The stringer a waiting job is assigned to (0064); null = unassigned.
+  assigned_to: string | null;
+  // The job's number, printed on its tag as J<number> (0066).
+  job_number: number;
+  // The customer brought this side's string (0065): no catalog product.
+  main_customer_supplied: boolean;
+  cross_customer_supplied: boolean;
 
   entered_at: string;
   completed_at: string | null;

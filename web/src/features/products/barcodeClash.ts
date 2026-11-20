@@ -16,6 +16,8 @@ export function barcodeInUseMessage(match: BarcodeMatch): string | null {
       return `${match.code} is already a customer's racquet tag.`;
     case 'gift_card':
       return `${match.code} is already a gift card's code.`;
+    case 'job':
+      return `${match.code} is a string job's tag number.`;
     default:
       return null;
   }

@@ -13,7 +13,6 @@ import { Spinner } from '../../components/Spinner';
 import {
   cellClass,
   emptyRow,
-  jobSideToRow,
   resolveProduct,
   rowPayload,
   stringDims,
@@ -25,17 +24,18 @@ import {
   type StringProductRaw,
 } from '../stringjobs/stringJobForm';
 import { jobRowProblems } from '../stringjobs/stringRow';
+import { PromiseFields } from '../stringjobs/PromiseFields';
+import { PickOrAdd } from '../lookups/PickOrAdd';
+import { defaultPromise, fromLocalInput, promiseProblem, toLocalInput } from '../../lib/stringJobPromise';
 
-interface LastJob {
-  main_brand: string | null;
-  main_string: string | null;
-  main_specs: Record<string, unknown> | null;
-  main_tension: number | null;
-  cross_brand: string | null;
-  cross_string: string | null;
-  cross_specs: Record<string, unknown> | null;
-  cross_tension: number | null;
-}
+import { SETUP_COLUMNS, setupToRows } from '../stringjobs/lastSetup';
+import { LastSetupPanel, type LastSetup } from '../stringjobs/LastSetupPanel';
+import type { StringSetup } from '../stringjobs/stringSummary';
+
+type PastJob = StringSetup & {
+  entered_at: string;
+  customer_rackets: { brand: string | null; model: string } | null;
+};
 
 export function NewStringJobPage() {
   const { customerId, racketId } = useParams<{ customerId: string; racketId: string }>();
@@ -59,13 +59,24 @@ export function NewStringJobPage() {
   const [crossTensionEdited, setCrossTensionEdited] = useState(false);
   const [manualPrice, setManualPrice] = useState('');
   const [payNow, setPayNow] = useState(false);
+  // Print the job's tag straight after entering it (unless paying first).
+  const [printTag, setPrintTag] = useState(true);
+  // Empty until the settings load, then the shop's default turnaround.
+  const [promised, setPromised] = useState('');
+  const [rush, setRush] = useState(false);
+  const [assignedTo, setAssignedTo] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // "Same as last time": this racquet's last job, and the customer's last job
+  // on another racquet.
+  const [racketLast, setRacketLast] = useState<PastJob | null>(null);
+  const [customerLast, setCustomerLast] = useState<PastJob | null>(null);
 
   useEffect(() => {
     if (!racketId) return;
     void (async () => {
-      const [racketRes, customerRes, productsRes, attrsRes, lastJobRes, availRes, openJobRes] = await Promise.all([
+      const [racketRes, customerRes, productsRes, attrsRes, lastJobRes, availRes, openJobRes, customerLastRes] =
+        await Promise.all([
         supabase.from('customer_rackets').select('*').eq('id', racketId).single(),
         customerId
           ? supabase.from('customers').select('*').eq('id', customerId).single()
@@ -75,8 +86,9 @@ export function NewStringJobPage() {
         supabase.from('attribute_defs').select('name, sort_order, categories(name)').order('sort_order'),
         supabase
           .from('string_jobs')
-          .select('main_brand, main_string, main_specs, main_tension, cross_brand, cross_string, cross_specs, cross_tension')
+          .select(`${SETUP_COLUMNS}, entered_at, customer_rackets ( brand, model )`)
           .eq('customer_racket_id', racketId)
+          .neq('status', 'cancelled')
           .order('entered_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -88,6 +100,17 @@ export function NewStringJobPage() {
           .in('status', ['entered', 'complete'])
           .limit(1)
           .maybeSingle(),
+        customerId
+          ? supabase
+              .from('string_jobs')
+              .select(`${SETUP_COLUMNS}, entered_at, customer_rackets!inner ( brand, model, customer_id )`)
+              .eq('customer_rackets.customer_id', customerId)
+              .neq('customer_racket_id', racketId)
+              .neq('status', 'cancelled')
+              .order('entered_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
       ]);
       if (racketRes.error) {
         setLoadError(errorMessage(racketRes.error));
@@ -105,26 +128,34 @@ export function NewStringJobPage() {
       }
       setAvailableById(avail);
 
-      // Preload from the racket's last string job, if any.
-      const last = lastJobRes.data as LastJob | null;
-      if (last) {
-        const mainsDraft = jobSideToRow(last.main_brand, last.main_string, last.main_specs, last.main_tension);
-        const crossesDraft = jobSideToRow(last.cross_brand, last.cross_string, last.cross_specs, last.cross_tension);
-        setMains(mainsDraft);
-        if (!crossesDraft.name) {
-          setCrosses(mainsDraft);
-        } else {
-          setCrosses(crossesDraft);
-          const sameString =
-            mainsDraft.brand === crossesDraft.brand &&
-            mainsDraft.name === crossesDraft.name &&
-            JSON.stringify(mainsDraft.specs) === JSON.stringify(crossesDraft.specs);
-          if (!sameString) setCrossStringEdited(true);
-          if (mainsDraft.tension !== crossesDraft.tension) setCrossTensionEdited(true);
-        }
-      }
+      // Start from the racquet's last setup, if it has one.
+      const last = lastJobRes.data as unknown as PastJob | null;
+      setRacketLast(last);
+      setCustomerLast(customerLastRes.data as unknown as PastJob | null);
+      if (last) applySetup(last);
     })();
   }, [racketId, customerId]);
+
+  // Fill both rows from a past job's setup.
+  function applySetup(job: StringSetup) {
+    const rows = setupToRows(job);
+    setMains(rows.mains);
+    setCrosses(rows.crosses);
+    setCrossStringEdited(rows.crossStringEdited);
+    setCrossTensionEdited(rows.crossTensionEdited);
+  }
+
+  const lastSetups: LastSetup[] = [
+    ...(racketLast ? [{ key: 'racket', label: 'Last time on this racquet', job: racketLast }] : []),
+    ...(customerLast
+      ? [{ key: 'customer', label: `Last time on ${racketName(customerLast.customer_rackets)}`, job: customerLast }]
+      : []),
+  ];
+
+  useEffect(() => {
+    if (settings && !promised) setPromised(toLocalInput(defaultPromise(new Date(), settings.stringing_turnaround_hours)));
+  }, [settings, promised]);
+  const promisedProblem = promised ? promiseProblem(promised, new Date()) : null;
 
   const brands = useMemo(
     () => Array.from(new Set(catalog.map((c) => c.brand).filter(Boolean))).sort(),
@@ -140,6 +171,7 @@ export function NewStringJobPage() {
         nc.brand = next.brand;
         nc.name = next.name;
         nc.specs = { ...next.specs };
+        nc.customer = next.customer;
       }
       if (!crossTensionEdited) nc.tension = next.tension;
       return nc;
@@ -148,7 +180,7 @@ export function NewStringJobPage() {
 
   function updateCrosses(patch: Partial<RowSel>) {
     if (patch.tension !== undefined) setCrossTensionEdited(true);
-    if (patch.brand !== undefined || patch.name !== undefined || patch.specs !== undefined) {
+    if (patch.brand !== undefined || patch.name !== undefined || patch.specs !== undefined || patch.customer !== undefined) {
       setCrossStringEdited(true);
     }
     setCrosses((prev) => ({ ...prev, ...patch }));
@@ -213,6 +245,12 @@ export function NewStringJobPage() {
       setError('This string has no set price — enter a price (whole cents) before entering the stringing.');
       return;
     }
+    const promisedAt = fromLocalInput(promised);
+    const promiseError = promiseProblem(promised, new Date());
+    if (promiseError || !promisedAt) {
+      setError(promiseError ?? 'Choose when the job will be ready.');
+      return;
+    }
     setSaving(true);
     setError(null);
 
@@ -224,6 +262,9 @@ export function NewStringJobPage() {
         ...rowPayload(catalog, dims, mains, 'main'),
         ...rowPayload(catalog, dims, crosses, 'cross'),
         price: price > 0 ? price : null,
+        promised_at: promisedAt.toISOString(),
+        is_rush: rush,
+        assigned_to: assignedTo.trim() || null,
       })
       .select('id')
       .single();
@@ -235,6 +276,8 @@ export function NewStringJobPage() {
     // Pay now → open a sales ticket for the stringing in the customer's name.
     if (payNow && data) {
       navigate(`/sales/new?stringJob=${data.id}`);
+    } else if (printTag && data) {
+      navigate(`/string-jobs/${data.id}/tag`);
     } else {
       navigate(`/customers/${customerId}`);
     }
@@ -289,6 +332,8 @@ export function NewStringJobPage() {
         </p>
       </div>
 
+      <LastSetupPanel setups={lastSetups} onUse={applySetup} />
+
       <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4">
         <StringJobTable
           dims={dims}
@@ -300,8 +345,9 @@ export function NewStringJobPage() {
           onCrosses={updateCrosses}
         />
         <p className="mt-2 text-xs text-slate-400">
-          Pick a string from the catalog. Crosses copy the mains string and tension automatically —
-          change the crosses row only for a hybrid or a different cross tension.
+          Pick a string from the catalog, or tick Own when the customer brought their own (labor only). Crosses copy
+          the mains string and tension automatically — change the crosses row only for a hybrid or a different cross
+          tension.
         </p>
         {rowProblems.length > 0 && (
           <ul className="mt-2 space-y-0.5 text-xs text-amber-700">
@@ -343,9 +389,27 @@ export function NewStringJobPage() {
         )}
       </section>
 
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <PromiseFields
+          promised={promised}
+          rush={rush}
+          problem={promisedProblem}
+          onPromised={setPromised}
+          onRush={setRush}
+        />
+        <label className="mt-3 block max-w-xs space-y-1">
+          <span className="text-xs font-medium text-slate-500">Assign to</span>
+          <PickOrAdd kind="stringer" value={assignedTo} onChange={setAssignedTo} placeholder="Unassigned" />
+        </label>
+      </section>
+
       <label className="flex items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" checked={payNow} onChange={(e) => setPayNow(e.target.checked)} />
         Pay now (open a sales ticket after entering)
+      </label>
+      <label className="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" checked={printTag} onChange={(e) => setPrintTag(e.target.checked)} disabled={payNow} />
+        Print the job tag next{payNow ? ' (print it from the job after payment, marked PAID)' : ''}
       </label>
 
       {/* The price includes the stringing labor charge from the settings. */}
@@ -355,7 +419,14 @@ export function NewStringJobPage() {
       <div className="flex gap-2">
         <button
           onClick={() => void save()}
-          disabled={saving || !settings || rowProblems.length > 0 || unavailable.length > 0 || (needsManualPrice && !manualPriceValid)}
+          disabled={
+            saving ||
+            !settings ||
+            rowProblems.length > 0 ||
+            unavailable.length > 0 ||
+            (needsManualPrice && !manualPriceValid) ||
+            !!promisedProblem
+          }
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Enter string job'}
@@ -366,6 +437,10 @@ export function NewStringJobPage() {
       </div>
     </div>
   );
+}
+
+function racketName(racket: { brand: string | null; model: string } | null): string {
+  return racket ? `${racket.brand ? `${racket.brand} ` : ''}${racket.model}` : 'another racquet';
 }
 
 function racketLabel(racket: CustomerRacket): string {

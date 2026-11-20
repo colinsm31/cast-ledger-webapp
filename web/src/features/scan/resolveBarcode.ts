@@ -28,11 +28,12 @@ export type BarcodeMatch =
     }
   | { kind: 'racket'; code: string; racketId: string; customerId: string; openJobId: string | null }
   | { kind: 'gift_card'; code: string; giftCardId: string; customerId: string | null }
+  | { kind: 'job'; code: string; jobId: string; customerId: string }
   | { kind: 'none'; code: string };
 
 /** Raw row shape of the `resolve_barcode` RPC. */
 interface ResolveBarcodeRow {
-  kind: 'product' | 'unit' | 'racket' | 'gift_card' | 'none';
+  kind: 'product' | 'unit' | 'racket' | 'gift_card' | 'job' | 'none';
   code: string;
   id: string | null;
   product_id: string | null;
@@ -107,6 +108,9 @@ function toMatch(row: ResolveBarcodeRow): BarcodeMatch {
       };
     case 'gift_card':
       return { kind: 'gift_card', code: row.code, giftCardId: row.id ?? '', customerId: row.customer_id };
+    case 'job':
+      // A string job's tag (0066).
+      return { kind: 'job', code: row.code, jobId: row.id ?? '', customerId: row.customer_id ?? '' };
     default:
       return { kind: 'none', code: row.code };
   }
@@ -130,6 +134,8 @@ export function routeForMatch(match: BarcodeMatch): string | null {
         : `/customers/${match.customerId}/rackets/${match.racketId}/restring`;
     case 'gift_card':
       return `/gift-cards?code=${encodeURIComponent(match.code)}`;
+    case 'job':
+      return `/string-jobs/${match.jobId}`;
     default:
       return null;
   }

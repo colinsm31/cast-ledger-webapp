@@ -358,6 +358,11 @@ export function NewSalePage() {
           addJobLine(await fetchTicketJob(match.openJobId), customer, lines);
           focusScan();
           return;
+        case 'job':
+          // A job's tag adds the job to the ticket, like its racquet's tag.
+          addJobLine(await fetchTicketJob(match.jobId), customer, lines);
+          focusScan();
+          return;
         case 'gift_card':
           setScanMsg(`${match.code} is a gift card — use “Sell gift card” or redeem it at payment.`);
           return;

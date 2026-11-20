@@ -8,7 +8,7 @@ const catalog: CatalogString[] = [
   { id: 'lynx', brand: 'Head', name: 'Lynx', attributes: { color: 'Yellow' }, sellPrice: 16 },
 ];
 const dims = ['color', 'gauge'];
-const row = (patch: Partial<RowSel>): RowSel => ({ brand: '', name: '', specs: {}, tension: '', ...patch });
+const row = (patch: Partial<RowSel>): RowSel => ({ brand: '', name: '', specs: {}, tension: '', customer: false, ...patch });
 const complete = row({ brand: 'Babolat', name: 'RPM Blast', specs: { color: 'Black', gauge: '16' }, tension: '55' });
 
 describe('rowProblem', () => {
@@ -47,6 +47,27 @@ describe('rowProblem', () => {
     const lengthCatalog = catalog.map((c) => ({ ...c, attributes: { ...c.attributes, length: '12m' } }));
     expect(rowProblem(lengthCatalog, withLength, complete)).toBe('choose a length');
     expect(rowProblem(lengthCatalog, withLength, { ...complete, specs: { ...complete.specs, length: '12m' } })).toBeNull();
+  });
+});
+
+describe('the customer’s own string', () => {
+  const own = row({ customer: true, brand: 'Luxilon', name: 'ALU Power 125', tension: '52' });
+
+  it('needs only a name and a tension, not the catalog', () => {
+    expect(rowProblem(catalog, dims, own)).toBeNull();
+    expect(rowProblem(catalog, dims, { ...own, brand: '' })).toBeNull();
+    expect(rowProblem(catalog, dims, { ...own, name: '  ' })).toBe('enter the customer’s string');
+    expect(rowProblem(catalog, dims, { ...own, tension: '' })).toBe('enter a tension');
+  });
+
+  it('keeps the brand and name to 80 characters', () => {
+    expect(rowProblem(catalog, dims, { ...own, name: 'x'.repeat(81) })).toBe(
+      'use at most 80 characters for the brand and the string',
+    );
+  });
+
+  it('mixes with the shop’s string in a hybrid', () => {
+    expect(jobRowProblems(catalog, dims, own, complete)).toEqual([]);
   });
 });
 
