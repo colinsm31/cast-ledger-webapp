@@ -237,6 +237,10 @@ export interface StringJob {
   notes: string | null;
   // The sale that paid for this job, if any (null = unpaid).
   paid_sale_id: string | null;
+  // When the customer was told it would be ready (null on jobs before 0063),
+  // and whether it's a rush.
+  promised_at: string | null;
+  is_rush: boolean;
 
   entered_at: string;
   completed_at: string | null;

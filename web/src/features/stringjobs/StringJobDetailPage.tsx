@@ -35,6 +35,15 @@ import {
   type StringChangeQuote,
 } from './stringChange';
 import { PaymentScreen, type Tender } from '../sales/PaymentScreen';
+import { PromiseFields, RushBadge } from './PromiseFields';
+import {
+  PROMISE_STATE_CLASSES,
+  fromLocalInput,
+  promiseLabel,
+  promiseProblem,
+  promiseState,
+  toLocalInput,
+} from '../../lib/stringJobPromise';
 
 interface JobRow extends StringJob {
   customer_rackets:
@@ -449,6 +458,7 @@ export function StringJobDetailPage() {
               {job.paid_sale_id ? 'Paid' : 'Unpaid'}
             </span>
           )}
+          {status === 'entered' && job.is_rush && <RushBadge />}
         </div>
         <p className="text-sm text-slate-500">
           {racket?.brand ? `${racket.brand} ` : ''}
@@ -539,6 +549,8 @@ export function StringJobDetailPage() {
         )}
       </section>
 
+      <PromiseSection job={job} disabled={busy || editing} onSaved={reload} />
+
       {/* Stringer — recorded when the racket is strung (entered jobs). */}
       {status === 'entered' && !editing && (
         <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
@@ -615,6 +627,90 @@ export function StringJobDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// When the job was promised, changeable while it waits to be strung (0063).
+function PromiseSection({ job, disabled, onSaved }: { job: JobRow; disabled: boolean; onSaved: () => Promise<void> }) {
+  const [changing, setChanging] = useState(false);
+  const [promised, setPromised] = useState('');
+  const [rush, setRush] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const waiting = job.status === 'entered';
+  if (!waiting && !job.promised_at) return null;
+
+  const now = new Date();
+  const state = waiting ? promiseState(job.promised_at, now) : null;
+  const problem = changing ? promiseProblem(promised, now, new Date(job.entered_at)) : null;
+
+  function startChange() {
+    setPromised(job.promised_at ? toLocalInput(new Date(job.promised_at)) : '');
+    setRush(job.is_rush);
+    setError(null);
+    setChanging(true);
+  }
+
+  async function save() {
+    const promisedAt = fromLocalInput(promised);
+    if (problem || !promisedAt) {
+      setError(problem ?? 'Choose when the job will be ready.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const { error: err } = await supabase
+      .from('string_jobs')
+      .update({ promised_at: promisedAt.toISOString(), is_rush: rush })
+      .eq('id', job.id);
+    setSaving(false);
+    if (err) {
+      setError(errorMessage(err));
+      return;
+    }
+    setChanging(false);
+    await onSaved();
+  }
+
+  return (
+    <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-700">Promised</h2>
+        {waiting && !changing && (
+          <button onClick={startChange} disabled={disabled} className="text-xs text-blue-600 hover:underline disabled:opacity-50">
+            Change
+          </button>
+        )}
+      </div>
+      {changing ? (
+        <>
+          <PromiseFields promised={promised} rush={rush} problem={problem} onPromised={setPromised} onRush={setRush} />
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={() => void save()}
+              disabled={saving || !!problem}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button onClick={() => setChanging(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className={`text-sm ${state ? PROMISE_STATE_CLASSES[state] : 'text-slate-700'}`}>
+          {!job.promised_at
+            ? 'No promised time yet.'
+            : waiting
+              ? promiseLabel(job.promised_at, now)
+              : `Promised ${new Date(job.promised_at).toLocaleString()}`}
+          {waiting && job.is_rush ? ' · rush' : ''}
+        </p>
+      )}
+    </section>
   );
 }
 

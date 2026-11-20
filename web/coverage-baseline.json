@@ -1,11 +1,11 @@
 {
-  "updated": "2026-11-12",
+  "updated": "2026-11-20",
   "web": {
     "overall": {
-      "lines": 19.71,
-      "statements": 20.28,
-      "functions": 19.81,
-      "branches": 20.24
+      "lines": 20.38,
+      "statements": 21.04,
+      "functions": 20.7,
+      "branches": 20.55
     },
     "byFolder": {
       "src": {
@@ -42,16 +42,16 @@
         "lines": 3.39
       },
       "src/features/sales": {
-        "lines": 3.58
+        "lines": 3.61
       },
       "src/features/scan": {
         "lines": 37.78
       },
       "src/features/stringjobs": {
-        "lines": 13.37
+        "lines": 13.77
       },
       "src/lib": {
-        "lines": 90.09
+        "lines": 90.62
       },
       "src/types": {
         "lines": 33.33
@@ -229,6 +229,9 @@
       "src/features/scan/useScannerCapture.ts": {
         "lines": 100
       },
+      "src/features/stringjobs/PromiseFields.tsx": {
+        "lines": 100
+      },
       "src/features/stringjobs/StringJobDetailPage.tsx": {
         "lines": 0
       },
@@ -239,7 +242,7 @@
         "lines": 100
       },
       "src/features/stringjobs/stringJobForm.tsx": {
-        "lines": 0
+        "lines": 5.76
       },
       "src/features/stringjobs/stringRow.ts": {
         "lines": 100
@@ -323,9 +326,12 @@
         "lines": 100
       },
       "src/lib/settings.ts": {
-        "lines": 68.51
+        "lines": 70.17
       },
       "src/lib/staff.ts": {
+        "lines": 100
+      },
+      "src/lib/stringJobPromise.ts": {
         "lines": 100
       },
       "src/lib/supabase.ts": {

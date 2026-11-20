@@ -25,6 +25,8 @@ import {
   type StringProductRaw,
 } from '../stringjobs/stringJobForm';
 import { jobRowProblems } from '../stringjobs/stringRow';
+import { PromiseFields } from '../stringjobs/PromiseFields';
+import { defaultPromise, fromLocalInput, promiseProblem, toLocalInput } from '../../lib/stringJobPromise';
 
 interface LastJob {
   main_brand: string | null;
@@ -59,6 +61,9 @@ export function NewStringJobPage() {
   const [crossTensionEdited, setCrossTensionEdited] = useState(false);
   const [manualPrice, setManualPrice] = useState('');
   const [payNow, setPayNow] = useState(false);
+  // Empty until the settings load, then the shop's default turnaround.
+  const [promised, setPromised] = useState('');
+  const [rush, setRush] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -125,6 +130,11 @@ export function NewStringJobPage() {
       }
     })();
   }, [racketId, customerId]);
+
+  useEffect(() => {
+    if (settings && !promised) setPromised(toLocalInput(defaultPromise(new Date(), settings.stringing_turnaround_hours)));
+  }, [settings, promised]);
+  const promisedProblem = promised ? promiseProblem(promised, new Date()) : null;
 
   const brands = useMemo(
     () => Array.from(new Set(catalog.map((c) => c.brand).filter(Boolean))).sort(),
@@ -213,6 +223,12 @@ export function NewStringJobPage() {
       setError('This string has no set price — enter a price (whole cents) before entering the stringing.');
       return;
     }
+    const promisedAt = fromLocalInput(promised);
+    const promiseError = promiseProblem(promised, new Date());
+    if (promiseError || !promisedAt) {
+      setError(promiseError ?? 'Choose when the job will be ready.');
+      return;
+    }
     setSaving(true);
     setError(null);
 
@@ -224,6 +240,8 @@ export function NewStringJobPage() {
         ...rowPayload(catalog, dims, mains, 'main'),
         ...rowPayload(catalog, dims, crosses, 'cross'),
         price: price > 0 ? price : null,
+        promised_at: promisedAt.toISOString(),
+        is_rush: rush,
       })
       .select('id')
       .single();
@@ -343,6 +361,16 @@ export function NewStringJobPage() {
         )}
       </section>
 
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <PromiseFields
+          promised={promised}
+          rush={rush}
+          problem={promisedProblem}
+          onPromised={setPromised}
+          onRush={setRush}
+        />
+      </section>
+
       <label className="flex items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" checked={payNow} onChange={(e) => setPayNow(e.target.checked)} />
         Pay now (open a sales ticket after entering)
@@ -355,7 +383,14 @@ export function NewStringJobPage() {
       <div className="flex gap-2">
         <button
           onClick={() => void save()}
-          disabled={saving || !settings || rowProblems.length > 0 || unavailable.length > 0 || (needsManualPrice && !manualPriceValid)}
+          disabled={
+            saving ||
+            !settings ||
+            rowProblems.length > 0 ||
+            unavailable.length > 0 ||
+            (needsManualPrice && !manualPriceValid) ||
+            !!promisedProblem
+          }
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Enter string job'}

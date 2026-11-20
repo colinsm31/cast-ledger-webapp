@@ -22,6 +22,7 @@ const saved: Settings = {
   return_policy: null,
   receipt_footer: null,
   held_ticket_hours: 72,
+  stringing_turnaround_hours: 24,
 };
 
 function form(changes: Partial<SettingsForm>): SettingsForm {
@@ -69,6 +70,15 @@ describe('parseSettingsForm', () => {
       });
     }
     expect(parseSettingsForm(form({ heldTicketHours: ' 24 ' }))).toHaveProperty('settings.held_ticket_hours', 24);
+  });
+
+  it('promises string jobs 1 to 720 whole hours after drop-off', () => {
+    for (const turnaroundHours of ['0', '721', '2.5', '', 'tomorrow']) {
+      expect(parseSettingsForm(form({ turnaroundHours }))).toEqual({
+        error: 'Promise string jobs after: enter whole hours from 1 to 720 (30 days).',
+      });
+    }
+    expect(parseSettingsForm(form({ turnaroundHours: ' 48 ' }))).toHaveProperty('settings.stringing_turnaround_hours', 48);
   });
 
   it('needs a staff discount limit from 0 to 100, to the hundredth', () => {

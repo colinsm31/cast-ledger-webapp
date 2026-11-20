@@ -8,6 +8,8 @@ import { Spinner } from '../../components/Spinner';
 import { EmptyState } from '../../components/EmptyState';
 import { stringSummary } from './stringSummary';
 import { useBack } from '../../app/BackContext';
+import { PROMISE_STATE_CLASSES, promiseLabel, promiseState, sortOpenQueue } from '../../lib/stringJobPromise';
+import { RushBadge } from './PromiseFields';
 
 // String job joined up to racket + customer for display in the queue.
 interface JobRow extends StringJob {
@@ -36,6 +38,12 @@ export function StringJobsPage({
   const [jobs, setJobs] = useState<JobRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // The clock the due labels are measured against, moved on every minute.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const load = useCallback(async () => {
     const { data, error: err } = await supabase
@@ -44,7 +52,11 @@ export function StringJobsPage({
       .eq('status', status)
       .order('entered_at', { ascending: true });
     if (err) setError(errorMessage(err));
-    else setJobs((data ?? []) as unknown as JobRow[]);
+    else {
+      const rows = (data ?? []) as unknown as JobRow[];
+      // Waiting jobs: rush first, then the soonest promise (0063).
+      setJobs(status === 'entered' ? sortOpenQueue(rows) : rows);
+    }
   }, [status]);
 
   useEffect(() => {
@@ -80,11 +92,16 @@ export function StringJobsPage({
           {jobs.map((job) => {
             const racket = job.customer_rackets;
             const customer = racket?.customers;
+            // Only a job still waiting to be strung can be late.
+            const state = job.status === 'entered' ? promiseState(job.promised_at, now) : null;
+            const dueLabel = state ? promiseLabel(job.promised_at, now) : null;
             return (
               <li
                 key={job.id}
                 onClick={() => navigate(`/string-jobs/${job.id}`)}
-                className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-300 hover:bg-blue-50/40"
+                className={`cursor-pointer rounded-xl border bg-white p-4 hover:border-blue-300 hover:bg-blue-50/40 ${
+                  state === 'overdue' ? 'border-red-300' : 'border-slate-200'
+                }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -102,7 +119,9 @@ export function StringJobsPage({
                       )}
                       <StatusBadge status={job.status} />
                       <PaidBadge paid={!!job.paid_sale_id} />
+                      {job.status === 'entered' && job.is_rush && <RushBadge />}
                     </div>
+                    {state && dueLabel && <p className={`text-sm ${PROMISE_STATE_CLASSES[state]}`}>{dueLabel}</p>}
                     <p className="text-sm text-slate-500">
                       {racket ? `${racket.brand ? `${racket.brand} ` : ''}${racket.model}` : '—'}
                       {racket?.barcode ? ` · ${racket.barcode}` : ''}

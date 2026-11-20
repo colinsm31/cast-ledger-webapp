@@ -20,6 +20,8 @@ export interface Settings {
   receipt_footer: string | null;
   /** Hours a held ticket is kept before it expires (0061). */
   held_ticket_hours: number;
+  /** Hours after drop-off a string job is promised by default (0063). */
+  stringing_turnaround_hours: number;
 }
 
 interface SettingsRow {
@@ -36,6 +38,7 @@ interface SettingsRow {
   return_policy: string | null;
   receipt_footer: string | null;
   held_ticket_hours: number;
+  stringing_turnaround_hours: number;
 }
 
 export const SETTINGS_LOAD_ERROR = "Couldn't load the shop settings";
@@ -61,6 +64,7 @@ export async function fetchSettings(): Promise<Settings> {
     return_policy: r.return_policy ?? null,
     receipt_footer: r.receipt_footer ?? null,
     held_ticket_hours: r.held_ticket_hours,
+    stringing_turnaround_hours: r.stringing_turnaround_hours,
   };
 }
 
@@ -124,6 +128,7 @@ export interface SettingsForm {
   returnPolicy: string;
   receiptFooter: string;
   heldTicketHours: string;
+  turnaroundHours: string;
 }
 
 /** The receipt text's limits, matching the database's (0059). */
@@ -156,6 +161,7 @@ export function settingsToForm(settings: Settings): SettingsForm {
     returnPolicy: settings.return_policy ?? '',
     receiptFooter: settings.receipt_footer ?? '',
     heldTicketHours: String(settings.held_ticket_hours),
+    turnaroundHours: String(settings.stringing_turnaround_hours),
   };
 }
 
@@ -201,6 +207,11 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
     return { error: 'Held tickets expire after: enter whole hours from 1 to 720 (30 days).' };
   }
 
+  const turnaroundHours = form.turnaroundHours.trim();
+  if (!WHOLE_NUMBER.test(turnaroundHours) || Number(turnaroundHours) < 1 || Number(turnaroundHours) > 720) {
+    return { error: 'Promise string jobs after: enter whole hours from 1 to 720 (30 days).' };
+  }
+
   return {
     settings: {
       tax_rate: Number(taxRate),
@@ -216,6 +227,7 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
       return_policy: optionalText(form.returnPolicy),
       receipt_footer: optionalText(form.receiptFooter),
       held_ticket_hours: Number(heldTicketHours),
+      stringing_turnaround_hours: Number(turnaroundHours),
     },
   };
 }
