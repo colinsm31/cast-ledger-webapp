@@ -2,10 +2,10 @@
   "updated": "2026-11-20",
   "web": {
     "overall": {
-      "lines": 22.68,
-      "statements": 23.36,
-      "functions": 22.34,
-      "branches": 23.01
+      "lines": 23.99,
+      "statements": 24.55,
+      "functions": 23.39,
+      "branches": 24.17
     },
     "byFolder": {
       "src": {
@@ -39,19 +39,19 @@
         "lines": 0
       },
       "src/features/products": {
-        "lines": 3.64
+        "lines": 11.9
       },
       "src/features/sales": {
         "lines": 3.6
       },
       "src/features/scan": {
-        "lines": 44.68
+        "lines": 61.7
       },
       "src/features/stringjobs": {
         "lines": 21.77
       },
       "src/lib": {
-        "lines": 92.48
+        "lines": 92.68
       },
       "src/types": {
         "lines": 33.33
@@ -160,6 +160,9 @@
       "src/features/products/StockActions.tsx": {
         "lines": 0
       },
+      "src/features/products/UnitRow.tsx": {
+        "lines": 97.29
+      },
       "src/features/products/UnitsSection.tsx": {
         "lines": 0
       },
@@ -224,7 +227,7 @@
         "lines": 21.05
       },
       "src/features/scan/scanFlow.ts": {
-        "lines": 0
+        "lines": 72.72
       },
       "src/features/scan/useScannerCapture.ts": {
         "lines": 100
@@ -362,6 +365,9 @@
         "lines": 87.5
       },
       "src/lib/taxExempt.ts": {
+        "lines": 100
+      },
+      "src/lib/unitStatus.ts": {
         "lines": 100
       },
       "src/types/domain.ts": {

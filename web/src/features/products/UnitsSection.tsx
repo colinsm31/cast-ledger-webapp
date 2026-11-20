@@ -1,28 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
-import type { ProductUnit, ProductUnitStatus } from '../../types/domain';
-import { sellUnitPath } from '../scan/scanFlow';
+import type { ProductUnit } from '../../types/domain';
+import { UnitRow } from './UnitRow';
 import { ReceiveUnitsSheet } from './ReceiveUnitsSheet';
-
-// MARK: - Status styling
-
-const STATUS_STYLE: Record<ProductUnitStatus, string> = {
-  in_stock: 'bg-green-100 text-green-800',
-  sold: 'bg-slate-100 text-slate-600',
-  demo: 'bg-amber-100 text-amber-800',
-  assigned: 'bg-blue-100 text-blue-800',
-  retired: 'bg-red-100 text-red-700',
-};
-
-const STATUS_LABEL: Record<ProductUnitStatus, string> = {
-  in_stock: 'in stock',
-  sold: 'sold',
-  demo: 'demo',
-  assigned: 'assigned',
-  retired: 'retired',
-};
 
 // MARK: - UnitsSection
 //
@@ -87,23 +68,7 @@ export function UnitsSection({
       {units && units.length > 0 && (
         <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
           {units.map((u) => (
-            <li key={u.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <span className={u.barcode ? 'font-mono text-slate-900' : 'italic text-slate-400'}>
-                {u.barcode ?? 'No barcode'}
-              </span>
-              <div className="flex items-center gap-3">
-                {u.status === 'in_stock' && (
-                  <Link to={sellUnitPath(u.id)} className="text-xs font-medium text-blue-600 hover:underline">
-                    Sell
-                  </Link>
-                )}
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[u.status]}`}
-                >
-                  {STATUS_LABEL[u.status]}
-                </span>
-              </div>
-            </li>
+            <UnitRow key={u.id} unit={u} onChanged={load} />
           ))}
         </ul>
       )}

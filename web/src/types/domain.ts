@@ -79,6 +79,19 @@ export interface ProductUnit {
   updated_at: string;
 }
 
+// One status a frame has had (0067): received, sold, moved, returned.
+export interface UnitStatusChange {
+  id: string;
+  product_unit_id: string;
+  from_status: ProductUnitStatus | null;
+  to_status: ProductUnitStatus;
+  reason: string | null;
+  sale_id: string | null;
+  refund_id: string | null;
+  changed_by: string | null;
+  changed_at: string;
+}
+
 // On-hand + low-stock per product (from the product_stock view). Products are
 // the stock-tracked items directly — there is no variant layer.
 export interface ProductStock {
