@@ -2,10 +2,10 @@
   "updated": "2026-11-20",
   "web": {
     "overall": {
-      "lines": 25.03,
-      "statements": 25.58,
-      "functions": 24.51,
-      "branches": 24.88
+      "lines": 25.2,
+      "statements": 25.75,
+      "functions": 24.8,
+      "branches": 24.92
     },
     "byFolder": {
       "src": {
@@ -42,7 +42,7 @@
         "lines": 18.42
       },
       "src/features/sales": {
-        "lines": 5.39
+        "lines": 6.3
       },
       "src/features/scan": {
         "lines": 61.7
@@ -192,6 +192,9 @@
       },
       "src/features/sales/DiscountApprovalDialog.tsx": {
         "lines": 0
+      },
+      "src/features/sales/FrameReturnFields.tsx": {
+        "lines": 100
       },
       "src/features/sales/GiftCardLookupPage.tsx": {
         "lines": 0

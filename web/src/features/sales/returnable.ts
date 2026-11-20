@@ -1,6 +1,6 @@
 // Which sale lines can still be returned, and how many of each. Mirrors
-// record_refund: only product lines, and not racquet units (returning a unit
-// isn't supported yet), less what earlier refunds already returned.
+// record_refund: only product lines (a racquet frame's line, one frame, since
+// 0070), less what earlier refunds already returned.
 
 export interface SaleLineForReturn {
   id: string;
@@ -14,9 +14,38 @@ export interface RefundedLine {
   qty: number;
 }
 
-/** A racquet unit's line: shown, but it can't be returned yet. */
+/** A racquet frame's line: returned whole, saying what happens to the frame. */
 export function isUnitLine(line: SaleLineForReturn): boolean {
   return line.product_unit_id != null;
+}
+
+/** What happens to a returned frame (0070). */
+export interface FrameReturn {
+  status: 'in_stock' | 'retired';
+  reason: string;
+}
+
+export const DEFAULT_FRAME_RETURN: FrameReturn = { status: 'in_stock', reason: '' };
+
+/** The database's limit on a returned frame's reason. */
+const FRAME_REASON_MAX = 200;
+
+/** What's missing from a returned frame's details, or null. */
+export function frameReturnProblem(frame: FrameReturn): string | null {
+  const reason = frame.reason.trim();
+  if (frame.status === 'retired' && !reason) return 'Say why the returned frame is retired.';
+  if (reason.length > FRAME_REASON_MAX) return `Keep the reason to ${FRAME_REASON_MAX} characters.`;
+  return null;
+}
+
+/** The refund line sent for a returned frame. */
+export function frameReturnLine(saleLineId: string, frame: FrameReturn) {
+  return {
+    sale_line_id: saleLineId,
+    qty: 1,
+    unit_status: frame.status,
+    unit_reason: frame.reason.trim() || null,
+  };
 }
 
 /** Quantity still returnable per returnable line id (lines that can't be returned are left out). */
@@ -25,7 +54,7 @@ export function returnableQty(lines: SaleLineForReturn[], refundedLines: Refunde
   for (const r of refundedLines) returned[r.sale_line_id] = (returned[r.sale_line_id] ?? 0) + r.qty;
   const remaining: Record<string, number> = {};
   for (const l of lines) {
-    if (!l.product_id || isUnitLine(l)) continue;
+    if (!l.product_id) continue;
     remaining[l.id] = Math.max(0, l.qty - (returned[l.id] ?? 0));
   }
   return remaining;
