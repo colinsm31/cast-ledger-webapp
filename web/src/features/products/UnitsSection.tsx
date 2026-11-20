@@ -1,8 +1,10 @@
+import { useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import type { ProductUnit } from '../../types/domain';
 import { UnitRow } from './UnitRow';
+import { assignUnitLabels, labelsPath } from './unitLabel';
 import { ReceiveUnitsSheet } from './ReceiveUnitsSheet';
 
 // MARK: - UnitsSection
@@ -38,6 +40,25 @@ export function UnitsSection({
   }, [load]);
 
   const inStock = units?.filter((u) => u.status === 'in_stock').length ?? 0;
+  // Frames still in the shop with nothing to scan: label them in one go (0068).
+  const unlabelled = units?.filter((u) => !u.barcode && u.status !== 'sold') ?? [];
+  const navigate = useNavigate();
+  const [labelling, setLabelling] = useState(false);
+
+  async function labelUnlabelled() {
+    const ids = unlabelled.map((u) => u.id);
+    setLabelling(true);
+    setError(null);
+    try {
+      await assignUnitLabels(ids);
+      navigate(labelsPath(ids));
+    } catch (err) {
+      setError(errorMessage(err));
+      await load();
+    } finally {
+      setLabelling(false);
+    }
+  }
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
@@ -56,6 +77,22 @@ export function UnitsSection({
           </button>
         </div>
       </div>
+
+      {unlabelled.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <span>
+            {unlabelled.length} frame{unlabelled.length === 1 ? ' has' : 's have'} no barcode, so{' '}
+            {unlabelled.length === 1 ? 'it can’t' : 'they can’t'} be scanned.
+          </span>
+          <button
+            onClick={() => void labelUnlabelled()}
+            disabled={labelling}
+            className="rounded-lg border border-amber-600 px-3 py-1 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+          >
+            {labelling ? 'Labelling…' : `Print ${unlabelled.length === 1 ? 'a label' : `${unlabelled.length} labels`}`}
+          </button>
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

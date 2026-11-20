@@ -2,10 +2,10 @@
   "updated": "2026-11-20",
   "web": {
     "overall": {
-      "lines": 23.99,
-      "statements": 24.55,
-      "functions": 23.39,
-      "branches": 24.17
+      "lines": 24.65,
+      "statements": 25.18,
+      "functions": 24.18,
+      "branches": 24.55
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 87.69
+        "lines": 88.73
       },
       "src/features/account": {
         "lines": 0
@@ -39,7 +39,7 @@
         "lines": 0
       },
       "src/features/products": {
-        "lines": 11.9
+        "lines": 18.42
       },
       "src/features/sales": {
         "lines": 3.6
@@ -48,7 +48,7 @@
         "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 21.77
+        "lines": 21.3
       },
       "src/lib": {
         "lines": 92.68
@@ -75,6 +75,9 @@
       },
       "src/auth/SignInPage.tsx": {
         "lines": 0
+      },
+      "src/components/Barcode.tsx": {
+        "lines": 100
       },
       "src/components/Dialog.tsx": {
         "lines": 91.93
@@ -160,8 +163,11 @@
       "src/features/products/StockActions.tsx": {
         "lines": 0
       },
+      "src/features/products/UnitLabelsPage.tsx": {
+        "lines": 0
+      },
       "src/features/products/UnitRow.tsx": {
-        "lines": 97.29
+        "lines": 98.38
       },
       "src/features/products/UnitsSection.tsx": {
         "lines": 0
@@ -173,6 +179,9 @@
         "lines": 100
       },
       "src/features/products/productSaveError.ts": {
+        "lines": 100
+      },
+      "src/features/products/unitLabel.ts": {
         "lines": 100
       },
       "src/features/products/variantLabel.ts": {

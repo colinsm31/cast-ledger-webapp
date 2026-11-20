@@ -106,7 +106,7 @@ export function ReceiveUnitsSheet({
         </div>
 
         <p className="mb-2 text-sm text-slate-600">
-          Scan each racket’s barcode, or add one without a barcode. Barcodes are optional and can be added later.
+          Scan each racket’s barcode, or add one without a barcode. Barcodes are optional: a frame without one can be given one, or a printed label, from its row.
         </p>
 
         <div className="flex gap-2">

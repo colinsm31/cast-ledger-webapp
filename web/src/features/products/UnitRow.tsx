@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { staffLabel, type StaffRef } from '../../lib/staff';
 import { statusText, unitChangeLabel, unitMoves, unitReasonProblem, type UnitMove } from '../../lib/unitStatus';
 import type { ProductUnit, ProductUnitStatus, UnitStatusChange } from '../../types/domain';
 import { sellUnitPath } from '../scan/scanFlow';
+import { assignUnitLabels, labelsPath } from './unitLabel';
 
 // MARK: - Status styling
 
@@ -30,6 +31,10 @@ export function UnitRow({ unit, onChanged }: { unit: ProductUnit; onChanged: () 
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  // A barcode typed or scanned in later (0068).
+  const [addingBarcode, setAddingBarcode] = useState(false);
+  const [barcode, setBarcode] = useState('');
+  const navigate = useNavigate();
 
   const problem = move ? unitReasonProblem(reason) : null;
 
@@ -59,6 +64,30 @@ export function UnitRow({ unit, onChanged }: { unit: ProductUnit; onChanged: () 
     await onChanged();
   }
 
+  async function saveBarcode() {
+    setSaving(true);
+    setError(null);
+    const { error: err } = await supabase.rpc('set_unit_barcode', { p_unit_id: unit.id, p_barcode: barcode });
+    setSaving(false);
+    if (err) {
+      setError(errorMessage(err));
+      return;
+    }
+    setAddingBarcode(false);
+    await onChanged();
+  }
+
+  // A frame with no barcode gets the shop's next label code first.
+  async function printLabel() {
+    setError(null);
+    try {
+      await assignUnitLabels([unit.id]);
+      navigate(labelsPath([unit.id]));
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
   async function toggleHistory() {
     const opening = !showHistory;
     setShowHistory(opening);
@@ -84,6 +113,24 @@ export function UnitRow({ unit, onChanged }: { unit: ProductUnit; onChanged: () 
               Sell
             </Link>
           )}
+          {!unit.barcode && !addingBarcode && (
+            <button
+              onClick={() => {
+                setAddingBarcode(true);
+                setBarcode('');
+                setError(null);
+              }}
+              className="text-xs font-medium text-slate-600 hover:text-blue-700 hover:underline"
+            >
+              Add barcode
+            </button>
+          )}
+          <button
+            onClick={() => void printLabel()}
+            className="text-xs font-medium text-slate-600 hover:text-blue-700 hover:underline"
+          >
+            Print label
+          </button>
           {!move &&
             unitMoves(unit.status).map((option) => (
               <button
@@ -127,6 +174,31 @@ export function UnitRow({ unit, onChanged }: { unit: ProductUnit; onChanged: () 
             {saving ? 'Saving…' : move.label}
           </button>
           <button onClick={() => setMove(null)} className="rounded-lg border border-slate-300 px-3 py-1 text-sm">
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {addingBarcode && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-2">
+          <input
+            autoFocus
+            value={barcode}
+            onChange={(e) => setBarcode(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && barcode.trim()) void saveBarcode();
+            }}
+            placeholder="Scan or type the frame’s barcode"
+            className="min-w-[14rem] flex-1 rounded-lg border border-slate-300 px-2 py-1 text-sm"
+          />
+          <button
+            onClick={() => void saveBarcode()}
+            disabled={saving || !barcode.trim()}
+            className="rounded-lg bg-blue-600 px-3 py-1 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            Save barcode
+          </button>
+          <button onClick={() => setAddingBarcode(false)} className="rounded-lg border border-slate-300 px-3 py-1 text-sm">
             Cancel
           </button>
         </div>

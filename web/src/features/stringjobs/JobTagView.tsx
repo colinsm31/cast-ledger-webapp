@@ -1,24 +1,5 @@
-import { code128Bars } from '../../lib/code128';
+import { Barcode } from '../../components/Barcode';
 import type { JobTag } from './jobTag';
-
-/** A Code 128 barcode as an SVG, scaled to fill its box. */
-export function Barcode({ text, height = 48 }: { text: string; height?: number }) {
-  const { bars, width } = code128Bars(text);
-  return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={`Barcode ${text}`}
-      className="block h-14 w-full"
-    >
-      <rect width={width} height={height} fill="#fff" />
-      {bars.map((bar) => (
-        <rect key={bar.x} x={bar.x} width={bar.width} height={height} fill="#000" />
-      ))}
-    </svg>
-  );
-}
 
 // A string job's tag, sized for the 80 mm printer (Phase 3A).
 export function JobTagView({ tag }: { tag: JobTag }) {
