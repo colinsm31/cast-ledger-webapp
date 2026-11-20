@@ -218,6 +218,8 @@ export interface CustomerRacket {
   barcode: string | null;
   notes: string | null;
   is_active: boolean;
+  // The frame it came from, when it was bought here (0069).
+  product_unit_id: string | null;
   created_at: string;
   updated_at: string;
 }
