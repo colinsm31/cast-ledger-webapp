@@ -47,7 +47,8 @@ export function DemoHistoryList({ loans, showCustomer }: { loans: LoanWithFrame[
             {'Out '}
             {new Date(loan.out_at).toLocaleDateString()}
             {loan.back_at ? ` · back ${new Date(loan.back_at).toLocaleDateString()}` : ' · still out'}
-            {loan.sale_id && loan.back_at ? ` · ${demoOutcome(loan).toLowerCase()}` : ''}
+            {/* "Bought" stands in for the outcome; say so if the demo came back damaged. */}
+            {loan.sale_id && loan.back_status === 'retired' ? ' · retired' : ''}
             {loan.back_reason ? ` · “${loan.back_reason}”` : ''}
           </p>
         </li>
