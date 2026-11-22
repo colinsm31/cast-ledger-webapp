@@ -75,6 +75,9 @@ export function AppShell() {
               <NavLink to="/string-jobs/completed" className={navLinkClass}>
                 Completed Re-Strings
               </NavLink>
+              <NavLink to="/demos" className={navLinkClass}>
+                Demos
+              </NavLink>
               {isAdmin && (
                 <NavLink to="/settings" className={navLinkClass}>
                   Settings

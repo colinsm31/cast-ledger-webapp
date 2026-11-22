@@ -23,6 +23,7 @@ const saved: Settings = {
   receipt_footer: null,
   held_ticket_hours: 72,
   stringing_turnaround_hours: 24,
+  demo_loan_days: 3,
 };
 
 function form(changes: Partial<SettingsForm>): SettingsForm {
@@ -79,6 +80,15 @@ describe('parseSettingsForm', () => {
       });
     }
     expect(parseSettingsForm(form({ turnaroundHours: ' 48 ' }))).toHaveProperty('settings.stringing_turnaround_hours', 48);
+  });
+
+  it('lends demos for 1 to 60 whole days', () => {
+    for (const demoLoanDays of ['0', '61', '1.5', '', 'a week']) {
+      expect(parseSettingsForm(form({ demoLoanDays }))).toEqual({
+        error: 'Demo loans last: enter whole days from 1 to 60.',
+      });
+    }
+    expect(parseSettingsForm(form({ demoLoanDays: ' 7 ' }))).toHaveProperty('settings.demo_loan_days', 7);
   });
 
   it('needs a staff discount limit from 0 to 100, to the hundredth', () => {

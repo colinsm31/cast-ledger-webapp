@@ -1,11 +1,11 @@
 {
-  "updated": "2026-11-20",
+  "updated": "2026-11-22",
   "web": {
     "overall": {
-      "lines": 25.2,
-      "statements": 25.75,
-      "functions": 24.8,
-      "branches": 24.92
+      "lines": 27.74,
+      "statements": 28.14,
+      "functions": 27.44,
+      "branches": 27.22
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 88.73
+        "lines": 92.96
       },
       "src/features/account": {
         "lines": 0
@@ -32,6 +32,9 @@
       "src/features/customers": {
         "lines": 0
       },
+      "src/features/demos": {
+        "lines": 90.91
+      },
       "src/features/home": {
         "lines": 0
       },
@@ -39,10 +42,10 @@
         "lines": 0
       },
       "src/features/products": {
-        "lines": 18.42
+        "lines": 18.97
       },
       "src/features/sales": {
-        "lines": 6.3
+        "lines": 6.38
       },
       "src/features/scan": {
         "lines": 61.7
@@ -51,10 +54,10 @@
         "lines": 21.3
       },
       "src/lib": {
-        "lines": 92.68
+        "lines": 93.06
       },
       "src/types": {
-        "lines": 33.33
+        "lines": 66.67
       }
     },
     "byFile": {
@@ -83,13 +86,13 @@
         "lines": 91.93
       },
       "src/components/EmptyState.tsx": {
-        "lines": 0
+        "lines": 100
       },
       "src/components/LoadError.tsx": {
-        "lines": 0
+        "lines": 100
       },
       "src/components/Spinner.tsx": {
-        "lines": 0
+        "lines": 100
       },
       "src/features/account/AccountPage.tsx": {
         "lines": 0
@@ -133,6 +136,18 @@
       "src/features/customers/TaxExemptFields.tsx": {
         "lines": 0
       },
+      "src/features/demos/DemoLoanActions.tsx": {
+        "lines": 93.93
+      },
+      "src/features/demos/DemosPage.tsx": {
+        "lines": 100
+      },
+      "src/features/demos/LendDemoForm.tsx": {
+        "lines": 90.32
+      },
+      "src/features/demos/demoLoanQueries.ts": {
+        "lines": 63.63
+      },
       "src/features/home/ComingSoon.tsx": {
         "lines": 0
       },
@@ -167,7 +182,7 @@
         "lines": 0
       },
       "src/features/products/UnitRow.tsx": {
-        "lines": 98.38
+        "lines": 98.5
       },
       "src/features/products/UnitsSection.tsx": {
         "lines": 0
@@ -298,6 +313,9 @@
       "src/lib/customerSearch.ts": {
         "lines": 100
       },
+      "src/lib/demoLoans.ts": {
+        "lines": 100
+      },
       "src/lib/discountApproval.ts": {
         "lines": 100
       },
@@ -365,7 +383,7 @@
         "lines": 100
       },
       "src/lib/settings.ts": {
-        "lines": 70.17
+        "lines": 71.66
       },
       "src/lib/staff.ts": {
         "lines": 100
@@ -386,7 +404,7 @@
         "lines": 100
       },
       "src/types/domain.ts": {
-        "lines": 33.33
+        "lines": 66.66
       }
     }
   }

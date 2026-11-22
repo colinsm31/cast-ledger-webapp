@@ -36,7 +36,9 @@ describe('unitChangeLabel', () => {
     expect(unitChangeLabel(change('in_stock', 'demo'))).toBe('Moved to demo');
     expect(unitChangeLabel(change('demo', 'retired'))).toBe('Retired');
     expect(unitChangeLabel(change('retired', 'in_stock'))).toBe('Back in stock');
-    expect(unitChangeLabel(change('demo', 'assigned'))).toBe('Now assigned');
+    expect(unitChangeLabel(change('demo', 'assigned'))).toBe('Lent out');
+    expect(unitChangeLabel(change('assigned', 'demo'))).toBe('Back from demo');
+    expect(unitChangeLabel(change('assigned', 'retired'))).toBe('Back from demo, retired');
   });
 
   it('names a return', () => {

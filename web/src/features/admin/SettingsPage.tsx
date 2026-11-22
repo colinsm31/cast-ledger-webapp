@@ -108,6 +108,15 @@ export function SettingsPage() {
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-700">Demos</h2>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-slate-500">Demo loans last (days)</span>
+          <input value={form.demoLoanDays} onChange={(e) => update({ demoLoanDays: e.target.value })} inputMode="numeric" className={inputClass} placeholder="3" />
+        </label>
+        <p className="text-xs text-slate-400">A lent demo frame is due back this long after it goes out, unless staff pick a time.</p>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-700">Inventory</h2>
         <label className="block space-y-1">
           <span className="text-xs font-medium text-slate-500">Default reorder point for new products</span>

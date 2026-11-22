@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import type { Customer } from '../../types/domain';
 import { customerName, customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
-import { searchCustomers } from '../../lib/customerSearch';
+import { useCustomerMatches } from '../../lib/customerSearch';
 import { createCustomer, newCustomerFormFrom, newCustomerRow, type NewCustomerForm } from '../../lib/newCustomer';
 import { formatPhone } from '../../lib/phone';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
@@ -1261,31 +1261,9 @@ function CustomerBar({
 }) {
   const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState('');
-  const [matches, setMatches] = useState<Customer[]>([]);
+  const matches = useCustomerMatches(query);
   // A new customer being added from here, without leaving the ticket.
   const [newCustomer, setNewCustomer] = useState<NewCustomerForm | null>(null);
-
-  useEffect(() => {
-    const term = query.trim();
-    if (!term) {
-      setMatches([]);
-      return;
-    }
-    let active = true;
-    const handle = setTimeout(async () => {
-      let found: Customer[] = [];
-      try {
-        found = await searchCustomers(term);
-      } catch {
-        // A failed lookup just shows no matches; the cashier can retype.
-      }
-      if (active) setMatches(found);
-    }, 200);
-    return () => {
-      active = false;
-      clearTimeout(handle);
-    };
-  }, [query]);
 
   if (!picking) {
     return (

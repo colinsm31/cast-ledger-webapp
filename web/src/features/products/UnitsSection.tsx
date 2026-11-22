@@ -6,6 +6,7 @@ import type { ProductUnit } from '../../types/domain';
 import { UnitRow } from './UnitRow';
 import { assignUnitLabels, labelsPath } from './unitLabel';
 import { ReceiveUnitsSheet } from './ReceiveUnitsSheet';
+import { fetchOpenLoansForUnits, type LoanWithCustomer } from '../demos/demoLoanQueries';
 
 // MARK: - UnitsSection
 //
@@ -22,6 +23,8 @@ export function UnitsSection({
   autoReceive?: boolean;
 }) {
   const [units, setUnits] = useState<ProductUnit[] | null>(null);
+  // Who has each frame that's out on demo (0071).
+  const [loans, setLoans] = useState<Map<string, LoanWithCustomer>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [receiving, setReceiving] = useState(autoReceive);
 
@@ -33,8 +36,17 @@ export function UnitsSection({
       .order('created_at', { ascending: true })
       // Frames received together share a time; keep them in a steady order.
       .order('id', { ascending: true });
-    if (err) setError(errorMessage(err));
-    else setUnits((data ?? []) as ProductUnit[]);
+    if (err) {
+      setError(errorMessage(err));
+      return;
+    }
+    const loaded = (data ?? []) as ProductUnit[];
+    setUnits(loaded);
+    try {
+      setLoans(await fetchOpenLoansForUnits(loaded.filter((u) => u.status === 'assigned').map((u) => u.id)));
+    } catch (loanErr) {
+      setError(`Couldn't load who has the demos: ${errorMessage(loanErr)}`);
+    }
   }, [productId]);
 
   useEffect(() => {
@@ -107,7 +119,7 @@ export function UnitsSection({
       {units && units.length > 0 && (
         <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
           {units.map((u) => (
-            <UnitRow key={u.id} unit={u} onChanged={load} />
+            <UnitRow key={u.id} unit={u} loan={loans.get(u.id)} onChanged={load} />
           ))}
         </ul>
       )}

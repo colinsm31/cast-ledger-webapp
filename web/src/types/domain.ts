@@ -92,6 +92,24 @@ export interface UnitStatusChange {
   changed_at: string;
 }
 
+// One time a demo frame was lent to a customer (0071). back_* are set when
+// it's checked in.
+export interface DemoLoan {
+  id: string;
+  loan_number: number;
+  product_unit_id: string;
+  customer_id: string;
+  out_at: string;
+  out_by: string | null;
+  due_back_at: string;
+  deposit_note: string | null;
+  note: string | null;
+  back_at: string | null;
+  back_by: string | null;
+  back_status: 'demo' | 'retired' | null;
+  back_reason: string | null;
+}
+
 // On-hand + low-stock per product (from the product_stock view). Products are
 // the stock-tracked items directly — there is no variant layer.
 export interface ProductStock {
