@@ -2,10 +2,10 @@
   "updated": "2026-11-22",
   "web": {
     "overall": {
-      "lines": 27.74,
-      "statements": 28.14,
-      "functions": 27.44,
-      "branches": 27.22
+      "lines": 28.52,
+      "statements": 28.92,
+      "functions": 28.44,
+      "branches": 28.19
     },
     "byFolder": {
       "src": {
@@ -33,7 +33,7 @@
         "lines": 0
       },
       "src/features/demos": {
-        "lines": 90.91
+        "lines": 93.48
       },
       "src/features/home": {
         "lines": 0
@@ -54,7 +54,7 @@
         "lines": 21.3
       },
       "src/lib": {
-        "lines": 93.06
+        "lines": 93.11
       },
       "src/types": {
         "lines": 66.67
@@ -136,6 +136,12 @@
       "src/features/customers/TaxExemptFields.tsx": {
         "lines": 0
       },
+      "src/features/demos/CustomerDemosPanel.tsx": {
+        "lines": 100
+      },
+      "src/features/demos/DemoHistoryList.tsx": {
+        "lines": 100
+      },
       "src/features/demos/DemoLoanActions.tsx": {
         "lines": 93.93
       },
@@ -146,7 +152,7 @@
         "lines": 90.32
       },
       "src/features/demos/demoLoanQueries.ts": {
-        "lines": 63.63
+        "lines": 77.77
       },
       "src/features/home/ComingSoon.tsx": {
         "lines": 0

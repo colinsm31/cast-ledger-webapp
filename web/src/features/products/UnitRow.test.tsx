@@ -80,6 +80,7 @@ describe('UnitRow', () => {
       back_by: null,
       back_status: null,
       back_reason: null,
+      sale_id: null,
       customers: { id: 'c1', first_name: 'Pat', last_name: 'Tester', phone_number: null },
     });
     expect(screen.getByText('Tester, Pat')).toBeTruthy();

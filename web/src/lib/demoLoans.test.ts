@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   checkInProblem,
+  conversionSummary,
   defaultDemoDue,
   demoDueProblem,
   demoLoanLabel,
   demoNoteProblem,
+  demoOutcome,
   overdueCount,
   sortOpenLoans,
 } from './demoLoans';
@@ -49,5 +51,16 @@ describe('demoLoans', () => {
     ];
     expect(sortOpenLoans(loans).map((loan) => loan.loan_number)).toEqual([1002, 1001, 1003]);
     expect(overdueCount(loans, now)).toBe(1);
+  });
+
+  it('says where a loan stands', () => {
+    expect(demoOutcome({ back_at: null, back_status: null })).toBe('Out');
+    expect(demoOutcome({ back_at: 'x', back_status: 'demo' })).toBe('Back');
+    expect(demoOutcome({ back_at: 'x', back_status: 'retired' })).toBe('Back, retired');
+  });
+
+  it('sums up how many demos led to a sale', () => {
+    expect(conversionSummary([])).toBeNull();
+    expect(conversionSummary([{ sale_id: 's1' }, { sale_id: null }, { sale_id: null }])).toBe('1 of 3 led to a sale');
   });
 });

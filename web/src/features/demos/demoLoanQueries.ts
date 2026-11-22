@@ -43,6 +43,32 @@ export async function fetchOpenLoans(): Promise<LoanWithFrame[]> {
   return (data ?? []) as unknown as LoanWithFrame[];
 }
 
+/** A customer's demos, newest first. */
+export async function fetchCustomerLoans(customerId: string): Promise<LoanWithFrame[]> {
+  const { data, error } = await supabase
+    .from('demo_loans')
+    .select(`*, ${CUSTOMER}, ${FRAME}`)
+    .eq('customer_id', customerId)
+    .order('out_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as LoanWithFrame[];
+}
+
+/** How many checked-in demos the Returned list shows. */
+export const RETURNED_LIMIT = 100;
+
+/** Demos checked in, the latest back first. */
+export async function fetchReturnedLoans(): Promise<LoanWithFrame[]> {
+  const { data, error } = await supabase
+    .from('demo_loans')
+    .select(`*, ${CUSTOMER}, ${FRAME}`)
+    .not('back_at', 'is', null)
+    .order('back_at', { ascending: false })
+    .limit(RETURNED_LIMIT);
+  if (error) throw error;
+  return (data ?? []) as unknown as LoanWithFrame[];
+}
+
 /** "Head Speed MP" from a frame's racquet. */
 export function frameRacquetName(loan: LoanWithFrame): string {
   const product = loan.product_units?.products;

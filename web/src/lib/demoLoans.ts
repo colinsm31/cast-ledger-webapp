@@ -52,3 +52,16 @@ export function sortOpenLoans<T extends Pick<DemoLoan, 'due_back_at' | 'loan_num
 export function overdueCount(loans: readonly Pick<DemoLoan, 'due_back_at'>[], now: Date): number {
   return loans.filter((loan) => new Date(loan.due_back_at).getTime() < now.getTime()).length;
 }
+
+/** Where a loan stands: "Out", "Back", or "Back, retired". */
+export function demoOutcome(loan: Pick<DemoLoan, 'back_at' | 'back_status'>): string {
+  if (!loan.back_at) return 'Out';
+  return loan.back_status === 'retired' ? 'Back, retired' : 'Back';
+}
+
+/** "2 of 5 led to a sale", or null for no loans. */
+export function conversionSummary(loans: readonly Pick<DemoLoan, 'sale_id'>[]): string | null {
+  if (loans.length === 0) return null;
+  const sold = loans.filter((loan) => loan.sale_id).length;
+  return `${sold} of ${loans.length} led to a sale`;
+}

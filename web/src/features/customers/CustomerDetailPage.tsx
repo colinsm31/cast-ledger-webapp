@@ -13,6 +13,7 @@ import { Spinner } from '../../components/Spinner';
 import { LoadError } from '../../components/LoadError';
 import { CustomerRacketsPanel } from './CustomerRacketsPanel';
 import { RestringHistoryPanel } from './RestringHistoryPanel';
+import { CustomerDemosPanel } from '../demos/CustomerDemosPanel';
 import { useBack } from '../../app/BackContext';
 import { ScanFlowParams } from '../scan/scanFlow';
 
@@ -44,7 +45,7 @@ interface HistorySaleRaw {
   }> | null;
 }
 
-type CustomerTab = 'rackets' | 'restrings' | 'purchases';
+type CustomerTab = 'rackets' | 'restrings' | 'demos' | 'purchases';
 
 export function CustomerDetailPage() {
   const { customerId } = useParams<{ customerId: string }>();
@@ -201,6 +202,9 @@ export function CustomerDetailPage() {
         <TabButton active={tab === 'restrings'} onClick={() => setTab('restrings')}>
           Re-stringing history
         </TabButton>
+        <TabButton active={tab === 'demos'} onClick={() => setTab('demos')}>
+          Demos
+        </TabButton>
         <TabButton active={tab === 'purchases'} onClick={() => setTab('purchases')}>
           Past purchases
         </TabButton>
@@ -211,6 +215,8 @@ export function CustomerDetailPage() {
       )}
 
       {tab === 'restrings' && <RestringHistoryPanel customerId={customer.id} />}
+
+      {tab === 'demos' && <CustomerDemosPanel customerId={customer.id} />}
 
       {tab === 'purchases' && (
         <section className="space-y-2">

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { errorMessage } from '../../lib/errors';
-import { demoLoanLabel, overdueCount, sortOpenLoans } from '../../lib/demoLoans';
+import { conversionSummary, demoLoanLabel, overdueCount, sortOpenLoans } from '../../lib/demoLoans';
 import { PROMISE_STATE_CLASSES, promiseLabel, promiseState } from '../../lib/stringJobPromise';
 import { customerNameLastFirst } from '../../types/domain';
 import { Spinner } from '../../components/Spinner';
@@ -9,15 +9,47 @@ import { LoadError } from '../../components/LoadError';
 import { EmptyState } from '../../components/EmptyState';
 import { useBack } from '../../app/BackContext';
 import { DemoLoanActions } from './DemoLoanActions';
-import { fetchOpenLoans, frameRacquetName, type LoanWithFrame } from './demoLoanQueries';
+import { DemoHistoryList } from './DemoHistoryList';
+import {
+  fetchOpenLoans,
+  fetchReturnedLoans,
+  frameRacquetName,
+  RETURNED_LIMIT,
+  type LoanWithFrame,
+} from './demoLoanQueries';
+
+type DemosTab = 'out' | 'returned';
 
 // MARK: - DemosPage
+//
+// Demos out now, and demos that have come back with which led to a sale.
+export function DemosPage() {
+  useBack('/');
+  const [tab, setTab] = useState<DemosTab>('out');
+  const tabClass = (active: boolean) =>
+    `rounded-full px-3 py-1 text-sm font-medium ${active ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <button onClick={() => setTab('out')} className={tabClass(tab === 'out')}>
+          Out now
+        </button>
+        <button onClick={() => setTab('returned')} className={tabClass(tab === 'returned')}>
+          Returned
+        </button>
+      </div>
+      {tab === 'out' ? <OpenLoansView /> : <ReturnedLoansView />}
+    </div>
+  );
+}
+
+// MARK: - OpenLoansView
 //
 // The demo frames out with customers, the one due back soonest (or most
 // overdue) first. A scan or typed text narrows the list to a frame, loan
 // number or customer, so a demo coming back is found in one scan.
-export function DemosPage() {
-  useBack('/');
+function OpenLoansView() {
   const [loans, setLoans] = useState<LoanWithFrame[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
@@ -113,6 +145,44 @@ export function DemosPage() {
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+// MARK: - ReturnedLoansView
+//
+// The latest demos checked in, and how many led to a sale.
+function ReturnedLoansView() {
+  const [loans, setLoans] = useState<LoanWithFrame[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      setLoans(await fetchReturnedLoans());
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (error) return <LoadError message={error} onRetry={() => void load()} />;
+  if (!loans) return <Spinner />;
+  if (loans.length === 0) return <EmptyState title="No demos have come back yet" />;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="text-xl font-bold text-slate-900">Demos returned</h1>
+        <p className="text-sm text-slate-600">
+          {conversionSummary(loans)}
+          {loans.length === RETURNED_LIMIT ? ` (latest ${RETURNED_LIMIT})` : ''}
+        </p>
+      </div>
+      <DemoHistoryList loans={loans} showCustomer />
     </div>
   );
 }

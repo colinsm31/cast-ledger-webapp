@@ -108,6 +108,8 @@ export interface DemoLoan {
   back_by: string | null;
   back_status: 'demo' | 'retired' | null;
   back_reason: string | null;
+  /** The sale the demo led to (0072). */
+  sale_id: string | null;
 }
 
 // On-hand + low-stock per product (from the product_stock view). Products are
