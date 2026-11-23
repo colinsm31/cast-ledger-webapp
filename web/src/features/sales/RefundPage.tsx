@@ -9,7 +9,12 @@ import { useBack } from '../../app/BackContext';
 import { useDialog } from '../../components/Dialog';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useSettings } from '../../lib/settings';
-import { PAYMENT_METHOD_LABEL as METHOD_LABEL, paymentLabel, refundMethodsFor } from '../../lib/paymentMethods';
+import {
+  EXCHANGE_METHOD,
+  PAYMENT_METHOD_LABEL as METHOD_LABEL,
+  paymentLabel,
+  refundMethodsFor,
+} from '../../lib/paymentMethods';
 import { CheckEntry } from './CheckEntry';
 import {
   DEFAULT_FRAME_RETURN,
@@ -47,6 +52,7 @@ import {
   refundTotals,
   type SaleData,
   type SaleLine,
+  type SalePayment,
 } from './saleForReturn';
 
 interface Tender {
@@ -137,13 +143,22 @@ export function RefundPage() {
   // What each payment type the sale used can still give back (a gift card
   // only to the card that paid), and which this refund over-sends to (a
   // payment-type change, which needs a reason).
+  // An exchange credit (0077) paid for this sale with returned items, not
+  // money, so nothing goes back that way: it's for the cashier to place.
+  const moneyPayments = useMemo(
+    () =>
+      (sale?.sale_payments ?? []).filter(
+        (p): p is SalePayment & { method: PaymentMethod } => p.method !== EXCHANGE_METHOD,
+      ),
+    [sale],
+  );
   const refundable = useMemo(
     () =>
       refundableByMethod(
-        bySource(sale?.sale_payments ?? []),
+        bySource(moneyPayments),
         bySource((sale?.refunds ?? []).flatMap((r) => r.refund_payments)),
       ),
-    [sale],
+    [sale, moneyPayments],
   );
   const changedTypes = paymentTypeChanges(
     refundable,
@@ -181,7 +196,7 @@ export function RefundPage() {
     // still give back; anything left over is for the cashier to place.
     const { allocations } = allocateToOriginalPayments(
       toCents(refundTotalsFor(q).total),
-      sale.sale_payments ?? [],
+      moneyPayments,
       refundable,
       (p) => refundSource(p.method, p.gift_card_id),
     );

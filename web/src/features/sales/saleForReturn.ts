@@ -4,6 +4,7 @@
 // never more than the sale charged.
 import { supabase } from '../../lib/supabase';
 import type { JsonValue, PaymentMethod } from '../../types/domain';
+import type { SavedPaymentMethod } from '../../lib/paymentMethods';
 import { fromCents, refundSource, refundTaxCents, roundMoney, toCents } from '../../lib/saleMath';
 import { refundSubtotals, taxedRefundedCents, type RefundedLine } from './returnable';
 
@@ -22,7 +23,7 @@ export interface SaleLine {
 }
 
 export interface SalePayment {
-  method: PaymentMethod;
+  method: SavedPaymentMethod;
   amount: number;
   gift_card_id: string | null;
   gift_cards: { code: string } | null;
@@ -67,7 +68,7 @@ export function refundedLinesOf(sale: SaleData | null): RefundedLine[] {
 }
 
 /** Payments keyed by what limits a refund: the type, or the gift card itself. */
-export function bySource(payments: { method: PaymentMethod; amount: number; gift_card_id: string | null }[]) {
+export function bySource(payments: { method: SavedPaymentMethod; amount: number; gift_card_id: string | null }[]) {
   return payments.map((p) => ({ method: refundSource(p.method, p.gift_card_id), amount: p.amount }));
 }
 

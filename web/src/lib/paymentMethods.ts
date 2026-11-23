@@ -52,7 +52,10 @@ export function normalizeCheckNumber(raw: string): string | null {
  * A saved payment or refund that only an exchange writes (0077): the returned
  * items' value moving to the new sale. It isn't offered as a payment type.
  */
-export const EXCHANGE_METHOD = 'exchange';
+export const EXCHANGE_METHOD = 'exchange' as const;
+
+/** A payment type as saved: one the shop offers, or an exchange's credit. */
+export type SavedPaymentMethod = PaymentMethod | typeof EXCHANGE_METHOD;
 const EXCHANGE_LABEL = 'Exchange credit';
 
 /** "Cash", "Check #1042", "Exchange credit" — a saved payment or refund, for display. */
