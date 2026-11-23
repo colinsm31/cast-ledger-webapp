@@ -27,6 +27,7 @@ interface SaleLineRaw {
   id: string;
   product_id: string | null;
   product_unit_id: string | null;
+  string_job_id: string | null;
   qty: number;
   unit_price: number;
   list_price: number | null;
@@ -60,7 +61,7 @@ interface SaleDetail {
     tax: number;
     refunded_at: string;
     refunded_by: StaffRef | null;
-    refund_lines: { sale_line_id: string; qty: number }[];
+    refund_lines: { sale_line_id: string; qty: number; kind: string; unit_price: number }[];
     refund_payments: { method: string; check_number: string | null }[];
   }>;
 }
@@ -100,9 +101,9 @@ export function SaleDetailPage() {
             'customers ( first_name, last_name )',
             'rung_by:profiles!sales_user_id_fkey ( email )',
             'discount_approver:profiles!sales_discount_approved_by_fkey ( email )',
-            'sale_lines ( id, product_id, product_unit_id, qty, unit_price, list_price, price_reason, price_before_discount, line_discount, ticket_discount_each, discount_reason, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
+            'sale_lines ( id, product_id, product_unit_id, string_job_id, qty, unit_price, list_price, price_reason, price_before_discount, line_discount, ticket_discount_each, discount_reason, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
             'sale_payments ( method, amount, check_number )',
-            'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( sale_line_id, qty ), refund_payments ( method, check_number ) )',
+            'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( sale_line_id, qty, kind, unit_price ), refund_payments ( method, check_number ) )',
           ].join(', '),
         )
         .eq('id', saleId)

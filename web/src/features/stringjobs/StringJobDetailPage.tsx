@@ -474,14 +474,18 @@ export function StringJobDetailPage() {
           <h1 className="text-xl font-bold text-slate-900">{customer ? customerName(customer) : 'String job'}</h1>
           <span className="text-sm font-semibold text-slate-500">{jobCode(job.job_number)}</span>
           <StatusBadge status={status} />
-          {status !== 'cancelled' && (
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                job.paid_sale_id ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-              }`}
-            >
-              {job.paid_sale_id ? 'Paid' : 'Unpaid'}
-            </span>
+          {job.refunded_at ? (
+            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">Refunded</span>
+          ) : (
+            status !== 'cancelled' && (
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  job.paid_sale_id ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {job.paid_sale_id ? 'Paid' : 'Unpaid'}
+              </span>
+            )
           )}
           {status === 'entered' && job.is_rush && <RushBadge />}
           {status !== 'cancelled' && (
@@ -635,8 +639,13 @@ export function StringJobDetailPage() {
                 </button>
               )}
               {job.paid_sale_id ? (
-                // Refunds cover product lines only, so a paid job can't be cancelled.
-                <p className="self-center text-sm text-slate-500">Paid jobs can&apos;t be cancelled.</p>
+                // A paid job is cancelled by refunding its charge (0074).
+                <Link
+                  to={`/sales/${job.paid_sale_id}/refund`}
+                  className="self-center rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                >
+                  Refund to cancel
+                </Link>
               ) : (
                 <button
                   onClick={() => void cancelJob()}

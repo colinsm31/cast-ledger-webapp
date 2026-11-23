@@ -4,9 +4,14 @@ import {
   frameReturnProblem,
   hasItemsToReturn,
   hasReturnable,
+  isStringingLine,
   isUnitLine,
+  refundPriceCents,
+  refundSubtotals,
   returnableQty,
   returnedItemsLabel,
+  stringingNote,
+  taxedRefundedCents,
 } from './returnable';
 
 describe('returnedItemsLabel', () => {
@@ -87,5 +92,40 @@ describe('a returned frame', () => {
 describe('isUnitLine', () => {
   it('picks out a racquet frame\'s line', () => {
     expect(lines.map(isUnitLine)).toEqual([false, true, false]);
+  });
+});
+
+describe('stringing charges (0074)', () => {
+  const stringing = { id: 'job', product_id: null, product_unit_id: null, string_job_id: 'j1', qty: 1, unit_price: 20, taxable: false };
+  const grip = { id: 'grip', product_id: 'p1', product_unit_id: null, qty: 2, unit_price: 10, taxable: true };
+  const giveBack = { sale_line_id: 'job', qty: 1, kind: 'string_change', unit_price: 8 };
+
+  it('are refunded whole, once', () => {
+    expect(isStringingLine(stringing)).toBe(true);
+    expect(returnableQty([stringing], [])).toEqual({ job: 1 });
+    expect(returnableQty([stringing], [{ sale_line_id: 'job', qty: 1, kind: 'return', unit_price: 20 }])).toEqual({ job: 0 });
+  });
+
+  it('give back their price less string-change give-backs, which don\'t count as returns', () => {
+    expect(refundPriceCents(stringing, [giveBack])).toBe(1200);
+    expect(returnableQty([stringing], [giveBack])).toEqual({ job: 1 });
+    expect(returnableQty([stringing], [{ ...giveBack, unit_price: 20 }])).toEqual({ job: 0 });
+    expect(returnedItemsLabel([giveBack, { sale_line_id: 'grip', qty: 1 }])).toBe('1 item returned');
+  });
+
+  it('count toward the refund but only taxed lines count toward tax', () => {
+    expect(refundSubtotals([stringing, grip], [giveBack], { job: 1, grip: 1 })).toEqual({
+      subtotalCents: 2200,
+      taxableCents: 1000,
+    });
+    expect(
+      taxedRefundedCents([stringing, grip], [giveBack, { sale_line_id: 'grip', qty: 1, kind: 'return', unit_price: 10 }]),
+    ).toBe(1000);
+  });
+
+  it('say what refunding does to the job', () => {
+    expect(stringingNote('entered')).toBe('not strung yet: refunding cancels the job');
+    expect(stringingNote('complete')).toBe('strung and waiting: deliver it before refunding');
+    expect(stringingNote('delivered')).toBe('the job stays on record, marked refunded');
   });
 });

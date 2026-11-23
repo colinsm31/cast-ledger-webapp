@@ -288,6 +288,9 @@ export interface StringJob {
   completed_at: string | null;
   delivered_at: string | null;
   cancelled_at: string | null;
+  // Set when the job's charge was refunded (0074); the job stays on record.
+  refunded_at?: string | null;
+  refund_id?: string | null;
   // Staff (profiles.id) behind each status change; null when not recorded.
   entered_by: string | null;
   completed_by: string | null;

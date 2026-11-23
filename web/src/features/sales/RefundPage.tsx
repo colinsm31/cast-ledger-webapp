@@ -16,14 +16,19 @@ import {
   frameReturnLine,
   frameReturnProblem,
   hasItemsToReturn,
+  isStringingLine,
   isUnitLine,
+  refundPriceCents,
+  refundSubtotals,
   returnableQty,
+  stringingNote,
+  taxedRefundedCents,
   type FrameReturn,
 } from './returnable';
+import { jobCode } from '../stringjobs/jobTag';
 import { FrameReturnFields } from './FrameReturnFields';
 import {
   allocateToOriginalPayments,
-  computeSaleTotals,
   fromCents,
   paymentTypeChanges,
   refundableByMethod,
@@ -37,9 +42,12 @@ interface SaleLine {
   id: string;
   product_id: string | null;
   product_unit_id: string | null;
+  string_job_id: string | null;
   qty: number;
   unit_price: number;
+  taxable: boolean;
   products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
+  string_jobs: { job_number: number; status: string } | null;
 }
 interface SalePayment {
   method: PaymentMethod;
@@ -50,7 +58,7 @@ interface SalePayment {
 interface EarlierRefund {
   subtotal: number;
   tax: number;
-  refund_lines: { sale_line_id: string; qty: number }[];
+  refund_lines: { sale_line_id: string; qty: number; kind: string; unit_price: number }[];
   refund_payments: { method: PaymentMethod; amount: number; gift_card_id: string | null }[];
 }
 interface SaleData {
@@ -113,9 +121,9 @@ export function RefundPage() {
           [
             'id, tax, tax_rate, customer_id',
             'customers ( first_name, last_name )',
-            'sale_lines ( id, product_id, product_unit_id, qty, unit_price, products ( brand, name, attributes ) )',
+            'sale_lines ( id, product_id, product_unit_id, string_job_id, qty, unit_price, taxable, products ( brand, name, attributes ), string_jobs ( job_number, status ) )',
             'sale_payments ( method, amount, gift_card_id, gift_cards ( code ) )',
-            'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty ), refund_payments ( method, amount, gift_card_id ) )',
+            'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty, kind, unit_price ), refund_payments ( method, amount, gift_card_id ) )',
           ].join(', '),
         )
         .eq('id', saleId)
@@ -125,35 +133,35 @@ export function RefundPage() {
     })();
   }, [saleId]);
 
-  // Remaining returnable qty per product line and racquet frame (original
-  // minus already refunded).
-  const remaining = useMemo(
-    () => (sale ? returnableQty(sale.sale_lines, (sale.refunds ?? []).flatMap((r) => r.refund_lines ?? [])) : {}),
-    [sale],
-  );
+  const refundedLines = useMemo(() => (sale?.refunds ?? []).flatMap((r) => r.refund_lines ?? []), [sale]);
+
+  // Remaining returnable qty per product line, racquet frame and stringing
+  // charge (original minus already refunded).
+  const remaining = useMemo(() => (sale ? returnableQty(sale.sale_lines, refundedLines) : {}), [sale, refundedLines]);
 
   // Refund subtotal, tax and total for a set of return quantities. Tax follows
-  // record_refund: cumulative over this sale's refunds, at the sale's rate, and
-  // never more than the sale charged.
+  // record_refund: on the lines the sale taxed, cumulative over this sale's
+  // refunds, at the sale's rate, and never more than the sale charged.
   function refundTotalsFor(qty: Record<string, number>) {
     if (!sale) return { subtotal: 0, tax: 0, total: 0 };
-    const { subtotal } = computeSaleTotals(
-      sale.sale_lines.map((l) => ({ qty: qty[l.id] ?? 0, price: l.unit_price })),
-      { taxRate: 0, taxStringing: false },
-    );
-    const refundSubtotalCents = toCents(subtotal);
+    const { subtotalCents, taxableCents } = refundSubtotals(sale.sale_lines, refundedLines, qty);
     const taxCentsForRefund = refundTaxCents({
-      previousSubtotalCents: sale.refunds.reduce((s, r) => s + toCents(r.subtotal), 0),
+      previousSubtotalCents: taxedRefundedCents(sale.sale_lines, refundedLines),
       previousTaxCents: sale.refunds.reduce((s, r) => s + toCents(r.tax), 0),
       saleTaxCents: toCents(sale.tax),
-      refundSubtotalCents,
+      refundSubtotalCents: taxableCents,
       taxRate: sale.tax_rate,
     });
     return {
-      subtotal,
+      subtotal: fromCents(subtotalCents),
       tax: fromCents(taxCentsForRefund),
-      total: fromCents(refundSubtotalCents + taxCentsForRefund),
+      total: fromCents(subtotalCents + taxCentsForRefund),
     };
+  }
+
+  // A job strung and waiting for pickup is delivered before its charge is refunded.
+  function waitingForPickup(line: SaleLine): boolean {
+    return line.string_jobs?.status === 'complete';
   }
 
   const { subtotal, tax, total } = useMemo(
@@ -207,7 +215,9 @@ export function RefundPage() {
     if (!sale) return;
     // Return everything still returnable, and prefill the original tenders.
     const q: Record<string, number> = {};
-    for (const id of Object.keys(remaining)) q[id] = remaining[id];
+    for (const line of sale.sale_lines) {
+      if ((remaining[line.id] ?? 0) > 0 && !waitingForPickup(line)) q[line.id] = remaining[line.id];
+    }
     setReturnQty(q);
     // Send the money back the way it came, up to what each payment type can
     // still give back; anything left over is for the cashier to place.
@@ -313,7 +323,26 @@ export function RefundPage() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {returnableLines.map((l) =>
-              isUnitLine(l) ? (
+              isStringingLine(l) ? (
+                <li key={l.id} className="p-3">
+                  <label className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={(returnQty[l.id] ?? 0) > 0}
+                      disabled={waitingForPickup(l)}
+                      onChange={(e) => setQty(l.id, e.target.checked ? 1 : 0)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-slate-900">
+                        Stringing{l.string_jobs ? ` ${jobCode(l.string_jobs.job_number)}` : ''}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        ${fromCents(refundPriceCents(l, refundedLines)).toFixed(2)} · {stringingNote(l.string_jobs?.status)}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              ) : isUnitLine(l) ? (
                 <li key={l.id} className="p-3">
                   <label className="flex items-center gap-3">
                     <input
