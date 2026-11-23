@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 vi.mock('./supabase', () => ({ supabaseUrl: 'http://localhost', supabaseAnonKey: 'anon' }));
-const { approveDiscountAsAdmin, createApprovalClient } = await import('./discountApproval');
+const { approveDiscountAsAdmin, approveRefundAsAdmin, createApprovalClient } = await import('./discountApproval');
 
 const signInWithPassword = vi.fn();
 const signOut = vi.fn();
@@ -46,6 +46,29 @@ describe('approveDiscountAsAdmin', () => {
   it('passes other failures on', async () => {
     rpc.mockResolvedValue({ data: null, error: { message: 'network down' } });
     await expect(approveDiscountAsAdmin(request, fakeClient)).rejects.toThrow('The approval wasn’t saved: network down');
+  });
+});
+
+describe('approveRefundAsAdmin', () => {
+  beforeEach(() => {
+    signInWithPassword.mockReset().mockResolvedValue({ error: null });
+    signOut.mockReset().mockResolvedValue({ error: null });
+    rpc.mockReset().mockResolvedValue({ data: 'refund-approval-1', error: null });
+  });
+
+  it('signs the admin in, approves the refund, and signs them out of this device only', async () => {
+    await expect(approveRefundAsAdmin({ email: 'admin@shop.test', password: 'pw' }, fakeClient)).resolves.toBe(
+      'refund-approval-1',
+    );
+    expect(rpc).toHaveBeenCalledWith('approve_refund', {});
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('names refunds when the account isn’t an admin', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'Only an admin' } });
+    await expect(approveRefundAsAdmin({ email: 'staff@shop.test', password: 'pw' }, fakeClient)).rejects.toThrow(
+      'That account isn’t an admin, so it can’t approve refunds.',
+    );
   });
 });
 

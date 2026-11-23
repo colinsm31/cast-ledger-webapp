@@ -16,6 +16,8 @@ import {
   frameReturnLine,
   frameReturnProblem,
   hasItemsToReturn,
+  giftCardLoadUnused,
+  isGiftCardLoadLine,
   isStringingLine,
   isUnitLine,
   refundPriceCents,
@@ -26,6 +28,9 @@ import {
   type FrameReturn,
 } from './returnable';
 import { jobCode } from '../stringjobs/jobTag';
+import { useAuth } from '../../auth/AuthContext';
+import { AdminApprovalDialog } from '../../components/AdminApprovalDialog';
+import { approveRefundAsAdmin } from '../../lib/discountApproval';
 import { FrameReturnFields } from './FrameReturnFields';
 import {
   allocateToOriginalPayments,
@@ -43,11 +48,13 @@ interface SaleLine {
   product_id: string | null;
   product_unit_id: string | null;
   string_job_id: string | null;
+  gift_card_id: string | null;
   qty: number;
   unit_price: number;
   taxable: boolean;
   products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
   string_jobs: { job_number: number; status: string } | null;
+  gift_cards: { code: string } | null;
 }
 interface SalePayment {
   method: PaymentMethod;
@@ -110,7 +117,11 @@ export function RefundPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Each loaded gift card's balance, and the admin's approval for refunding a load (0075).
+  const [cardBalances, setCardBalances] = useState<Record<string, number>>({});
+  const [askingApproval, setAskingApproval] = useState(false);
   const { settings } = useSettings();
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     if (!saleId) return;
@@ -121,15 +132,29 @@ export function RefundPage() {
           [
             'id, tax, tax_rate, customer_id',
             'customers ( first_name, last_name )',
-            'sale_lines ( id, product_id, product_unit_id, string_job_id, qty, unit_price, taxable, products ( brand, name, attributes ), string_jobs ( job_number, status ) )',
+            'sale_lines ( id, product_id, product_unit_id, string_job_id, gift_card_id, qty, unit_price, taxable, products ( brand, name, attributes ), string_jobs ( job_number, status ), gift_cards ( code ) )',
             'sale_payments ( method, amount, gift_card_id, gift_cards ( code ) )',
             'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty, kind, unit_price ), refund_payments ( method, amount, gift_card_id ) )',
           ].join(', '),
         )
         .eq('id', saleId)
         .single();
-      if (err) setLoadError(errorMessage(err));
-      else setSale(data as unknown as SaleData);
+      if (err) {
+        setLoadError(errorMessage(err));
+        return;
+      }
+      const loaded = data as unknown as SaleData;
+      setSale(loaded);
+      // What each loaded card holds now: only an unused load is refunded.
+      const cardIds = loaded.sale_lines.map((l) => l.gift_card_id).filter((id): id is string => !!id);
+      if (cardIds.length > 0) {
+        const { data: balances, error: balanceErr } = await supabase
+          .from('gift_card_balance')
+          .select('gift_card_id, balance')
+          .in('gift_card_id', cardIds);
+        if (balanceErr) setLoadError(errorMessage(balanceErr));
+        else setCardBalances(Object.fromEntries((balances ?? []).map((b) => [b.gift_card_id as string, Number(b.balance)])));
+      }
     })();
   }, [saleId]);
 
@@ -216,7 +241,8 @@ export function RefundPage() {
     // Return everything still returnable, and prefill the original tenders.
     const q: Record<string, number> = {};
     for (const line of sale.sale_lines) {
-      if ((remaining[line.id] ?? 0) > 0 && !waitingForPickup(line)) q[line.id] = remaining[line.id];
+      const usedLoad = isGiftCardLoadLine(line) && !giftCardLoadUnused(line, cardBalances[line.gift_card_id ?? '']);
+      if ((remaining[line.id] ?? 0) > 0 && !waitingForPickup(line) && !usedLoad) q[line.id] = remaining[line.id];
     }
     setReturnQty(q);
     // Send the money back the way it came, up to what each payment type can
@@ -246,7 +272,11 @@ export function RefundPage() {
     setMode('none');
   }
 
-  async function process() {
+  // A gift card load comes back only with an admin's approval (0075), unless
+  // an admin is the one signed in.
+  const refundsLoad = sale?.sale_lines.some((l) => isGiftCardLoadLine(l) && (returnQty[l.id] ?? 0) > 0) ?? false;
+
+  async function process(approvalId: string | null = null) {
     if (!itemsChosen) {
       setError('Choose at least one item to return.');
       return;
@@ -265,6 +295,10 @@ export function RefundPage() {
     }
     if (needsMethodChangeReason && !methodChangeReason.trim()) {
       setError('Give a reason for refunding to a different payment type.');
+      return;
+    }
+    if (refundsLoad && !approvalId && !isAdmin) {
+      setAskingApproval(true);
       return;
     }
     setSaving(true);
@@ -288,6 +322,7 @@ export function RefundPage() {
       p_reason: reason.trim() || null,
       p_note: null,
       p_method_change_reason: needsMethodChangeReason ? methodChangeReason.trim() : null,
+      p_approval_id: approvalId,
     });
     setSaving(false);
     if (err) {
@@ -323,7 +358,29 @@ export function RefundPage() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {returnableLines.map((l) =>
-              isStringingLine(l) ? (
+              isGiftCardLoadLine(l) ? (
+                <li key={l.id} className="p-3">
+                  <label className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={(returnQty[l.id] ?? 0) > 0}
+                      disabled={!giftCardLoadUnused(l, cardBalances[l.gift_card_id ?? ''])}
+                      onChange={(e) => setQty(l.id, e.target.checked ? l.qty : 0)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-slate-900">
+                        Gift card load{l.gift_cards ? ` · ${l.gift_cards.code}` : ''}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        ${(l.qty * Number(l.unit_price)).toFixed(2)} ·{' '}
+                        {giftCardLoadUnused(l, cardBalances[l.gift_card_id ?? ''])
+                          ? 'comes back off the card; needs an admin'
+                          : `the card has $${Number(cardBalances[l.gift_card_id ?? ''] ?? 0).toFixed(2)} left, so this load has been used`}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              ) : isStringingLine(l) ? (
                 <li key={l.id} className="p-3">
                   <label className="flex items-center gap-3">
                     <input
@@ -502,6 +559,19 @@ export function RefundPage() {
             ? 'Return items · nothing to refund'
             : `Process refund · $${total.toFixed(2)}`}
       </button>
+
+      {askingApproval && (
+        <AdminApprovalDialog
+          message="Refunding a gift card load needs an admin. An admin can approve it by signing in here. You stay signed in, and the approval covers this refund only."
+          approveLabel="Approve refund"
+          approve={approveRefundAsAdmin}
+          onApproved={(approvalId) => {
+            setAskingApproval(false);
+            void process(approvalId);
+          }}
+          onCancel={() => setAskingApproval(false)}
+        />
+      )}
     </div>
   );
 }

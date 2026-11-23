@@ -2,10 +2,10 @@
   "updated": "2026-11-23",
   "web": {
     "overall": {
-      "lines": 30.16,
-      "statements": 30.64,
-      "functions": 29.99,
-      "branches": 29.13
+      "lines": 30.55,
+      "statements": 30.95,
+      "functions": 30.44,
+      "branches": 29.09
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 92.96
+        "lines": 93.48
       },
       "src/features/account": {
         "lines": 0
@@ -45,7 +45,7 @@
         "lines": 24.12
       },
       "src/features/sales": {
-        "lines": 8.66
+        "lines": 8.81
       },
       "src/features/scan": {
         "lines": 61.7
@@ -54,7 +54,7 @@
         "lines": 21.3
       },
       "src/lib": {
-        "lines": 93.22
+        "lines": 93.24
       },
       "src/types": {
         "lines": 66.67
@@ -78,6 +78,9 @@
       },
       "src/auth/SignInPage.tsx": {
         "lines": 0
+      },
+      "src/components/AdminApprovalDialog.tsx": {
+        "lines": 95.23
       },
       "src/components/Barcode.tsx": {
         "lines": 100

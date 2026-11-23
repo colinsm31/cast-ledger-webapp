@@ -1,7 +1,7 @@
 // Which sale lines can still be returned, and how many of each. Mirrors
 // record_refund: product lines (a racquet frame's line, one frame, since
-// 0070) and stringing charges (whole, since 0074), less what earlier refunds
-// already returned.
+// 0070), stringing charges (whole, since 0074) and gift card loads (whole,
+// since 0075), less what earlier refunds already returned.
 import { toCents } from '../../lib/saleMath';
 
 export interface SaleLineForReturn {
@@ -10,6 +10,7 @@ export interface SaleLineForReturn {
   product_unit_id: string | null;
   qty: number;
   string_job_id?: string | null;
+  gift_card_id?: string | null;
   unit_price?: number;
   taxable?: boolean;
 }
@@ -20,6 +21,16 @@ export interface RefundedLine {
   /** 'string_change' for a string-change give-back (0043); a return otherwise. */
   kind?: string;
   unit_price?: number;
+}
+
+/** A gift card load: refunded whole, with an admin's approval, while the card still holds it (0075). */
+export function isGiftCardLoadLine(line: SaleLineForReturn): boolean {
+  return line.gift_card_id != null;
+}
+
+/** Whether the card still holds the whole load (only an unused load is refunded). */
+export function giftCardLoadUnused(line: SaleLineForReturn, cardBalance: number | undefined): boolean {
+  return toCents(Number(cardBalance ?? 0)) >= line.qty * toCents(Number(line.unit_price ?? 0));
 }
 
 /** A stringing charge (a job's charge or a string-change charge): refunded whole. */
@@ -130,7 +141,7 @@ export function returnableQty(lines: SaleLineForReturn[], refundedLines: Refunde
       remaining[l.id] = Math.max(0, sold - (returned[l.id] ?? 0));
       continue;
     }
-    if (!l.product_id) continue;
+    if (!l.product_id && !isGiftCardLoadLine(l)) continue;
     remaining[l.id] = Math.max(0, l.qty - (returned[l.id] ?? 0));
   }
   return remaining;

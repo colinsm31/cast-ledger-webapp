@@ -3,7 +3,9 @@ import {
   frameReturnLine,
   frameReturnProblem,
   hasItemsToReturn,
+  giftCardLoadUnused,
   hasReturnable,
+  isGiftCardLoadLine,
   isStringingLine,
   isUnitLine,
   refundPriceCents,
@@ -92,6 +94,23 @@ describe('a returned frame', () => {
 describe('isUnitLine', () => {
   it('picks out a racquet frame\'s line', () => {
     expect(lines.map(isUnitLine)).toEqual([false, true, false]);
+  });
+});
+
+describe('gift card loads (0075)', () => {
+  const load = { id: 'load', product_id: null, product_unit_id: null, gift_card_id: 'gc1', qty: 1, unit_price: 25, taxable: false };
+
+  it('are returnable whole, once', () => {
+    expect(isGiftCardLoadLine(load)).toBe(true);
+    expect(returnableQty([load], [])).toEqual({ load: 1 });
+    expect(returnableQty([load], [{ sale_line_id: 'load', qty: 1 }])).toEqual({ load: 0 });
+  });
+
+  it('come back only while the card still holds all of the load', () => {
+    expect(giftCardLoadUnused(load, 25)).toBe(true);
+    expect(giftCardLoadUnused(load, 40)).toBe(true);
+    expect(giftCardLoadUnused(load, 24.99)).toBe(false);
+    expect(giftCardLoadUnused(load, undefined)).toBe(false);
   });
 });
 
