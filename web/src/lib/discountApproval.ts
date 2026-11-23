@@ -1,5 +1,5 @@
 // An admin approves a discount over the staff limit (approve_discount, 0056)
-// or a gift card load refund (approve_refund, 0075) at the staff member's
+// or a gift card load refund (approve_refund, 0075/0078) at the staff member's
 // register. The admin signs in on a second,
 // short-lived client that's never saved, so the register stays signed in as
 // the staff member; the admin is signed out of this device straight after.
@@ -70,10 +70,24 @@ export function approveDiscountAsAdmin(
   );
 }
 
-/** An admin's approval for refunding a gift card load (approve_refund, 0075). */
+/** What a load-refund approval covers (0078): one sale's loads, for this total. */
+export interface RefundApprovalScope {
+  saleId: string;
+  amount: number;
+}
+
+/** How long a load-refund approval lasts on the server (refund_approvals.expires_at, 0075). */
+export const REFUND_APPROVAL_MINUTES = 15;
+
+/** An admin's approval for refunding one sale's gift card loads (approve_refund, 0078). */
 export function approveRefundAsAdmin(
   credentials: AdminCredentials,
+  scope: RefundApprovalScope,
   makeClient: () => SupabaseClient = createApprovalClient,
 ): Promise<string> {
-  return approveAsAdmin(credentials, { rpc: 'approve_refund', what: 'refunds' }, makeClient);
+  return approveAsAdmin(
+    credentials,
+    { rpc: 'approve_refund', args: { p_sale_id: scope.saleId, p_amount: scope.amount }, what: 'refunds' },
+    makeClient,
+  );
 }

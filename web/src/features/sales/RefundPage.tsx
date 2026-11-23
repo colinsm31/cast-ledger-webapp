@@ -21,6 +21,7 @@ import {
   frameReturnLine,
   frameReturnProblem,
   hasItemsToReturn,
+  giftCardLoadRefundCents,
   giftCardLoadUnused,
   isGiftCardLoadLine,
   isStringingLine,
@@ -33,7 +34,7 @@ import {
 import { jobCode } from '../stringjobs/jobTag';
 import { useAuth } from '../../auth/AuthContext';
 import { AdminApprovalDialog } from '../../components/AdminApprovalDialog';
-import { approveRefundAsAdmin } from '../../lib/discountApproval';
+import { approveRefundAsAdmin, REFUND_APPROVAL_MINUTES } from '../../lib/discountApproval';
 import { FrameReturnFields } from './FrameReturnFields';
 import {
   allocateToOriginalPayments,
@@ -85,6 +86,9 @@ export function RefundPage() {
   // Each loaded gift card's balance, and the admin's approval for refunding a load (0075).
   const [cardBalances, setCardBalances] = useState<Record<string, number>>({});
   const [askingApproval, setAskingApproval] = useState(false);
+  // An approval kept after a failed refund, so a retry of the same loads
+  // doesn't need the admin again (the failed refund didn't use it up).
+  const [keptApproval, setKeptApproval] = useState<{ id: string; cents: number; expiresAt: number } | null>(null);
   const { settings } = useSettings();
   const { isAdmin } = useAuth();
 
@@ -221,9 +225,17 @@ export function RefundPage() {
 
   // A gift card load comes back only with an admin's approval (0075), unless
   // an admin is the one signed in.
-  const refundsLoad = sale?.sale_lines.some((l) => isGiftCardLoadLine(l) && (returnQty[l.id] ?? 0) > 0) ?? false;
+  const loadCents = giftCardLoadRefundCents(sale?.sale_lines ?? [], returnQty);
+  const refundsLoad = loadCents > 0;
 
-  async function process(approvalId: string | null = null) {
+  /** The kept approval, while it still covers these loads and hasn't expired. */
+  function usableKeptApproval(): string | null {
+    if (!keptApproval || keptApproval.cents !== loadCents || Date.now() >= keptApproval.expiresAt) return null;
+    return keptApproval.id;
+  }
+
+  async function process(givenApprovalId: string | null = null) {
+    const approvalId = givenApprovalId ?? (refundsLoad ? usableKeptApproval() : null);
     if (!itemsChosen) {
       setError('Choose at least one item to return.');
       return;
@@ -273,6 +285,11 @@ export function RefundPage() {
     });
     setSaving(false);
     if (err) {
+      if (approvalId && approvalId !== keptApproval?.id) {
+        // A minute short of the server's limit, so a retry doesn't race it.
+        const expiresAt = Date.now() + (REFUND_APPROVAL_MINUTES - 1) * 60_000;
+        setKeptApproval({ id: approvalId, cents: loadCents, expiresAt });
+      }
       setError(errorMessage(err));
       return;
     }
@@ -509,9 +526,9 @@ export function RefundPage() {
 
       {askingApproval && (
         <AdminApprovalDialog
-          message="Refunding a gift card load needs an admin. An admin can approve it by signing in here. You stay signed in, and the approval covers this refund only."
+          message={`Refunding a gift card load needs an admin. An admin can approve refunding $${fromCents(loadCents).toFixed(2)} of gift card loads on this sale by signing in here. You stay signed in.`}
           approveLabel="Approve refund"
-          approve={approveRefundAsAdmin}
+          approve={(credentials) => approveRefundAsAdmin(credentials, { saleId: sale.id, amount: fromCents(loadCents) })}
           onApproved={(approvalId) => {
             setAskingApproval(false);
             void process(approvalId);

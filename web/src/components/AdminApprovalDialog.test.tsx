@@ -32,6 +32,19 @@ describe('AdminApprovalDialog', () => {
     expect(approve).toHaveBeenCalledWith({ email: 'admin@shop.test', password: 'pw' });
   });
 
+  it('can’t be closed while the approval is being saved', async () => {
+    let finish: (id: string) => void = () => {};
+    const { onApproved, onCancel } = renderDialog(() => new Promise<string>((resolve) => (finish = resolve)));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve refund' }));
+    expect(await screen.findByRole('button', { name: 'Approving…' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    fireEvent.click(screen.getByRole('dialog').parentElement!);
+    expect(onCancel).not.toHaveBeenCalled();
+    finish('approval-1');
+    await waitFor(() => expect(onApproved).toHaveBeenCalledWith('approval-1'));
+  });
+
   it('shows why an approval failed, and cancels', async () => {
     const { onApproved, onCancel } = renderDialog(() => Promise.reject(new Error('That email and password didn’t work.')));
     fireEvent.click(screen.getByRole('button', { name: 'Approve refund' }));

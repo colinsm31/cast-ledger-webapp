@@ -56,17 +56,17 @@ describe('approveRefundAsAdmin', () => {
     rpc.mockReset().mockResolvedValue({ data: 'refund-approval-1', error: null });
   });
 
-  it('signs the admin in, approves the refund, and signs them out of this device only', async () => {
-    await expect(approveRefundAsAdmin({ email: 'admin@shop.test', password: 'pw' }, fakeClient)).resolves.toBe(
-      'refund-approval-1',
-    );
-    expect(rpc).toHaveBeenCalledWith('approve_refund', {});
+  it('signs the admin in, approves this sale’s loads, and signs them out of this device only', async () => {
+    await expect(
+      approveRefundAsAdmin({ email: 'admin@shop.test', password: 'pw' }, { saleId: 'sale-1', amount: 20 }, fakeClient),
+    ).resolves.toBe('refund-approval-1');
+    expect(rpc).toHaveBeenCalledWith('approve_refund', { p_sale_id: 'sale-1', p_amount: 20 });
     expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
   });
 
   it('names refunds when the account isn’t an admin', async () => {
     rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'Only an admin' } });
-    await expect(approveRefundAsAdmin({ email: 'staff@shop.test', password: 'pw' }, fakeClient)).rejects.toThrow(
+    await expect(approveRefundAsAdmin({ email: 'staff@shop.test', password: 'pw' }, { saleId: 'sale-1', amount: 20 }, fakeClient)).rejects.toThrow(
       'That account isn’t an admin, so it can’t approve refunds.',
     );
   });

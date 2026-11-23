@@ -29,6 +29,12 @@ export function AdminApprovalDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // While the approval is being saved the dialog stays open: closing it then
+  // wouldn't stop what the approval goes on to do.
+  function cancel() {
+    if (!busy) onCancel();
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
@@ -46,7 +52,7 @@ export function AdminApprovalDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={cancel}>
       <form
         role="dialog"
         aria-modal="true"
@@ -54,7 +60,7 @@ export function AdminApprovalDialog({
         onSubmit={(e) => void submit(e)}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') onCancel();
+          if (e.key === 'Escape') cancel();
         }}
         className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-6 shadow-xl"
       >
@@ -85,8 +91,9 @@ export function AdminApprovalDialog({
         <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={cancel}
+            disabled={busy}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             Cancel
           </button>

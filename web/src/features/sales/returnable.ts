@@ -33,6 +33,13 @@ export function giftCardLoadUnused(line: SaleLineForReturn, cardBalance: number 
   return toCents(Number(cardBalance ?? 0)) >= line.qty * toCents(Number(line.unit_price ?? 0));
 }
 
+/** The gift card loads a return gives back, in cents: what an admin approves (0078). */
+export function giftCardLoadRefundCents(lines: SaleLineForReturn[], returnQty: Record<string, number>): number {
+  return lines
+    .filter((l) => isGiftCardLoadLine(l) && (returnQty[l.id] ?? 0) > 0)
+    .reduce((sum, l) => sum + (returnQty[l.id] ?? 0) * toCents(Number(l.unit_price ?? 0)), 0);
+}
+
 /** A stringing charge (a job's charge or a string-change charge): refunded whole. */
 export function isStringingLine(line: SaleLineForReturn): boolean {
   return line.string_job_id != null;
