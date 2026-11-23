@@ -9,10 +9,14 @@ vi.mock('../../app/BackContext', () => ({ useBack: () => {} }));
 vi.mock('../../lib/settings', () => ({ useSettings: () => ({ settings: { accept_checks: false } }) }));
 
 let quoteTotal = 32.48;
+let quoteFails = false;
+let saleCustomerId: string | null = 'cust-1';
 let customerActive = true;
 vi.mock('../../lib/saleQuote', async (original) => ({
   ...(await original<typeof import('../../lib/saleQuote')>()),
-  fetchSaleQuote: vi.fn(async () => ({
+  fetchSaleQuote: vi.fn(async () => {
+    if (quoteFails) throw new Error('The price check failed');
+    return {
     subtotal: 0,
     tax: 0,
     taxRate: 8.25,
@@ -22,7 +26,8 @@ vi.mock('../../lib/saleQuote', async (original) => ({
     discountTotal: 0,
     maxDiscountPercent: 0,
     taxExemptId: null,
-  })),
+    };
+  }),
 }));
 
 const grip = {
@@ -44,7 +49,7 @@ vi.mock('./saleForReturn', async (original) => ({
     id: 'sale-1',
     tax: 4.95,
     tax_rate: 8.25,
-    customer_id: 'cust-1',
+    customer_id: saleCustomerId,
     customers: { first_name: 'Pat', last_name: 'Tester', is_active: customerActive },
     sale_lines: [grip],
     sale_payments: [{ method: 'credit', amount: 64.95, gift_card_id: null, gift_cards: null }],
@@ -67,21 +72,26 @@ vi.mock('./ProductFinder', () => ({
 }));
 
 const { ExchangePage } = await import('./ExchangePage');
+const { DialogProvider } = await import('../../components/Dialog');
 
 afterEach(() => {
   cleanup();
   rpc.mockReset();
   customerActive = true;
+  quoteFails = false;
+  saleCustomerId = 'cust-1';
 });
 
 function renderPage() {
   render(
-    <MemoryRouter initialEntries={['/sales/sale-1/exchange']}>
-      <Routes>
-        <Route path="/sales/:saleId/exchange" element={<ExchangePage />} />
-        <Route path="/sales/:saleId" element={<p>Sale page</p>} />
-      </Routes>
-    </MemoryRouter>,
+    <DialogProvider>
+      <MemoryRouter initialEntries={['/sales/sale-1/exchange']}>
+        <Routes>
+          <Route path="/sales/:saleId/exchange" element={<ExchangePage />} />
+          <Route path="/sales/:saleId" element={<p>Sale page</p>} />
+        </Routes>
+      </MemoryRouter>
+    </DialogProvider>,
   );
 }
 
@@ -142,6 +152,31 @@ describe('ExchangePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Complete exchange' }));
     expect(screen.getAllByText(/This customer is inactive, so they can’t exchange/)).toHaveLength(2);
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('waits for the new total when the items change', async () => {
+    quoteTotal = 43.31;
+    await chooseOneGripBackAndOneNew();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Collect $10.83' })).toBeTruthy());
+    quoteFails = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Pick overgrip' }));
+    expect(await screen.findByText('The price check failed')).toBeTruthy();
+    const button = screen.getByRole('button', { name: 'Working out the new items’ total…' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(screen.getByText('Working out the difference')).toBeTruthy();
+  });
+
+  it('gives back onto any gift card, and offers store credit only with a customer', async () => {
+    quoteTotal = 21.65;
+    saleCustomerId = null;
+    await chooseOneGripBackAndOneNew();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Give back $10.83' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Give back $10.83' }));
+    await screen.findByText('Exchange: customer is owed');
+    expect(screen.queryByRole('button', { name: 'Store Credit' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Gift Card' }));
+    expect(screen.getByText('Give back onto a gift card')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add $10.83' })).toBeTruthy();
   });
 
   it('shows what the server refused', async () => {

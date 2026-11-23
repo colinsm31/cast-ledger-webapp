@@ -7,6 +7,7 @@ import { availableToApply, roundMoney } from '../../lib/saleMath';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { PAYMENT_METHOD_LABEL, paymentLabel, saleMethodsFor } from '../../lib/paymentMethods';
 import { CheckEntry } from './CheckEntry';
+import { GiftCardRefundEntry } from './GiftCardRefundEntry';
 
 export interface Tender {
   id: string;
@@ -188,7 +189,20 @@ export function PaymentScreen({
           onAdd={(amount, checkNumber) => addTender({ method: 'check', amount, checkNumber })}
         />
       )}
-      {mode === 'gift_card' && (
+      {mode === 'gift_card' && giveBack && (
+        // Money goes onto the card, so its balance doesn't limit it (0077).
+        <GiftCardRefundEntry
+          label="Give back onto a gift card"
+          defaultValue={remaining > 0 ? remaining : 0}
+          customerId={customerId}
+          onCancel={() => setMode('none')}
+          onError={setLocalError}
+          onAdd={(amount, giftCardId, code) =>
+            addTender({ method: 'gift_card', amount: roundMoney(Math.min(amount, remaining)), giftCardId, code })
+          }
+        />
+      )}
+      {mode === 'gift_card' && !giveBack && (
         <GiftCardEntry
           remaining={remaining}
           tenders={tenders}

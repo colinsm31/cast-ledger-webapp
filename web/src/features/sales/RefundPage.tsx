@@ -2,11 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { PaymentMethod } from '../../types/domain';
-import { customerNameLastFirst, inactiveGiftCardMessage } from '../../types/domain';
+import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
-import { useDialog } from '../../components/Dialog';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useSettings } from '../../lib/settings';
 import {
@@ -37,6 +36,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { AdminApprovalDialog } from '../../components/AdminApprovalDialog';
 import { approveRefundAsAdmin, REFUND_APPROVAL_MINUTES } from '../../lib/discountApproval';
 import { FrameReturnFields } from './FrameReturnFields';
+import { GiftCardRefundEntry } from './GiftCardRefundEntry';
 import {
   allocateToOriginalPayments,
   fromCents,
@@ -492,7 +492,14 @@ export function RefundPage() {
           />
         )}
         {mode === 'gift_card' && (
-          <GiftCardAdder defaultValue={remainingToAllocate} defaultCode={suggestedPayments.find((p) => p.gift_cards)?.gift_cards?.code ?? ''} customerId={sale.customer_id} onCancel={() => setMode('none')} onAdd={(amt, id, code) => addTender({ method: 'gift_card', amount: amt, giftCardId: id, code })} onError={setError} />
+          <GiftCardRefundEntry
+            defaultValue={remainingToAllocate}
+            defaultCode={suggestedPayments.find((p) => p.gift_cards)?.gift_cards?.code ?? ''}
+            customerId={sale.customer_id}
+            onCancel={() => setMode('none')}
+            onAdd={(amt, id, code) => addTender({ method: 'gift_card', amount: amt, giftCardId: id, code })}
+            onError={setError}
+          />
         )}
       </section>
       )}
@@ -578,70 +585,3 @@ function AmountAdder({ label, defaultValue, onCancel, onAdd }: { label: string; 
 
 // Refund onto a gift card: an existing card is looked up by its code (a typo
 // no longer creates a card). A new card is issued only when asked for.
-function GiftCardAdder({ defaultValue, defaultCode, customerId, onCancel, onAdd, onError }: { defaultValue: number; defaultCode: string; customerId: string | null; onCancel: () => void; onAdd: (amt: number, id: string, code: string) => void; onError: (m: string) => void }) {
-  const { confirm } = useDialog();
-  const [code, setCode] = useState(defaultCode);
-  const [value, setValue] = useState(defaultValue > 0 ? defaultValue.toFixed(2) : '');
-  const [busy, setBusy] = useState(false);
-  const [missingCode, setMissingCode] = useState<string | null>(null);
-  const subCent = hasSubCent(value);
-  const amt = subCent ? 0 : roundMoney(Number(value) || 0);
-
-  function checkInput(): string | null {
-    const c = code.replace(/\s+/g, '').trim();
-    if (!c) { onError('Enter a gift card code.'); return null; }
-    if (amt <= 0) { onError('Enter an amount.'); return null; }
-    return c;
-  }
-
-  async function add() {
-    const c = checkInput();
-    if (!c) return;
-    setBusy(true);
-    const { data, error } = await supabase.from('gift_card_balance').select('gift_card_id, code, is_active').eq('code', c).maybeSingle();
-    setBusy(false);
-    if (error) { onError(errorMessage(error)); return; }
-    if (!data) { setMissingCode(c); return; }
-    if (!data.is_active) { onError(inactiveGiftCardMessage(data.code as string)); return; }
-    onAdd(amt, data.gift_card_id as string, data.code as string);
-  }
-
-  async function issueNewCard() {
-    const c = checkInput();
-    if (!c) return;
-    const ok = await confirm({
-      title: 'Issue a new gift card?',
-      message: `No card has code ${c}. A new card with this code gets $${amt.toFixed(2)}. It didn't pay for this sale, so you'll be asked for a reason.`,
-      confirmLabel: 'Issue new card',
-    });
-    if (!ok) return;
-    setBusy(true);
-    const { data, error } = await supabase.rpc('ensure_gift_card', { p_code: c, p_customer_id: customerId });
-    setBusy(false);
-    if (error) { onError(errorMessage(error)); return; }
-    onAdd(amt, data as string, c);
-  }
-
-  return (
-    <div className="space-y-2 rounded-lg bg-slate-50 p-3">
-      <span className="text-xs font-medium text-slate-500">Refund to gift card</span>
-      <div className="flex gap-2">
-        <input autoFocus value={code} onChange={(e) => { setCode(e.target.value); setMissingCode(null); }} placeholder="Card code" className={`${inputClass} flex-1`} />
-        <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" placeholder="0.00" className={`${inputClass} w-24`} />
-      </div>
-      {subCent && <p className="text-xs text-red-600">{SUB_CENT_MESSAGE}.</p>}
-      {missingCode && (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-red-600">No gift card with code {missingCode}.</span>
-          <button onClick={() => void issueNewCard()} disabled={busy} className="text-blue-600 hover:underline disabled:opacity-50">
-            Issue a new card with this code
-          </button>
-        </div>
-      )}
-      <div className="flex gap-2">
-        <button onClick={() => void add()} disabled={busy || amt <= 0} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{busy ? '…' : `Add $${amt.toFixed(2)}`}</button>
-        <button onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel</button>
-      </div>
-    </div>
-  );
-}

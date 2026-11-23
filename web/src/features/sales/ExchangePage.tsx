@@ -96,11 +96,11 @@ export function ExchangePage() {
   );
 
   // The server's total for the new items, asked again whenever they change.
+  // The old total is cleared first, so Continue waits for the new one and a
+  // failed check leaves no total to settle against.
   useEffect(() => {
-    if (saleLines.length === 0) {
-      setQuote(null);
-      return;
-    }
+    setQuote(null);
+    if (saleLines.length === 0) return;
     let active = true;
     fetchSaleQuote(saleLines, sale?.customer_id ?? null).then(
       (fresh) => active && setQuote(fresh),
@@ -116,6 +116,8 @@ export function ExchangePage() {
   const credit = refundTotals(sale, returnQty).total;
   const newTotal = quote?.total ?? 0;
   const difference = exchangeDifference(newTotal, credit);
+  // New items chosen, their total not back yet: no difference to show or settle.
+  const totalPending = newLines.length > 0 && !quote;
 
   const refundable = useMemo(
     () =>
@@ -129,6 +131,12 @@ export function ExchangePage() {
     refundable,
     giveBackTenders.map((t) => ({ method: refundSource(t.method, t.giftCardId), amount: t.amount })),
   );
+
+  // Store credit goes to the sale's customer, so it's offered only when there is one.
+  const giveBackMethods = refundMethodsFor(
+    settings?.accept_checks ?? false,
+    (sale?.sale_payments ?? []).some((p) => p.method === 'check'),
+  ).filter((method) => method !== 'store_credit' || Boolean(sale?.customer_id));
 
   // MARK: - Actions
 
@@ -244,10 +252,7 @@ export function ExchangePage() {
         busy={saving}
         error={error}
         giveBack
-        methods={refundMethodsFor(
-          settings?.accept_checks ?? false,
-          sale.sale_payments.some((p) => p.method === 'check'),
-        )}
+        methods={giveBackMethods}
         title="Exchange: customer is owed"
         backLabel="Back to the exchange"
         completeLabel="Give back & complete exchange"
@@ -344,7 +349,7 @@ export function ExchangePage() {
         )}
       </section>
 
-      <ExchangeSummary credit={credit} newTotal={newTotal} />
+      <ExchangeSummary credit={credit} newTotal={totalPending ? null : newTotal} />
 
       <input
         value={reason}
@@ -357,12 +362,14 @@ export function ExchangePage() {
 
       <button
         onClick={continueToSettle}
-        disabled={saving}
+        disabled={saving || totalPending}
         className="w-full rounded-lg bg-blue-600 px-4 py-3 text-base font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
       >
         {saving
           ? 'Saving…'
-          : difference > ExchangeConstants.evenTolerance
+          : totalPending
+            ? 'Working out the new items’ total…'
+            : difference > ExchangeConstants.evenTolerance
             ? `Collect $${difference.toFixed(2)}`
             : difference < -ExchangeConstants.evenTolerance
               ? `Give back $${(-difference).toFixed(2)}`
@@ -374,8 +381,9 @@ export function ExchangePage() {
 
 // MARK: - Summary
 
-function ExchangeSummary({ credit, newTotal }: { credit: number; newTotal: number }) {
-  const difference = exchangeDifference(newTotal, credit);
+/** The return's credit against the new items; newTotal is null while it's being worked out. */
+function ExchangeSummary({ credit, newTotal }: { credit: number; newTotal: number | null }) {
+  const difference = exchangeDifference(newTotal ?? 0, credit);
   return (
     <section className="space-y-1 rounded-xl border border-slate-200 bg-white p-4 text-sm">
       <div className="flex justify-between">
@@ -384,13 +392,21 @@ function ExchangeSummary({ credit, newTotal }: { credit: number; newTotal: numbe
       </div>
       <div className="flex justify-between">
         <span className="text-slate-600">New items (with tax)</span>
-        <span className="font-medium">${newTotal.toFixed(2)}</span>
+        <span className="font-medium">{newTotal === null ? '…' : `$${newTotal.toFixed(2)}`}</span>
       </div>
       <div className="flex justify-between border-t border-slate-100 pt-1">
         <span className="font-semibold text-slate-700">
-          {difference > 0 ? 'Customer pays' : difference < 0 ? 'Customer gets back' : 'Even swap'}
+          {newTotal === null
+            ? 'Working out the difference'
+            : difference > 0
+              ? 'Customer pays'
+              : difference < 0
+                ? 'Customer gets back'
+                : 'Even swap'}
         </span>
-        <span className="text-lg font-bold text-slate-900">${Math.abs(difference).toFixed(2)}</span>
+        <span className="text-lg font-bold text-slate-900">
+          {newTotal === null ? '…' : `$${Math.abs(difference).toFixed(2)}`}
+        </span>
       </div>
     </section>
   );
