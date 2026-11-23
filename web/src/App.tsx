@@ -6,6 +6,7 @@ import { PendingApprovalPage } from './auth/PendingApprovalPage';
 import { ReceiptPage } from './features/sales/ReceiptPage';
 import { JobTagPage } from './features/stringjobs/JobTagPage';
 import { UnitLabelsPage } from './features/products/UnitLabelsPage';
+import { DemosPage } from './features/demos/DemosPage';
 import { AppShell } from './app/AppShell';
 import { Spinner } from './components/Spinner';
 import { EmptyState } from './components/EmptyState';
@@ -97,6 +98,7 @@ function Gate() {
         <Route path="/sales/:saleId" element={<SaleDetailPage />} />
         <Route path="/sales/:saleId/refund" element={<RefundPage />} />
         <Route path="/gift-cards" element={<GiftCardLookupPage />} />
+        <Route path="/demos" element={<DemosPage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route element={<RequireAdmin><SettingsLayout /></RequireAdmin>}>
           <Route path="/settings" element={<SettingsPage />} />

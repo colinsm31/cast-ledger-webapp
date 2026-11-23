@@ -35,12 +35,17 @@ export function unitReasonProblem(reason: string): string | null {
   return null;
 }
 
-/** "Received", "Sold", "Moved to demo", "Retired", "Back in stock", "Returned". */
+/**
+ * "Received", "Sold", "Moved to demo", "Retired", "Back in stock", "Returned",
+ * and for demo loans (0071) "Lent out", "Back from demo".
+ */
 export function unitChangeLabel(change: Pick<UnitStatusChange, 'from_status' | 'to_status' | 'refund_id'>): string {
   if (change.from_status === null) {
     return change.to_status === 'in_stock' ? 'Received' : `Recorded as ${statusText(change.to_status)}`;
   }
   if (change.refund_id) return change.to_status === 'retired' ? 'Returned damaged, retired' : 'Returned';
+  if (change.to_status === 'assigned') return 'Lent out';
+  if (change.from_status === 'assigned') return change.to_status === 'retired' ? 'Back from demo, retired' : 'Back from demo';
   switch (change.to_status) {
     case 'sold':
       return 'Sold';
@@ -48,14 +53,27 @@ export function unitChangeLabel(change: Pick<UnitStatusChange, 'from_status' | '
       return 'Moved to demo';
     case 'retired':
       return 'Retired';
-    case 'in_stock':
-      return 'Back in stock';
     default:
-      return `Now ${statusText(change.to_status)}`;
+      // in_stock: every other move into stock (assigned is handled above).
+      return 'Back in stock';
   }
 }
 
-/** A status as words: "in stock". */
+/** A status as words: "in stock", "out on demo" for a frame lent out. */
 export function statusText(status: ProductUnitStatus): string {
-  return status.replace('_', ' ');
+  return status === 'assigned' ? 'out on demo' : status.replace('_', ' ');
+}
+
+/** Why a scanned frame can't go on a ticket, or null if it can. */
+export function unitUnavailableMessage(status: ProductUnitStatus): string | null {
+  switch (status) {
+    case 'in_stock':
+      return null;
+    case 'assigned':
+      return 'That racket is out on demo: check it in on the Demos page first.';
+    case 'demo':
+      return 'That racket is in the demo fleet: put it back in stock on its product page to sell it.';
+    default:
+      return `That racket isn’t available to sell (it’s ${statusText(status)}).`;
+  }
 }

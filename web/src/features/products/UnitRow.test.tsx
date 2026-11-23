@@ -10,6 +10,8 @@ let historyResult: { data: unknown; error: unknown } = { data: [], error: null }
 const query = { select: () => query, eq: () => query, order: async () => historyResult };
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => rpc(...args), from: () => query } }));
 
+vi.mock('../../lib/settings', () => ({ useSettings: () => ({ settings: { demo_loan_days: 3 }, error: null, reload: () => {} }) }));
+
 const { UnitRow } = await import('./UnitRow');
 
 afterEach(() => {
@@ -34,7 +36,7 @@ function LabelsStub() {
   return <p>labels page {location.search}</p>;
 }
 
-function renderRow(row: ProductUnit, onChanged = vi.fn()) {
+function renderRow(row: ProductUnit, onChanged = vi.fn(), loan?: Parameters<typeof UnitRow>[0]['loan']) {
   render(
     <MemoryRouter initialEntries={['/products/p1']}>
       <Routes>
@@ -42,7 +44,7 @@ function renderRow(row: ProductUnit, onChanged = vi.fn()) {
           path="/products/p1"
           element={
             <ul>
-              <UnitRow unit={row} onChanged={onChanged} />
+              <UnitRow unit={row} loan={loan} onChanged={onChanged} />
             </ul>
           }
         />
@@ -54,6 +56,62 @@ function renderRow(row: ProductUnit, onChanged = vi.fn()) {
 }
 
 describe('UnitRow', () => {
+  it('lends a demo frame', () => {
+    renderRow({ ...unit, status: 'demo' });
+    fireEvent.click(screen.getByText('Lend'));
+    expect(screen.getByText('Lend demo')).toBeTruthy();
+    expect(screen.queryByText('Retire')).toBeNull();
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(screen.getByText('Retire')).toBeTruthy();
+  });
+
+  it('ignores a loan on a frame that is no longer out', () => {
+    renderRow({ ...unit, status: 'demo' }, vi.fn(), {
+      id: 'l1',
+      loan_number: 1001,
+      product_unit_id: 'u1',
+      customer_id: 'c1',
+      out_at: '2026-11-20T10:00:00Z',
+      out_by: null,
+      due_back_at: '2026-11-21T10:00:00Z',
+      deposit_note: null,
+      note: null,
+      back_at: null,
+      back_by: null,
+      back_status: null,
+      back_reason: null,
+      sale_id: null,
+      customers: { id: 'c1', first_name: 'Pat', last_name: 'Tester', phone_number: null },
+    });
+    expect(screen.queryByText(/Out with/)).toBeNull();
+    expect(screen.getByText('Lend')).toBeTruthy();
+  });
+
+  it('shows who has a frame out on demo, with check in', () => {
+    renderRow({ ...unit, status: 'assigned', customer_id: 'c1' }, vi.fn(), {
+      id: 'l1',
+      loan_number: 1001,
+      product_unit_id: 'u1',
+      customer_id: 'c1',
+      out_at: '2026-11-20T10:00:00Z',
+      out_by: null,
+      due_back_at: '2026-11-21T10:00:00Z',
+      deposit_note: 'Card on file',
+      note: null,
+      back_at: null,
+      back_by: null,
+      back_status: null,
+      back_reason: null,
+      sale_id: null,
+      customers: { id: 'c1', first_name: 'Pat', last_name: 'Tester', phone_number: null },
+    });
+    expect(screen.getByText('Tester, Pat')).toBeTruthy();
+    expect(screen.getByText(/D1001/)).toBeTruthy();
+    expect(screen.getByText(/Deposit: Card on file/)).toBeTruthy();
+    expect(screen.getByText('Check in')).toBeTruthy();
+    expect(screen.queryByText('Sell')).toBeNull();
+  });
+
   it('moves a frame with a reason', async () => {
     const onChanged = renderRow(unit);
     expect(screen.getByText('Sell')).toBeTruthy();

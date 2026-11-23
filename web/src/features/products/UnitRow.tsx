@@ -7,6 +7,12 @@ import { statusText, unitChangeLabel, unitMoves, unitReasonProblem, type UnitMov
 import type { ProductUnit, ProductUnitStatus, UnitStatusChange } from '../../types/domain';
 import { sellUnitPath } from '../scan/scanFlow';
 import { assignUnitLabels, labelsPath } from './unitLabel';
+import { demoLoanLabel } from '../../lib/demoLoans';
+import { PROMISE_STATE_CLASSES, promiseLabel, promiseState } from '../../lib/stringJobPromise';
+import { customerNameLastFirst } from '../../types/domain';
+import { DemoLoanActions } from '../demos/DemoLoanActions';
+import { LendDemoForm } from '../demos/LendDemoForm';
+import type { LoanWithCustomer } from '../demos/demoLoanQueries';
 
 // MARK: - Status styling
 
@@ -24,7 +30,18 @@ type HistoryRow = UnitStatusChange & { changed_by_staff: StaffRef | null };
 //
 // One frame: its barcode and status, Sell while it's in stock, moving it to
 // demo, retiring it or putting it back with a reason, and its history (0067).
-export function UnitRow({ unit, onChanged }: { unit: ProductUnit; onChanged: () => Promise<void> | void }) {
+// A demo frame can be lent; one out on demo shows who has it and checks in
+// (0071).
+export function UnitRow({
+  unit,
+  loan,
+  onChanged,
+}: {
+  unit: ProductUnit;
+  /** The frame's open demo loan, when it's out. */
+  loan?: LoanWithCustomer;
+  onChanged: () => Promise<void> | void;
+}) {
   const [move, setMove] = useState<UnitMove | null>(null);
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
@@ -34,6 +51,7 @@ export function UnitRow({ unit, onChanged }: { unit: ProductUnit; onChanged: () 
   // A barcode typed or scanned in later (0068).
   const [addingBarcode, setAddingBarcode] = useState(false);
   const [barcode, setBarcode] = useState('');
+  const [lending, setLending] = useState(false);
   const navigate = useNavigate();
 
   const problem = move ? unitReasonProblem(reason) : null;
@@ -58,7 +76,13 @@ export function UnitRow({ unit, onChanged }: { unit: ProductUnit; onChanged: () 
       setError(errorMessage(err));
       return;
     }
+    await afterChange();
+  }
+
+  // The status changed: the history shown is out of date.
+  async function afterChange() {
     setMove(null);
+    setLending(false);
     setHistory(null);
     setShowHistory(false);
     await onChanged();
@@ -131,7 +155,16 @@ export function UnitRow({ unit, onChanged }: { unit: ProductUnit; onChanged: () 
           >
             Print label
           </button>
+          {unit.status === 'demo' && !lending && !move && (
+            <button
+              onClick={() => setLending(true)}
+              className="text-xs font-medium text-blue-600 hover:underline"
+            >
+              Lend
+            </button>
+          )}
           {!move &&
+            !lending &&
             unitMoves(unit.status).map((option) => (
               <button
                 key={option.to}
@@ -153,6 +186,25 @@ export function UnitRow({ unit, onChanged }: { unit: ProductUnit; onChanged: () 
           </span>
         </div>
       </div>
+
+      {loan && unit.status === 'assigned' && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+          <span>
+            Out with{' '}
+            <Link to={`/customers/${loan.customer_id}`} className="text-blue-600 hover:underline">
+              {loan.customers ? customerNameLastFirst(loan.customers) : 'a customer'}
+            </Link>
+            {` · ${demoLoanLabel(loan)} · `}
+            <span className={PROMISE_STATE_CLASSES[promiseState(loan.due_back_at, new Date()) ?? 'later']}>
+              {promiseLabel(loan.due_back_at, new Date())}
+            </span>
+            {loan.deposit_note ? ` · Deposit: ${loan.deposit_note}` : ''}
+          </span>
+          <DemoLoanActions loan={loan} onChanged={afterChange} />
+        </div>
+      )}
+
+      {lending && <LendDemoForm unitId={unit.id} onLent={afterChange} onCancel={() => setLending(false)} />}
 
       {move && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-2">

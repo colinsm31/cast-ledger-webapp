@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { statusText, unitChangeLabel, unitMoves, unitReasonProblem } from './unitStatus';
+import { statusText, unitChangeLabel, unitMoves, unitReasonProblem, unitUnavailableMessage } from './unitStatus';
 
 describe('unitMoves', () => {
   it('offers demo and retire for a frame in stock', () => {
@@ -36,7 +36,9 @@ describe('unitChangeLabel', () => {
     expect(unitChangeLabel(change('in_stock', 'demo'))).toBe('Moved to demo');
     expect(unitChangeLabel(change('demo', 'retired'))).toBe('Retired');
     expect(unitChangeLabel(change('retired', 'in_stock'))).toBe('Back in stock');
-    expect(unitChangeLabel(change('demo', 'assigned'))).toBe('Now assigned');
+    expect(unitChangeLabel(change('demo', 'assigned'))).toBe('Lent out');
+    expect(unitChangeLabel(change('assigned', 'demo'))).toBe('Back from demo');
+    expect(unitChangeLabel(change('assigned', 'retired'))).toBe('Back from demo, retired');
   });
 
   it('names a return', () => {
@@ -46,5 +48,18 @@ describe('unitChangeLabel', () => {
 
   it('writes a status as words', () => {
     expect(statusText('in_stock')).toBe('in stock');
+  });
+});
+
+describe('unitUnavailableMessage', () => {
+  it('lets a frame in stock be sold and says why others can\'t', () => {
+    expect(unitUnavailableMessage('in_stock')).toBeNull();
+    expect(unitUnavailableMessage('assigned')).toBe('That racket is out on demo: check it in on the Demos page first.');
+    expect(unitUnavailableMessage('demo')).toMatch(/demo fleet/);
+    expect(unitUnavailableMessage('sold')).toBe('That racket isn’t available to sell (it’s sold).');
+  });
+
+  it('calls a lent frame "out on demo"', () => {
+    expect(statusText('assigned')).toBe('out on demo');
   });
 });
