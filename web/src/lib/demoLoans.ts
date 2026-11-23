@@ -14,9 +14,14 @@ export function demoLoanLabel(loan: Pick<DemoLoan, 'loan_number'>): string {
   return `D${loan.loan_number}`;
 }
 
-/** When a new loan is due back by default: the shop's loan days after now. */
+/**
+ * When a new loan is due back by default: the shop's loan days after now, at
+ * the same time of day (so a clock change doesn't move it an hour).
+ */
 export function defaultDemoDue(now: Date, loanDays: number): Date {
-  return new Date(now.getTime() + loanDays * DAY_MS);
+  const due = new Date(now);
+  due.setDate(due.getDate() + loanDays);
+  return due;
 }
 
 /** What's wrong with a due time typed for a loan, or null. */

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { Customer } from '../../types/domain';
+import type { Customer, ProductUnitStatus } from '../../types/domain';
+import { unitUnavailableMessage } from '../../lib/unitStatus';
 import { customerName, customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useCustomerMatches } from '../../lib/customerSearch';
@@ -428,8 +429,9 @@ export function NewSalePage() {
   // Add a specific serialized unit (racket) to the ticket. Only in-stock units,
   // one line per unit, qty locked to 1.
   function addUnit(u: { unitId: string; code: string | null; status: string; product: ScannedProduct }) {
-    if (u.status !== 'in_stock') {
-      setScanMsg(`That racket isn’t available to sell (status: ${u.status}).`);
+    const unavailable = unitUnavailableMessage(u.status as ProductUnitStatus);
+    if (unavailable) {
+      setScanMsg(unavailable);
       return;
     }
     setLines((prev) => {
@@ -1261,7 +1263,7 @@ function CustomerBar({
 }) {
   const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState('');
-  const matches = useCustomerMatches(query);
+  const { matches, searching } = useCustomerMatches(query);
   // A new customer being added from here, without leaving the ticket.
   const [newCustomer, setNewCustomer] = useState<NewCustomerForm | null>(null);
 
@@ -1348,7 +1350,9 @@ function CustomerBar({
               </button>
             </li>
           ))}
-          {matches.length === 0 && <li className="px-2 py-2 text-sm text-slate-500">No matches.</li>}
+          {matches.length === 0 && (
+            <li className="px-2 py-2 text-sm text-slate-500">{searching ? 'Searching…' : 'No matches.'}</li>
+          )}
         </ul>
       )}
       <button

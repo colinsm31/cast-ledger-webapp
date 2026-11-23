@@ -187,7 +187,7 @@ export function UnitRow({
         </div>
       </div>
 
-      {loan && (
+      {loan && unit.status === 'assigned' && (
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
           <span>
             Out with{' '}

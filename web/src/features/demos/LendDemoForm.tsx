@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { useCustomerMatches } from '../../lib/customerSearch';
@@ -25,7 +25,7 @@ export function LendDemoForm({
 }) {
   const { settings } = useSettings();
   const [query, setQuery] = useState('');
-  const matches = useCustomerMatches(query);
+  const { matches, searching } = useCustomerMatches(query);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [due, setDue] = useState('');
   const [deposit, setDeposit] = useState('');
@@ -33,9 +33,14 @@ export function LendDemoForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The shop's default, filled in once: clearing the field to type a date
+  // doesn't bring it back.
+  const dueFilled = useRef(false);
   useEffect(() => {
-    if (settings && !due) setDue(toLocalInput(defaultDemoDue(new Date(), settings.demo_loan_days)));
-  }, [settings, due]);
+    if (!settings || dueFilled.current) return;
+    dueFilled.current = true;
+    setDue(toLocalInput(defaultDemoDue(new Date(), settings.demo_loan_days)));
+  }, [settings]);
 
   const problem = !customer
     ? 'Pick the customer borrowing the demo.'
@@ -92,7 +97,9 @@ export function LendDemoForm({
                   </button>
                 </li>
               ))}
-              {matches.length === 0 && <li className="px-2 py-1.5 text-sm text-slate-500">No matches.</li>}
+              {matches.length === 0 && (
+                <li className="px-2 py-1.5 text-sm text-slate-500">{searching ? 'Searching…' : 'No matches.'}</li>
+              )}
             </ul>
           )}
         </div>

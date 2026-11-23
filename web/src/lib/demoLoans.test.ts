@@ -21,7 +21,10 @@ describe('demoLoans', () => {
   });
 
   it('is due back the shop\'s loan days from now by default', () => {
-    expect(defaultDemoDue(now, 3)).toEqual(hours(72));
+    expect(defaultDemoDue(now, 3)).toEqual(new Date(2026, 10, 25, 10, 0));
+    // Across the clock change (Nov 1, 2026 in the US) it keeps the time of day.
+    const beforeChange = new Date(2026, 9, 31, 10, 0);
+    expect(defaultDemoDue(beforeChange, 3)).toEqual(new Date(2026, 10, 3, 10, 0));
   });
 
   it('needs a due time in the future, at most 90 days away', () => {

@@ -15,20 +15,29 @@ export async function searchCustomers(term: string, limit = CUSTOMER_SEARCH_LIMI
   return (data ?? []) as Customer[];
 }
 
+export interface CustomerMatches {
+  matches: Customer[];
+  /** True from typing until the lookup answers, so "No matches" isn't shown early. */
+  searching: boolean;
+}
+
 /**
  * Customers matching what's typed, looked up 200 ms after typing stops. An
  * empty query matches nobody; a failed lookup shows no matches, so the user
  * can retype.
  */
-export function useCustomerMatches(query: string): Customer[] {
+export function useCustomerMatches(query: string): CustomerMatches {
   const [matches, setMatches] = useState<Customer[]>([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     const term = query.trim();
     if (!term) {
       setMatches([]);
+      setSearching(false);
       return;
     }
+    setSearching(true);
     let active = true;
     const handle = setTimeout(async () => {
       let found: Customer[] = [];
@@ -37,7 +46,9 @@ export function useCustomerMatches(query: string): Customer[] {
       } catch {
         // No matches; the user can retype.
       }
-      if (active) setMatches(found);
+      if (!active) return;
+      setMatches(found);
+      setSearching(false);
     }, 200);
     return () => {
       active = false;
@@ -45,5 +56,5 @@ export function useCustomerMatches(query: string): Customer[] {
     };
   }, [query]);
 
-  return matches;
+  return { matches, searching };
 }

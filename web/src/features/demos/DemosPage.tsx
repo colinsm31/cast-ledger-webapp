@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { errorMessage } from '../../lib/errors';
+import { useLatestRequest } from '../../lib/latestRequest';
 import { conversionSummary, demoLoanLabel, overdueCount, sortOpenLoans } from '../../lib/demoLoans';
 import { PROMISE_STATE_CLASSES, promiseLabel, promiseState } from '../../lib/stringJobPromise';
 import { customerNameLastFirst } from '../../types/domain';
@@ -54,14 +55,18 @@ function OpenLoansView() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
 
+  const startRequest = useLatestRequest();
+
   const load = useCallback(async () => {
+    const isLatest = startRequest();
     setError(null);
     try {
-      setLoans(sortOpenLoans(await fetchOpenLoans()));
+      const found = sortOpenLoans(await fetchOpenLoans());
+      if (isLatest()) setLoans(found);
     } catch (err) {
-      setError(errorMessage(err));
+      if (isLatest()) setError(errorMessage(err));
     }
-  }, []);
+  }, [startRequest]);
 
   useEffect(() => {
     void load();
@@ -156,14 +161,18 @@ function ReturnedLoansView() {
   const [loans, setLoans] = useState<LoanWithFrame[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const startRequest = useLatestRequest();
+
   const load = useCallback(async () => {
+    const isLatest = startRequest();
     setError(null);
     try {
-      setLoans(await fetchReturnedLoans());
+      const found = await fetchReturnedLoans();
+      if (isLatest()) setLoans(found);
     } catch (err) {
-      setError(errorMessage(err));
+      if (isLatest()) setError(errorMessage(err));
     }
-  }, []);
+  }, [startRequest]);
 
   useEffect(() => {
     void load();

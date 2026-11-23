@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -58,6 +58,9 @@ describe('CustomerDemosPanel', () => {
     cleanup();
     result = { data: null, error: { message: 'offline' } };
     renderPanel();
-    expect(await screen.findByText('offline')).toBeTruthy();
+    expect(await screen.findByText("Couldn't load the demos: offline")).toBeTruthy();
+    result = { data: [], error: null };
+    fireEvent.click(screen.getByText('Retry'));
+    expect(await screen.findByText('This customer hasn’t borrowed a demo.')).toBeTruthy();
   });
 });

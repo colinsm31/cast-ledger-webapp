@@ -65,6 +65,28 @@ describe('UnitRow', () => {
     expect(screen.getByText('Retire')).toBeTruthy();
   });
 
+  it('ignores a loan on a frame that is no longer out', () => {
+    renderRow({ ...unit, status: 'demo' }, vi.fn(), {
+      id: 'l1',
+      loan_number: 1001,
+      product_unit_id: 'u1',
+      customer_id: 'c1',
+      out_at: '2026-11-20T10:00:00Z',
+      out_by: null,
+      due_back_at: '2026-11-21T10:00:00Z',
+      deposit_note: null,
+      note: null,
+      back_at: null,
+      back_by: null,
+      back_status: null,
+      back_reason: null,
+      sale_id: null,
+      customers: { id: 'c1', first_name: 'Pat', last_name: 'Tester', phone_number: null },
+    });
+    expect(screen.queryByText(/Out with/)).toBeNull();
+    expect(screen.getByText('Lend')).toBeTruthy();
+  });
+
   it('shows who has a frame out on demo, with check in', () => {
     renderRow({ ...unit, status: 'assigned', customer_id: 'c1' }, vi.fn(), {
       id: 'l1',

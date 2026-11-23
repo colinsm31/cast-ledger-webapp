@@ -6,8 +6,10 @@ const rpc = vi.fn(async (..._args: unknown[]) => ({ data: 'loan-1' as string | n
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => rpc(...args) } }));
 vi.mock('../../lib/settings', () => ({ useSettings: () => ({ settings: { demo_loan_days: 3 }, error: null, reload: () => {} }) }));
 vi.mock('../../lib/customerSearch', () => ({
-  useCustomerMatches: (query: string) =>
-    query ? [{ id: 'c1', first_name: 'Pat', last_name: 'Tester', phone_number: '(225)555-0100' }] : [],
+  useCustomerMatches: (query: string) => ({
+    matches: query === 'pat' ? [{ id: 'c1', first_name: 'Pat', last_name: 'Tester', phone_number: '(225)555-0100' }] : [],
+    searching: query === 'pa',
+  }),
 }));
 
 const { LendDemoForm } = await import('./LendDemoForm');
@@ -45,5 +47,21 @@ describe('LendDemoForm', () => {
     fireEvent.click(screen.getByText('Tester, Pat'));
     fireEvent.click(screen.getByText('Lend demo'));
     expect(await screen.findByText('This frame is already out on demo')).toBeTruthy();
+  });
+
+  it('says it\'s searching rather than "No matches" while the lookup runs', () => {
+    render(<LendDemoForm unitId="u1" onLent={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.change(screen.getByPlaceholderText(/search customer/), { target: { value: 'pa' } });
+    expect(screen.getByText('Searching…')).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText(/search customer/), { target: { value: 'zz' } });
+    expect(screen.getByText('No matches.')).toBeTruthy();
+  });
+
+  it('keeps the due date clear once staff clear it to type their own', () => {
+    render(<LendDemoForm unitId="u1" onLent={vi.fn()} onCancel={vi.fn()} />);
+    const due = document.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+    expect(due.value).not.toBe('');
+    fireEvent.change(due, { target: { value: '' } });
+    expect(due.value).toBe('');
   });
 });

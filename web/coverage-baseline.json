@@ -1,11 +1,11 @@
 {
-  "updated": "2026-11-22",
+  "updated": "2026-11-23",
   "web": {
     "overall": {
-      "lines": 28.52,
-      "statements": 28.92,
-      "functions": 28.44,
-      "branches": 28.19
+      "lines": 29.7,
+      "statements": 30.17,
+      "functions": 29.32,
+      "branches": 28.91
     },
     "byFolder": {
       "src": {
@@ -33,7 +33,7 @@
         "lines": 0
       },
       "src/features/demos": {
-        "lines": 93.48
+        "lines": 97.35
       },
       "src/features/home": {
         "lines": 0
@@ -42,7 +42,7 @@
         "lines": 0
       },
       "src/features/products": {
-        "lines": 18.97
+        "lines": 24.12
       },
       "src/features/sales": {
         "lines": 6.38
@@ -54,7 +54,7 @@
         "lines": 21.3
       },
       "src/lib": {
-        "lines": 93.11
+        "lines": 93.22
       },
       "src/types": {
         "lines": 66.67
@@ -149,10 +149,10 @@
         "lines": 100
       },
       "src/features/demos/LendDemoForm.tsx": {
-        "lines": 90.32
+        "lines": 94.11
       },
       "src/features/demos/demoLoanQueries.ts": {
-        "lines": 77.77
+        "lines": 100
       },
       "src/features/home/ComingSoon.tsx": {
         "lines": 0
@@ -191,7 +191,7 @@
         "lines": 98.5
       },
       "src/features/products/UnitsSection.tsx": {
-        "lines": 0
+        "lines": 66.66
       },
       "src/features/products/VariantDetailPage.tsx": {
         "lines": 100

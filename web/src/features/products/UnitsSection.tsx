@@ -7,6 +7,8 @@ import { UnitRow } from './UnitRow';
 import { assignUnitLabels, labelsPath } from './unitLabel';
 import { ReceiveUnitsSheet } from './ReceiveUnitsSheet';
 import { fetchOpenLoansForUnits, type LoanWithCustomer } from '../demos/demoLoanQueries';
+import { LoadError } from '../../components/LoadError';
+import { useLatestRequest } from '../../lib/latestRequest';
 
 // MARK: - UnitsSection
 //
@@ -23,12 +25,14 @@ export function UnitsSection({
   autoReceive?: boolean;
 }) {
   const [units, setUnits] = useState<ProductUnit[] | null>(null);
+  const startRequest = useLatestRequest();
   // Who has each frame that's out on demo (0071).
   const [loans, setLoans] = useState<Map<string, LoanWithCustomer>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [receiving, setReceiving] = useState(autoReceive);
 
   const load = useCallback(async () => {
+    const isLatest = startRequest();
     const { data, error: err } = await supabase
       .from('product_units')
       .select('*')
@@ -36,18 +40,26 @@ export function UnitsSection({
       .order('created_at', { ascending: true })
       // Frames received together share a time; keep them in a steady order.
       .order('id', { ascending: true });
+    if (!isLatest()) return;
     if (err) {
       setError(errorMessage(err));
       return;
     }
     const loaded = (data ?? []) as ProductUnit[];
-    setUnits(loaded);
+    // Frames and their loans are shown together, so a frame never appears
+    // both available and out on loan.
+    let openLoans: Map<string, LoanWithCustomer>;
     try {
-      setLoans(await fetchOpenLoansForUnits(loaded.filter((u) => u.status === 'assigned').map((u) => u.id)));
+      openLoans = await fetchOpenLoansForUnits(loaded.filter((u) => u.status === 'assigned').map((u) => u.id));
     } catch (loanErr) {
-      setError(`Couldn't load who has the demos: ${errorMessage(loanErr)}`);
+      if (isLatest()) setError(`Couldn't load who has the demos: ${errorMessage(loanErr)}`);
+      return;
     }
-  }, [productId]);
+    if (!isLatest()) return;
+    setUnits(loaded);
+    setLoans(openLoans);
+    setError(null);
+  }, [productId, startRequest]);
 
   useEffect(() => {
     void load();
@@ -108,7 +120,7 @@ export function UnitsSection({
         </div>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <LoadError message={error} onRetry={() => void load()} />}
 
       {units && units.length === 0 && (
         <p className="text-sm text-slate-500">
