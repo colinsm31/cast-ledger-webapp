@@ -32,6 +32,13 @@ describe('searchCustomers', () => {
 describe('useCustomerMatches', () => {
   beforeEach(() => rpc.mockReset());
 
+  it('includes inactive customers when a screen asks to show them', async () => {
+    rpc.mockResolvedValue({ data: [{ id: 'c1', is_active: false }], error: null });
+    const { result } = renderHook(() => useCustomerMatches('pat', true));
+    await waitFor(() => expect(result.current.searching).toBe(false));
+    expect(rpc).toHaveBeenCalledWith('search_customers', { p_term: 'pat', p_limit: CUSTOMER_SEARCH_LIMIT, p_include_inactive: true });
+  });
+
   it('looks customers up once typing stops, and matches nobody for an empty query', async () => {
     rpc.mockResolvedValue({ data: [{ id: 'c1' }], error: null });
     const { result, rerender } = renderHook(({ query }) => useCustomerMatches(query), { initialProps: { query: 'pat' } });

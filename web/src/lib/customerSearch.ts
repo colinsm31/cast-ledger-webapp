@@ -34,9 +34,10 @@ export interface CustomerMatches {
 /**
  * Customers matching what's typed, looked up 200 ms after typing stops. An
  * empty query matches nobody; a failed lookup shows no matches, so the user
- * can retype.
+ * can retype. With includeInactive, inactive customers come too (after the
+ * active ones), so a screen can show them without offering them.
  */
-export function useCustomerMatches(query: string): CustomerMatches {
+export function useCustomerMatches(query: string, includeInactive = false): CustomerMatches {
   const [matches, setMatches] = useState<Customer[]>([]);
   const [searching, setSearching] = useState(false);
 
@@ -52,7 +53,7 @@ export function useCustomerMatches(query: string): CustomerMatches {
     const handle = setTimeout(async () => {
       let found: Customer[] = [];
       try {
-        found = await searchCustomers(term);
+        found = await searchCustomers(term, CUSTOMER_SEARCH_LIMIT, includeInactive);
       } catch {
         // No matches; the user can retype.
       }
@@ -64,7 +65,7 @@ export function useCustomerMatches(query: string): CustomerMatches {
       active = false;
       clearTimeout(handle);
     };
-  }, [query]);
+  }, [query, includeInactive]);
 
   return { matches, searching };
 }

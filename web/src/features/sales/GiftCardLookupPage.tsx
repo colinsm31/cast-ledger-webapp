@@ -197,7 +197,7 @@ export function GiftCardLookupPage() {
               'Anonymous card'
             )}
           </p>
-          {!adjusting && (
+          {!adjusting && result.card.is_active && (
             <button
               onClick={() => {
                 setAdjusting(true);

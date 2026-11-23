@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/supabase', () => ({ supabase: {} }));
-const { bySource, exchangeDifference, lineLabel, refundTotals, refundedLinesOf } = await import('./saleForReturn');
+const { bySource, canRefundTo, exchangeDifference, lineLabel, refundTotals, refundedLinesOf, saleCustomerInactive } =
+  await import('./saleForReturn');
 type SaleData = import('./saleForReturn').SaleData;
 
 const grip = {
@@ -69,5 +70,23 @@ describe('lineLabel and bySource', () => {
 
   it('keys a gift card payment by the card', () => {
     expect(bySource([{ method: 'gift_card', amount: 5, gift_card_id: 'gc1' }])).toEqual([{ method: 'gift_card:gc1', amount: 5 }]);
+  });
+});
+
+describe('inactive customers and gift cards (0076)', () => {
+  it('knows when the sale\'s customer is inactive', () => {
+    const sale = (customers: SaleData['customers']) => ({ customers }) as SaleData;
+    expect(saleCustomerInactive(sale({ first_name: 'Pat', last_name: 'Tester', is_active: false }))).toBe(true);
+    expect(saleCustomerInactive(sale({ first_name: 'Pat', last_name: 'Tester', is_active: true }))).toBe(false);
+    expect(saleCustomerInactive(sale(null))).toBe(false);
+    expect(saleCustomerInactive(null)).toBe(false);
+  });
+
+  it('doesn\'t suggest refunding to an inactive gift card or an exchange credit', () => {
+    const payment = { method: 'gift_card' as const, amount: 10, gift_card_id: 'gc1', gift_cards: { code: 'GC-1', is_active: true } };
+    expect(canRefundTo(payment)).toBe(true);
+    expect(canRefundTo({ ...payment, gift_cards: { code: 'GC-1', is_active: false } })).toBe(false);
+    expect(canRefundTo({ method: 'exchange', amount: 10, gift_card_id: null, gift_cards: null })).toBe(false);
+    expect(canRefundTo({ method: 'cash', amount: 10, gift_card_id: null, gift_cards: null })).toBe(true);
   });
 });

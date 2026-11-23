@@ -29,6 +29,7 @@ import {
   loadSaleForReturn,
   refundedLinesOf,
   refundTotals,
+  saleCustomerInactive,
   type SaleData,
 } from './saleForReturn';
 
@@ -38,6 +39,11 @@ const ExchangeConstants = {
   // A difference under half a cent is no difference.
   evenTolerance: 0.005,
 };
+
+// An exchange makes a new sale for the customer, which an inactive customer
+// can't be on (0076).
+const INACTIVE_CUSTOMER_MESSAGE =
+  'This customer is inactive, so they can’t exchange: make them active again on their page first, or refund the items.';
 
 const stepperClass = 'h-7 w-7 rounded border border-slate-300 hover:bg-slate-50';
 
@@ -151,6 +157,7 @@ export function ExchangePage() {
   /** What's wrong with the ticket as it stands, or null. */
   function ticketProblem(): string | null {
     if (!sale) return 'The sale is still loading.';
+    if (saleCustomerInactive(sale)) return INACTIVE_CUSTOMER_MESSAGE;
     if (!hasItemsToReturn(returnQty)) return 'Choose what the customer is bringing back.';
     if (newLines.length === 0) return 'Add what the customer is taking instead.';
     if (!quote) return 'Working out the new items’ total…';
@@ -274,6 +281,12 @@ export function ExchangePage() {
           {sale.customers ? customerNameLastFirst(sale.customers) : 'Unidentified Customer'}
         </p>
       </div>
+
+      {saleCustomerInactive(sale) && (
+        <p className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          {INACTIVE_CUSTOMER_MESSAGE}
+        </p>
+      )}
 
       <section className="rounded-xl border border-slate-200 bg-white">
         <h2 className="border-b border-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">Bringing back</h2>

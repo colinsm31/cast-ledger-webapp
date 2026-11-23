@@ -48,6 +48,7 @@ import {
 } from '../../lib/saleMath';
 import {
   bySource,
+  canRefundTo,
   lineLabel,
   loadSaleForReturn,
   refundedLinesOf,
@@ -158,6 +159,9 @@ export function RefundPage() {
       ),
     [sale],
   );
+  // What Void suggests: the money payments, less any gift card made inactive
+  // since (it can't take money back, 0076), which is left for the cashier.
+  const suggestedPayments = useMemo(() => moneyPayments.filter(canRefundTo), [moneyPayments]);
   const refundable = useMemo(
     () =>
       refundableByMethod(
@@ -202,7 +206,7 @@ export function RefundPage() {
     // still give back; anything left over is for the cashier to place.
     const { allocations } = allocateToOriginalPayments(
       toCents(refundTotalsFor(q).total),
-      moneyPayments,
+      suggestedPayments,
       refundable,
       (p) => refundSource(p.method, p.gift_card_id),
     );
@@ -488,7 +492,7 @@ export function RefundPage() {
           />
         )}
         {mode === 'gift_card' && (
-          <GiftCardAdder defaultValue={remainingToAllocate} defaultCode={sale.sale_payments.find((p) => p.gift_cards)?.gift_cards?.code ?? ''} customerId={sale.customer_id} onCancel={() => setMode('none')} onAdd={(amt, id, code) => addTender({ method: 'gift_card', amount: amt, giftCardId: id, code })} onError={setError} />
+          <GiftCardAdder defaultValue={remainingToAllocate} defaultCode={suggestedPayments.find((p) => p.gift_cards)?.gift_cards?.code ?? ''} customerId={sale.customer_id} onCancel={() => setMode('none')} onAdd={(amt, id, code) => addTender({ method: 'gift_card', amount: amt, giftCardId: id, code })} onError={setError} />
         )}
       </section>
       )}

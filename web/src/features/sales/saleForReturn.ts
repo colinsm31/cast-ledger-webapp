@@ -28,7 +28,7 @@ export interface SalePayment {
   method: SavedPaymentMethod;
   amount: number;
   gift_card_id: string | null;
-  gift_cards: { code: string } | null;
+  gift_cards: { code: string; is_active?: boolean } | null;
 }
 
 export interface EarlierRefund {
@@ -43,7 +43,7 @@ export interface SaleData {
   tax: number;
   tax_rate: number;
   customer_id: string | null;
-  customers: { first_name: string; last_name: string } | null;
+  customers: { first_name: string; last_name: string; is_active?: boolean } | null;
   sale_lines: SaleLine[];
   sale_payments: SalePayment[];
   refunds: EarlierRefund[];
@@ -51,9 +51,9 @@ export interface SaleData {
 
 const SALE_FOR_RETURN_SELECT = [
   'id, tax, tax_rate, customer_id',
-  'customers ( first_name, last_name )',
+  'customers ( first_name, last_name, is_active )',
   'sale_lines ( id, product_id, product_unit_id, string_job_id, gift_card_id, qty, unit_price, taxable, kind, products ( brand, name, attributes ), string_jobs ( job_number, status, refund_id ), gift_cards ( code ) )',
-  'sale_payments ( method, amount, gift_card_id, gift_cards ( code ) )',
+  'sale_payments ( method, amount, gift_card_id, gift_cards ( code, is_active ) )',
   'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty, kind, unit_price ), refund_payments ( method, amount, gift_card_id ) )',
 ].join(', ');
 
@@ -62,6 +62,16 @@ export async function loadSaleForReturn(saleId: string): Promise<SaleData> {
   const { data, error } = await supabase.from('sales').select(SALE_FOR_RETURN_SELECT).eq('id', saleId).single();
   if (error) throw error;
   return data as unknown as SaleData;
+}
+
+/** Whether the sale's customer has been made inactive (0076): they can't take part in a new sale or refund to store credit. */
+export function saleCustomerInactive(sale: SaleData | null): boolean {
+  return sale?.customers?.is_active === false;
+}
+
+/** A payment the money can go back to: not an exchange's credit, nor an inactive gift card (0076). */
+export function canRefundTo(payment: SalePayment): boolean {
+  return payment.method !== 'exchange' && payment.gift_cards?.is_active !== false;
 }
 
 /** Every line earlier refunds gave back. */

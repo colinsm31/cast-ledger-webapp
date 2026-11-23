@@ -206,6 +206,7 @@ export function CustomerDetailPage() {
       ) : (
         <AccountPanel
           customerId={customer.id}
+          customerActive={customer.is_active}
           storeCredit={storeCredit}
           giftCards={giftCards}
           onChanged={load}
@@ -230,7 +231,11 @@ export function CustomerDetailPage() {
       </div>
 
       {tab === 'rackets' && (
-        <CustomerRacketsPanel customerId={customer.id} prefillBarcode={prefillRacketBarcode ?? undefined} />
+        <CustomerRacketsPanel
+          customerId={customer.id}
+          customerActive={customer.is_active}
+          prefillBarcode={prefillRacketBarcode ?? undefined}
+        />
       )}
 
       {tab === 'restrings' && <RestringHistoryPanel customerId={customer.id} />}
@@ -311,6 +316,7 @@ function attributeSuffix(values: Record<string, JsonValue>): string {
 
 function AccountPanel({
   customerId,
+  customerActive,
   storeCredit,
   giftCards,
   onChanged,
@@ -318,6 +324,8 @@ function AccountPanel({
 }: {
   customerId: string;
   storeCredit: number;
+  /** An inactive customer's store credit can't be added to (0076). */
+  customerActive: boolean;
   giftCards: { code: string; balance: number }[];
   onChanged: () => Promise<void>;
   onError: (message: string | null) => void;
@@ -364,7 +372,7 @@ function AccountPanel({
           <h2 className="text-sm font-semibold text-slate-700">Store credit</h2>
           <p className="text-lg font-bold text-slate-900">${storeCredit.toFixed(2)}</p>
         </div>
-        {!adding && (
+        {!adding && customerActive && (
           <button
             onClick={() => setAdding(true)}
             className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"

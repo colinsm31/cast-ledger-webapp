@@ -9,6 +9,7 @@ vi.mock('../../app/BackContext', () => ({ useBack: () => {} }));
 vi.mock('../../lib/settings', () => ({ useSettings: () => ({ settings: { accept_checks: false } }) }));
 
 let quoteTotal = 32.48;
+let customerActive = true;
 vi.mock('../../lib/saleQuote', async (original) => ({
   ...(await original<typeof import('../../lib/saleQuote')>()),
   fetchSaleQuote: vi.fn(async () => ({
@@ -44,7 +45,7 @@ vi.mock('./saleForReturn', async (original) => ({
     tax: 4.95,
     tax_rate: 8.25,
     customer_id: 'cust-1',
-    customers: { first_name: 'Pat', last_name: 'Tester' },
+    customers: { first_name: 'Pat', last_name: 'Tester', is_active: customerActive },
     sale_lines: [grip],
     sale_payments: [{ method: 'credit', amount: 64.95, gift_card_id: null, gift_cards: null }],
     refunds: [],
@@ -70,6 +71,7 @@ const { ExchangePage } = await import('./ExchangePage');
 afterEach(() => {
   cleanup();
   rpc.mockReset();
+  customerActive = true;
 });
 
 function renderPage() {
@@ -131,6 +133,15 @@ describe('ExchangePage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Give back $10.83' })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'Give back $10.83' }));
     expect(await screen.findByText('Exchange: customer is owed')).toBeTruthy();
+  });
+
+  it('stops an inactive customer\'s exchange before anything is chosen', async () => {
+    customerActive = false;
+    renderPage();
+    expect(await screen.findAllByText(/This customer is inactive, so they can’t exchange/)).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Complete exchange' }));
+    expect(screen.getAllByText(/This customer is inactive, so they can’t exchange/)).toHaveLength(2);
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it('shows what the server refused', async () => {
