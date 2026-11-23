@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { GiftCardBalance, PaymentMethod } from '../../types/domain';
+import { inactiveGiftCardMessage } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { availableToApply, roundMoney } from '../../lib/saleMath';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
@@ -305,6 +306,10 @@ function GiftCardEntry({
     }
     if (!data) {
       setErr(`No gift card found for code ${c}.`);
+      return;
+    }
+    if (!(data as GiftCardBalance).is_active) {
+      setErr(inactiveGiftCardMessage((data as GiftCardBalance).code));
       return;
     }
     setCard(data as GiftCardBalance);

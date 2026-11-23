@@ -57,7 +57,7 @@ export function HomePage() {
     const handle = setTimeout(async () => {
       let found: Customer[] = [];
       try {
-        found = await searchCustomers(term);
+        found = await searchCustomers(term, undefined, true);
       } catch {
         // A failed lookup just shows no matches; the user can retype.
       }
@@ -125,7 +125,7 @@ export function HomePage() {
   async function openNameMatch(name: string, isLatest: () => boolean) {
     let found: Customer[];
     try {
-      found = await searchCustomers(name);
+      found = await searchCustomers(name, undefined, true);
     } catch (err) {
       if (isLatest()) setUpcResult({ kind: 'error', message: errorMessage(err) });
       return;

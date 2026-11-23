@@ -187,11 +187,24 @@ export interface GiftCardBalance {
   code: string;
   customer_id: string | null;
   balance: number;
+  /** An inactive card (e.g. lost) can't be loaded or spent (0076). */
+  is_active: boolean;
+}
+
+/** Why and when a customer or gift card was made inactive (0076); null while active. */
+export interface Deactivation {
+  deactivated_at?: string | null;
+  deactivated_reason?: string | null;
+}
+
+/** "Gift card GC-1 is inactive, …", worded as the database refuses it (0076). */
+export function inactiveGiftCardMessage(code: string): string {
+  return `Gift card ${code} is inactive, so it can't be used: make it active again first.`;
 }
 
 // ---- Customers ----
 
-export interface Customer {
+export interface Customer extends Deactivation {
   id: string;
   first_name: string;
   last_name: string;

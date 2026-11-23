@@ -13,13 +13,13 @@ describe('searchCustomers', () => {
   it('asks the search_customers function, with the default limit', async () => {
     rpc.mockResolvedValue({ data: [{ id: 'c1' }], error: null });
     await expect(searchCustomers('pat')).resolves.toEqual([{ id: 'c1' }]);
-    expect(rpc).toHaveBeenCalledWith('search_customers', { p_term: 'pat', p_limit: CUSTOMER_SEARCH_LIMIT });
+    expect(rpc).toHaveBeenCalledWith('search_customers', { p_term: 'pat', p_limit: CUSTOMER_SEARCH_LIMIT, p_include_inactive: false });
   });
 
   it('returns no customers rather than null', async () => {
     rpc.mockResolvedValue({ data: null, error: null });
     await expect(searchCustomers('zzz', 3)).resolves.toEqual([]);
-    expect(rpc).toHaveBeenCalledWith('search_customers', { p_term: 'zzz', p_limit: 3 });
+    expect(rpc).toHaveBeenCalledWith('search_customers', { p_term: 'zzz', p_limit: 3, p_include_inactive: false });
   });
 
   it('passes a failure on', async () => {
@@ -37,7 +37,7 @@ describe('useCustomerMatches', () => {
     const { result, rerender } = renderHook(({ query }) => useCustomerMatches(query), { initialProps: { query: 'pat' } });
     expect(result.current.searching).toBe(true); // still looking: not "no matches" yet
     await waitFor(() => expect(result.current).toEqual({ matches: [{ id: 'c1' }], searching: false }));
-    expect(rpc).toHaveBeenCalledWith('search_customers', { p_term: 'pat', p_limit: CUSTOMER_SEARCH_LIMIT });
+    expect(rpc).toHaveBeenCalledWith('search_customers', { p_term: 'pat', p_limit: CUSTOMER_SEARCH_LIMIT, p_include_inactive: false });
     rerender({ query: '  ' });
     expect(result.current).toEqual({ matches: [], searching: false });
   });

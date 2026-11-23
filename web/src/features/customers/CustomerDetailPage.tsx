@@ -11,6 +11,7 @@ import { formatPhone } from '../../lib/phone';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { Spinner } from '../../components/Spinner';
 import { LoadError } from '../../components/LoadError';
+import { ActiveStatusPanel, InactiveBadge } from '../../components/ActiveStatus';
 import { CustomerRacketsPanel } from './CustomerRacketsPanel';
 import { RestringHistoryPanel } from './RestringHistoryPanel';
 import { CustomerDemosPanel } from '../demos/CustomerDemosPanel';
@@ -150,7 +151,10 @@ export function CustomerDetailPage() {
     <div className="max-w-2xl space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">{customerName(customer)}</h1>
+          <h1 className="text-xl font-bold text-slate-900">
+            {customerName(customer)}
+            {!customer.is_active && <InactiveBadge />}
+          </h1>
           <p className="text-sm text-slate-500">
             {[customer.phone_number, customer.email].filter(Boolean).join(' · ') || '—'}
           </p>
@@ -181,6 +185,21 @@ export function CustomerDetailPage() {
           onError={setError}
         />
       )}
+
+      <ActiveStatusPanel
+        noun="customer"
+        isActive={customer.is_active}
+        deactivation={customer}
+        setActive={async (active, reason) => {
+          const { error: err } = await supabase.rpc('set_customer_active', {
+            p_customer_id: customer.id,
+            p_active: active,
+            p_reason: reason,
+          });
+          if (err) throw err;
+        }}
+        onChanged={() => void load()}
+      />
 
       {balancesError ? (
         <LoadError message={balancesError} onRetry={() => void load()} />

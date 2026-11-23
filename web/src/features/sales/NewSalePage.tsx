@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { Customer, ProductUnitStatus } from '../../types/domain';
 import { unitUnavailableMessage } from '../../lib/unitStatus';
-import { customerName, customerNameLastFirst } from '../../types/domain';
+import { customerName, customerNameLastFirst, inactiveGiftCardMessage } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useCustomerMatches } from '../../lib/customerSearch';
 import { createCustomer, newCustomerFormFrom, newCustomerRow, type NewCustomerForm } from '../../lib/newCustomer';
@@ -487,9 +487,13 @@ export function NewSalePage() {
     // If the card already carries a balance, confirm this is an intentional reload.
     const { data: existing } = await supabase
       .from('gift_card_balance')
-      .select('balance')
+      .select('balance, is_active')
       .eq('code', code)
       .maybeSingle();
+    if (existing && !(existing as { is_active: boolean }).is_active) {
+      setScanMsg(inactiveGiftCardMessage(code));
+      return;
+    }
     const existingBalance = existing ? Number((existing as { balance: number }).balance) : 0;
     if (existingBalance > 0) {
       const ok = await confirm({

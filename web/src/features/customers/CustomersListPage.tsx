@@ -4,6 +4,7 @@ import { fetchAllRows } from '../../lib/paging';
 import { searchCustomers } from '../../lib/customerSearch';
 import type { Customer } from '../../types/domain';
 import { customerName } from '../../types/domain';
+import { InactiveBadge } from '../../components/ActiveStatus';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { EmptyState } from '../../components/EmptyState';
@@ -57,7 +58,7 @@ export function CustomersListPage() {
     }
     let active = true;
     const handle = setTimeout(() => {
-      searchCustomers(term, SEARCH_RESULT_LIMIT).then(
+      searchCustomers(term, SEARCH_RESULT_LIMIT, true).then(
         (found) => {
           if (!active) return;
           setMatches(found);
@@ -120,7 +121,10 @@ export function CustomersListPage() {
           {shown.map((customer) => (
             <li key={customer.id}>
               <Link to={carryBarcode(`/customers/${customer.id}`)} className="block p-4 hover:bg-slate-50">
-                <p className="font-medium text-slate-900">{customerName(customer)}</p>
+                <p className="font-medium text-slate-900">
+                  {customerName(customer)}
+                  {!customer.is_active && <InactiveBadge />}
+                </p>
                 <p className="text-sm text-slate-500">
                   {[customer.phone_number, customer.email].filter(Boolean).join(' · ') || '—'}
                 </p>

@@ -8,9 +8,19 @@ export const CUSTOMER_SEARCH_LIMIT = 8;
  * Customers matching a typed name, "first last", "last, first", email, or
  * phone digits, ordered by last name then first name. Matching happens in the
  * `search_customers` database function, so any characters are safe to pass.
+ * Inactive customers are left out unless asked for (0076): the register and
+ * demo lending don't offer them; the customer list and home lookup do.
  */
-export async function searchCustomers(term: string, limit = CUSTOMER_SEARCH_LIMIT): Promise<Customer[]> {
-  const { data, error } = await supabase.rpc('search_customers', { p_term: term, p_limit: limit });
+export async function searchCustomers(
+  term: string,
+  limit = CUSTOMER_SEARCH_LIMIT,
+  includeInactive = false,
+): Promise<Customer[]> {
+  const { data, error } = await supabase.rpc('search_customers', {
+    p_term: term,
+    p_limit: limit,
+    p_include_inactive: includeInactive,
+  });
   if (error) throw error;
   return (data ?? []) as Customer[];
 }

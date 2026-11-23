@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { JsonValue, PaymentMethod } from '../../types/domain';
-import { customerNameLastFirst } from '../../types/domain';
+import { customerNameLastFirst, inactiveGiftCardMessage } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
@@ -624,10 +624,11 @@ function GiftCardAdder({ defaultValue, defaultCode, customerId, onCancel, onAdd,
     const c = checkInput();
     if (!c) return;
     setBusy(true);
-    const { data, error } = await supabase.from('gift_card_balance').select('gift_card_id, code').eq('code', c).maybeSingle();
+    const { data, error } = await supabase.from('gift_card_balance').select('gift_card_id, code, is_active').eq('code', c).maybeSingle();
     setBusy(false);
     if (error) { onError(errorMessage(error)); return; }
     if (!data) { setMissingCode(c); return; }
+    if (!data.is_active) { onError(inactiveGiftCardMessage(data.code as string)); return; }
     onAdd(amt, data.gift_card_id as string, data.code as string);
   }
 
