@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeCheckNumber, paymentLabel, refundMethodsFor, saleMethodsFor } from './paymentMethods';
+import { normalizeCheckNumber, paymentLabel, refundMethodsFor, saleMethodsFor, toPaymentPayload } from './paymentMethods';
 
 describe('saleMethodsFor', () => {
   it('offers checks only when the shop takes them', () => {
@@ -49,5 +49,23 @@ describe('paymentLabel', () => {
 
   it('falls back to the raw type', () => {
     expect(paymentLabel('split')).toBe('split');
+  });
+
+  it('names an exchange’s credit (0077)', () => {
+    expect(paymentLabel('exchange')).toBe('Exchange credit');
+  });
+});
+
+describe('toPaymentPayload', () => {
+  it('sends a tender the way the server functions take it', () => {
+    expect(toPaymentPayload({ method: 'cash', amount: 10 })).toEqual({
+      method: 'cash',
+      amount: 10,
+      gift_card_id: null,
+      check_number: null,
+    });
+    expect(toPaymentPayload({ method: 'check', amount: 5, checkNumber: '1042', giftCardId: undefined })).toMatchObject({
+      check_number: '1042',
+    });
   });
 });

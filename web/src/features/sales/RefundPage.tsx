@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { JsonValue, PaymentMethod } from '../../types/domain';
+import type { PaymentMethod } from '../../types/domain';
 import { customerNameLastFirst, inactiveGiftCardMessage } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
@@ -21,10 +21,8 @@ import {
   isStringingLine,
   isUnitLine,
   refundPriceCents,
-  refundSubtotals,
   returnableQty,
   stringingNote,
-  taxedRefundedCents,
   type FrameReturn,
 } from './returnable';
 import { jobCode } from '../stringjobs/jobTag';
@@ -38,46 +36,18 @@ import {
   paymentTypeChanges,
   refundableByMethod,
   refundSource,
-  refundTaxCents,
   roundMoney,
   toCents,
 } from '../../lib/saleMath';
-
-interface SaleLine {
-  id: string;
-  product_id: string | null;
-  product_unit_id: string | null;
-  string_job_id: string | null;
-  gift_card_id: string | null;
-  qty: number;
-  unit_price: number;
-  taxable: boolean;
-  products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
-  string_jobs: { job_number: number; status: string } | null;
-  gift_cards: { code: string } | null;
-}
-interface SalePayment {
-  method: PaymentMethod;
-  amount: number;
-  gift_card_id: string | null;
-  gift_cards: { code: string } | null;
-}
-interface EarlierRefund {
-  subtotal: number;
-  tax: number;
-  refund_lines: { sale_line_id: string; qty: number; kind: string; unit_price: number }[];
-  refund_payments: { method: PaymentMethod; amount: number; gift_card_id: string | null }[];
-}
-interface SaleData {
-  id: string;
-  tax: number;
-  tax_rate: number;
-  customer_id: string | null;
-  customers: { first_name: string; last_name: string } | null;
-  sale_lines: SaleLine[];
-  sale_payments: SalePayment[];
-  refunds: EarlierRefund[];
-}
+import {
+  bySource,
+  lineLabel,
+  loadSaleForReturn,
+  refundedLinesOf,
+  refundTotals,
+  type SaleData,
+  type SaleLine,
+} from './saleForReturn';
 
 interface Tender {
   id: string;
@@ -86,17 +56,6 @@ interface Tender {
   giftCardId?: string;
   code?: string;
   checkNumber?: string;
-}
-
-// Payments keyed by what limits a refund: the type, or the gift card itself.
-function bySource(payments: { method: PaymentMethod; amount: number; gift_card_id: string | null }[]) {
-  return payments.map((p) => ({ method: refundSource(p.method, p.gift_card_id), amount: p.amount }));
-}
-
-function lineLabel(p: SaleLine['products']): string {
-  if (!p) return '—';
-  const attrs = Object.values(p.attributes ?? {}).filter((v) => v != null && v !== '').map(String);
-  return [p.brand, p.name, ...attrs].filter(Boolean).join(' ');
 }
 
 const inputClass = 'rounded-lg border border-slate-300 px-3 py-2 text-sm';
@@ -126,24 +85,13 @@ export function RefundPage() {
   useEffect(() => {
     if (!saleId) return;
     void (async () => {
-      const { data, error: err } = await supabase
-        .from('sales')
-        .select(
-          [
-            'id, tax, tax_rate, customer_id',
-            'customers ( first_name, last_name )',
-            'sale_lines ( id, product_id, product_unit_id, string_job_id, gift_card_id, qty, unit_price, taxable, products ( brand, name, attributes ), string_jobs ( job_number, status ), gift_cards ( code ) )',
-            'sale_payments ( method, amount, gift_card_id, gift_cards ( code ) )',
-            'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty, kind, unit_price ), refund_payments ( method, amount, gift_card_id ) )',
-          ].join(', '),
-        )
-        .eq('id', saleId)
-        .single();
-      if (err) {
+      let loaded: SaleData;
+      try {
+        loaded = await loadSaleForReturn(saleId);
+      } catch (err) {
         setLoadError(errorMessage(err));
         return;
       }
-      const loaded = data as unknown as SaleData;
       setSale(loaded);
       // What each loaded card holds now: only an unused load is refunded.
       const cardIds = loaded.sale_lines.map((l) => l.gift_card_id).filter((id): id is string => !!id);
@@ -158,30 +106,14 @@ export function RefundPage() {
     })();
   }, [saleId]);
 
-  const refundedLines = useMemo(() => (sale?.refunds ?? []).flatMap((r) => r.refund_lines ?? []), [sale]);
+  const refundedLines = useMemo(() => refundedLinesOf(sale), [sale]);
 
   // Remaining returnable qty per product line, racquet frame and stringing
   // charge (original minus already refunded).
   const remaining = useMemo(() => (sale ? returnableQty(sale.sale_lines, refundedLines) : {}), [sale, refundedLines]);
 
-  // Refund subtotal, tax and total for a set of return quantities. Tax follows
-  // record_refund: on the lines the sale taxed, cumulative over this sale's
-  // refunds, at the sale's rate, and never more than the sale charged.
   function refundTotalsFor(qty: Record<string, number>) {
-    if (!sale) return { subtotal: 0, tax: 0, total: 0 };
-    const { subtotalCents, taxableCents } = refundSubtotals(sale.sale_lines, refundedLines, qty);
-    const taxCentsForRefund = refundTaxCents({
-      previousSubtotalCents: taxedRefundedCents(sale.sale_lines, refundedLines),
-      previousTaxCents: sale.refunds.reduce((s, r) => s + toCents(r.tax), 0),
-      saleTaxCents: toCents(sale.tax),
-      refundSubtotalCents: taxableCents,
-      taxRate: sale.tax_rate,
-    });
-    return {
-      subtotal: fromCents(subtotalCents),
-      tax: fromCents(taxCentsForRefund),
-      total: fromCents(subtotalCents + taxCentsForRefund),
-    };
+    return refundTotals(sale, qty);
   }
 
   // A job strung and waiting for pickup is delivered before its charge is refunded.
@@ -226,7 +158,7 @@ export function RefundPage() {
   }, [sale, tenders]);
   function sourceLabel(source: string): string {
     const [method, cardId] = source.split(':') as [PaymentMethod, string | undefined];
-    return cardId ? `${METHOD_LABEL[method]} ${cardCodes.get(cardId) ?? ''}`.trim() : METHOD_LABEL[method];
+    return cardId ? `${METHOD_LABEL[method]} ${cardCodes.get(cardId) ?? ''}`.trim() : paymentLabel(method);
   }
   const needsMethodChangeReason = changedTypes.length > 0;
 

@@ -2,10 +2,10 @@
   "updated": "2026-11-23",
   "web": {
     "overall": {
-      "lines": 30.97,
-      "statements": 31.29,
-      "functions": 30.81,
-      "branches": 29.2
+      "lines": 32.95,
+      "statements": 33.13,
+      "functions": 32.41,
+      "branches": 31.11
     },
     "byFolder": {
       "src": {
@@ -45,7 +45,7 @@
         "lines": 24.12
       },
       "src/features/sales": {
-        "lines": 8.73
+        "lines": 17.48
       },
       "src/features/scan": {
         "lines": 61.7
@@ -54,7 +54,7 @@
         "lines": 21.3
       },
       "src/lib": {
-        "lines": 93.24
+        "lines": 93.28
       },
       "src/types": {
         "lines": 75
@@ -215,10 +215,13 @@
         "lines": 100
       },
       "src/features/sales/CheckEntry.tsx": {
-        "lines": 0
+        "lines": 9.09
       },
       "src/features/sales/DiscountApprovalDialog.tsx": {
         "lines": 0
+      },
+      "src/features/sales/ExchangePage.tsx": {
+        "lines": 85.84
       },
       "src/features/sales/FrameReturnFields.tsx": {
         "lines": 100
@@ -233,7 +236,7 @@
         "lines": 0
       },
       "src/features/sales/PaymentScreen.tsx": {
-        "lines": 0
+        "lines": 15.11
       },
       "src/features/sales/ProductFinder.tsx": {
         "lines": 0
@@ -258,6 +261,9 @@
       },
       "src/features/sales/returnable.ts": {
         "lines": 100
+      },
+      "src/features/sales/saleForReturn.ts": {
+        "lines": 81.25
       },
       "src/features/sales/ticketJobQueries.ts": {
         "lines": 0
