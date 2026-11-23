@@ -4,8 +4,15 @@
 // never more than the sale charged.
 import { supabase } from '../../lib/supabase';
 import type { JsonValue, PaymentMethod } from '../../types/domain';
-import type { SavedPaymentMethod } from '../../lib/paymentMethods';
-import { fromCents, refundSource, refundTaxCents, roundMoney, toCents } from '../../lib/saleMath';
+import { EXCHANGE_METHOD, type SavedPaymentMethod } from '../../lib/paymentMethods';
+import {
+  fromCents,
+  refundableByMethod,
+  refundSource,
+  refundTaxCents,
+  roundMoney,
+  toCents,
+} from '../../lib/saleMath';
 import { refundSubtotals, taxedRefundedCents, type RefundedLine } from './returnable';
 
 export interface SaleLine {
@@ -38,6 +45,17 @@ export interface EarlierRefund {
   refund_payments: { method: PaymentMethod; amount: number; gift_card_id: string | null }[];
 }
 
+/** The exchange that paid for a sale with returned items (0077), and the sale they came from. */
+export interface ExchangeCredit {
+  credit: number;
+  refunds: {
+    sales: {
+      sale_payments: { method: SavedPaymentMethod; amount: number }[];
+      refunds: { refund_payments: { method: PaymentMethod; amount: number }[] }[];
+    } | null;
+  } | null;
+}
+
 export interface SaleData {
   id: string;
   tax: number;
@@ -47,6 +65,8 @@ export interface SaleData {
   sale_lines: SaleLine[];
   sale_payments: SalePayment[];
   refunds: EarlierRefund[];
+  /** Set when an exchange paid for this sale (PostgREST gives one object, or a list). */
+  exchanges?: ExchangeCredit | ExchangeCredit[] | null;
 }
 
 const SALE_FOR_RETURN_SELECT = [
@@ -55,6 +75,7 @@ const SALE_FOR_RETURN_SELECT = [
   'sale_lines ( id, product_id, product_unit_id, string_job_id, gift_card_id, qty, unit_price, taxable, kind, products ( brand, name, attributes ), string_jobs ( job_number, status, refund_id ), gift_cards ( code ) )',
   'sale_payments ( method, amount, gift_card_id, gift_cards ( code, is_active ) )',
   'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty, kind, unit_price ), refund_payments ( method, amount, gift_card_id ) )',
+  'exchanges ( credit, refunds ( sales ( sale_payments ( method, amount ), refunds ( refund_payments ( method, amount ) ) ) ) )',
 ].join(', ');
 
 /** The sale with its lines, payments and earlier refunds; throws the database error. */
@@ -72,6 +93,49 @@ export function saleCustomerInactive(sale: SaleData | null): boolean {
 /** A payment the money can go back to: not an exchange's credit, nor an inactive gift card (0076). */
 export function canRefundTo(payment: SalePayment): boolean {
   return payment.method !== 'exchange' && payment.gift_cards?.is_active !== false;
+}
+
+/** The sale's payments that money can go back to: all but an exchange's credit. */
+export function moneyPaymentsOf(sale: SaleData | null): (SalePayment & { method: PaymentMethod })[] {
+  return (sale?.sale_payments ?? []).filter(
+    (p): p is SalePayment & { method: PaymentMethod } => p.method !== EXCHANGE_METHOD,
+  );
+}
+
+/**
+ * An exchange's credit, as the original sale's payment types (sale_refundable_by_method,
+ * 0081): each money type the original can still give back, up to the credit.
+ * Gift cards keep their own per-card rule, so they're left out.
+ */
+export function exchangeCreditPayments(sale: SaleData | null): (SalePayment & { method: PaymentMethod })[] {
+  const exchange = Array.isArray(sale?.exchanges) ? sale.exchanges[0] : sale?.exchanges;
+  const original = exchange?.refunds?.sales;
+  if (!exchange || !original) return [];
+  const creditCents = toCents(Number(exchange.credit));
+  const originalRefundable = refundableByMethod(
+    original.sale_payments.filter((p): p is { method: PaymentMethod; amount: number } => p.method !== EXCHANGE_METHOD),
+    original.refunds.flatMap((r) => r.refund_payments ?? []),
+  );
+  return [...originalRefundable.entries()]
+    .filter(([method, cents]) => method !== 'gift_card' && cents > 0)
+    .map(([method, cents]) => ({
+      method,
+      amount: fromCents(Math.min(creditCents, cents)),
+      gift_card_id: null,
+      gift_cards: null,
+    }));
+}
+
+/**
+ * What each payment type (a gift card by card) can still give back without a
+ * payment-type change, as the server works it out: the sale's money payments
+ * and any exchange credit, less what earlier refunds gave back.
+ */
+export function saleRefundable(sale: SaleData | null): Map<string, number> {
+  return refundableByMethod(
+    bySource([...moneyPaymentsOf(sale), ...exchangeCreditPayments(sale)]),
+    bySource((sale?.refunds ?? []).flatMap((r) => r.refund_payments)),
+  );
 }
 
 /** Every line earlier refunds gave back. */

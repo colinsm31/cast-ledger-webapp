@@ -1,8 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/supabase', () => ({ supabase: {} }));
-const { bySource, canRefundTo, exchangeDifference, lineLabel, refundTotals, refundedLinesOf, saleCustomerInactive } =
-  await import('./saleForReturn');
+const {
+  bySource,
+  canRefundTo,
+  exchangeCreditPayments,
+  exchangeDifference,
+  lineLabel,
+  refundTotals,
+  refundedLinesOf,
+  saleCustomerInactive,
+  saleRefundable,
+} = await import('./saleForReturn');
 type SaleData = import('./saleForReturn').SaleData;
 
 const grip = {
@@ -88,5 +97,48 @@ describe('inactive customers and gift cards (0076)', () => {
     expect(canRefundTo({ ...payment, gift_cards: { code: 'GC-1', is_active: false } })).toBe(false);
     expect(canRefundTo({ method: 'exchange', amount: 10, gift_card_id: null, gift_cards: null })).toBe(false);
     expect(canRefundTo({ method: 'cash', amount: 10, gift_card_id: null, gift_cards: null })).toBe(true);
+  });
+});
+
+describe('an exchange\'s credit on a later refund (0081)', () => {
+  // As in the database's test 50: the original took $30 credit and $56.60
+  // cash; the exchange moved $21.65 of it to the new sale, and a later refund
+  // gave back $20 credit and $23.30 cash, so it has $10 credit and $33.30 cash left.
+  const original = {
+    sale_payments: [
+      { method: 'credit' as const, amount: 30 },
+      { method: 'cash' as const, amount: 56.6 },
+    ],
+    refunds: [
+      { refund_payments: [{ method: 'exchange' as never, amount: 21.65 }] },
+      { refund_payments: [{ method: 'credit' as const, amount: 20 }, { method: 'cash' as const, amount: 23.3 }] },
+    ],
+  };
+  const newSale = {
+    sale_payments: [
+      { method: 'exchange' as const, amount: 21.65, gift_card_id: null, gift_cards: null },
+      { method: 'cash' as const, amount: 10.83, gift_card_id: null, gift_cards: null },
+    ],
+    refunds: [],
+    exchanges: { credit: 21.65, refunds: { sales: original } },
+  } as unknown as SaleData;
+
+  it('counts as the original\'s payment types, each up to the credit', () => {
+    expect(exchangeCreditPayments(newSale).map((p) => [p.method, p.amount])).toEqual([
+      ['credit', 10],
+      ['cash', 21.65],
+    ]);
+  });
+
+  it('adds to what the new sale can give back without a reason', () => {
+    const refundable = saleRefundable(newSale);
+    expect(refundable.get('cash')).toBe(3248);
+    expect(refundable.get('credit')).toBe(1000);
+    expect(refundable.get('exchange')).toBeUndefined();
+  });
+
+  it('is nothing for a sale no exchange paid for', () => {
+    expect(exchangeCreditPayments({ ...newSale, exchanges: null })).toEqual([]);
+    expect(exchangeCreditPayments({ ...newSale, exchanges: [] })).toEqual([]);
   });
 });

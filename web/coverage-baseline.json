@@ -2,10 +2,10 @@
   "updated": "2026-11-23",
   "web": {
     "overall": {
-      "lines": 32.95,
-      "statements": 33.13,
-      "functions": 32.41,
-      "branches": 31.11
+      "lines": 33.46,
+      "statements": 33.81,
+      "functions": 33.72,
+      "branches": 32.02
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 93.6
+        "lines": 94.44
       },
       "src/features/account": {
         "lines": 0
@@ -45,16 +45,16 @@
         "lines": 24.12
       },
       "src/features/sales": {
-        "lines": 17.48
+        "lines": 19.5
       },
       "src/features/scan": {
         "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 21.3
+        "lines": 21.8
       },
       "src/lib": {
-        "lines": 93.28
+        "lines": 93.29
       },
       "src/types": {
         "lines": 75
@@ -83,7 +83,7 @@
         "lines": 93.93
       },
       "src/components/AdminApprovalDialog.tsx": {
-        "lines": 95.23
+        "lines": 100
       },
       "src/components/Barcode.tsx": {
         "lines": 100
@@ -221,13 +221,16 @@
         "lines": 0
       },
       "src/features/sales/ExchangePage.tsx": {
-        "lines": 85.84
+        "lines": 88.07
       },
       "src/features/sales/FrameReturnFields.tsx": {
         "lines": 100
       },
       "src/features/sales/GiftCardLookupPage.tsx": {
         "lines": 0
+      },
+      "src/features/sales/GiftCardRefundEntry.tsx": {
+        "lines": 18.75
       },
       "src/features/sales/HeldTicketsPanel.tsx": {
         "lines": 0
@@ -236,7 +239,7 @@
         "lines": 0
       },
       "src/features/sales/PaymentScreen.tsx": {
-        "lines": 15.11
+        "lines": 17.04
       },
       "src/features/sales/ProductFinder.tsx": {
         "lines": 0
@@ -263,7 +266,7 @@
         "lines": 100
       },
       "src/features/sales/saleForReturn.ts": {
-        "lines": 81.25
+        "lines": 87.5
       },
       "src/features/sales/ticketJobQueries.ts": {
         "lines": 0

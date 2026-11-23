@@ -8,7 +8,7 @@ import { useBack } from '../../app/BackContext';
 import { useSettings } from '../../lib/settings';
 import { refundMethodsFor, saleMethodsFor, toPaymentPayload } from '../../lib/paymentMethods';
 import { fetchSaleQuote, toSaleLinePayload, type SaleLineInput, type SaleQuote } from '../../lib/saleQuote';
-import { paymentTypeChanges, refundableByMethod, refundSource } from '../../lib/saleMath';
+import { paymentTypeChanges, refundSource } from '../../lib/saleMath';
 import type { ScannedProduct } from '../scan/resolveBarcode';
 import { ProductFinder } from './ProductFinder';
 import { PaymentScreen, type Tender } from './PaymentScreen';
@@ -23,13 +23,13 @@ import {
   type FrameReturn,
 } from './returnable';
 import {
-  bySource,
   exchangeDifference,
   lineLabel,
   loadSaleForReturn,
   refundedLinesOf,
   refundTotals,
   saleCustomerInactive,
+  saleRefundable,
   type SaleData,
 } from './saleForReturn';
 
@@ -119,14 +119,9 @@ export function ExchangePage() {
   // New items chosen, their total not back yet: no difference to show or settle.
   const totalPending = newLines.length > 0 && !quote;
 
-  const refundable = useMemo(
-    () =>
-      refundableByMethod(
-        bySource(sale?.sale_payments ?? []),
-        bySource((sale?.refunds ?? []).flatMap((r) => r.refund_payments)),
-      ),
-    [sale],
-  );
+  // The same limits as a refund's (an exchange's credit counts as the
+  // original sale's payment types, 0081).
+  const refundable = useMemo(() => saleRefundable(sale), [sale]);
   const changedTypes = paymentTypeChanges(
     refundable,
     giveBackTenders.map((t) => ({ method: refundSource(t.method, t.giftCardId), amount: t.amount })),

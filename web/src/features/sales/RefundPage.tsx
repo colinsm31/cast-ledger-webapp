@@ -9,10 +9,10 @@ import { useBack } from '../../app/BackContext';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useSettings } from '../../lib/settings';
 import {
-  EXCHANGE_METHOD,
   PAYMENT_METHOD_LABEL as METHOD_LABEL,
   paymentLabel,
   refundMethodsFor,
+  toPaymentPayload,
 } from '../../lib/paymentMethods';
 import { CheckEntry } from './CheckEntry';
 import {
@@ -41,21 +41,21 @@ import {
   allocateToOriginalPayments,
   fromCents,
   paymentTypeChanges,
-  refundableByMethod,
   refundSource,
   roundMoney,
   toCents,
 } from '../../lib/saleMath';
 import {
-  bySource,
   canRefundTo,
+  exchangeCreditPayments,
   lineLabel,
   loadSaleForReturn,
+  moneyPaymentsOf,
   refundedLinesOf,
   refundTotals,
+  saleRefundable,
   type SaleData,
   type SaleLine,
-  type SalePayment,
 } from './saleForReturn';
 
 interface Tender {
@@ -149,26 +149,14 @@ export function RefundPage() {
 
   // What each payment type the sale used can still give back (a gift card
   // only to the card that paid), and which this refund over-sends to (a
-  // payment-type change, which needs a reason).
-  // An exchange credit (0077) paid for this sale with returned items, not
-  // money, so nothing goes back that way: it's for the cashier to place.
-  const moneyPayments = useMemo(
-    () =>
-      (sale?.sale_payments ?? []).filter(
-        (p): p is SalePayment & { method: PaymentMethod } => p.method !== EXCHANGE_METHOD,
-      ),
-    [sale],
-  );
+  // payment-type change, which needs a reason). An exchange's credit (0077)
+  // counts as the original sale's payment types (0081).
+  const refundable = useMemo(() => saleRefundable(sale), [sale]);
   // What Void suggests: the money payments, less any gift card made inactive
-  // since (it can't take money back, 0076), which is left for the cashier.
-  const suggestedPayments = useMemo(() => moneyPayments.filter(canRefundTo), [moneyPayments]);
-  const refundable = useMemo(
-    () =>
-      refundableByMethod(
-        bySource(moneyPayments),
-        bySource((sale?.refunds ?? []).flatMap((r) => r.refund_payments)),
-      ),
-    [sale, moneyPayments],
+  // since (it can't take money back, 0076), then the exchange credit's types.
+  const suggestedPayments = useMemo(
+    () => [...moneyPaymentsOf(sale).filter(canRefundTo), ...exchangeCreditPayments(sale)],
+    [sale],
   );
   const changedTypes = paymentTypeChanges(
     refundable,
@@ -278,12 +266,7 @@ export function RefundPage() {
     const { error: err } = await supabase.rpc('record_refund', {
       p_sale_id: saleId,
       p_lines: lines,
-      p_payments: tenders.map((t) => ({
-        method: t.method,
-        amount: t.amount,
-        gift_card_id: t.giftCardId ?? null,
-        check_number: t.checkNumber ?? null,
-      })),
+      p_payments: tenders.map(toPaymentPayload),
       p_reason: reason.trim() || null,
       p_note: null,
       p_method_change_reason: needsMethodChangeReason ? methodChangeReason.trim() : null,
