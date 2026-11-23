@@ -15,6 +15,7 @@ import {
   returnedItemsLabel,
   stringingNote,
   taxedRefundedCents,
+  waitsForJobCharge,
 } from './returnable';
 
 describe('returnedItemsLabel', () => {
@@ -154,5 +155,15 @@ describe('stringing charges (0074)', () => {
     expect(stringingNote('entered')).toBe('not strung yet: refunding cancels the job');
     expect(stringingNote('complete')).toBe('strung and waiting: deliver it before refunding');
     expect(stringingNote('delivered')).toBe('the job stays on record, marked refunded');
+  });
+});
+
+describe('a string change\'s charge (0079)', () => {
+  const change = { id: 'chg', product_id: null, product_unit_id: null, string_job_id: 'j1', qty: 1, kind: 'string_change' };
+
+  it('waits until the job\'s own charge is refunded', () => {
+    expect(waitsForJobCharge({ ...change, string_jobs: { status: 'entered', refund_id: null } })).toBe(true);
+    expect(waitsForJobCharge({ ...change, string_jobs: { status: 'cancelled', refund_id: 'r1' } })).toBe(false);
+    expect(waitsForJobCharge({ ...change, kind: 'charge', string_jobs: { status: 'entered', refund_id: null } })).toBe(false);
   });
 });

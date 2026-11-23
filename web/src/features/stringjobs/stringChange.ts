@@ -45,6 +45,23 @@ export interface JobSaleLineRow {
   }[];
 }
 
+/** A string change's charge not refunded yet, on the sale it was charged on. */
+export interface ChargeToRefund {
+  saleId: string;
+  amount: number;
+}
+
+/**
+ * The job's string-change charges (0043) that haven't come back. Once the
+ * job's own charge is refunded, each is refunded from its own sale (0079).
+ */
+export function stringChangeChargesToRefund(rows: JobSaleLineRow[]): ChargeToRefund[] {
+  return rows
+    .filter((row) => row.kind === 'string_change' && row.sales)
+    .filter((row) => !(row.refund_lines ?? []).some((refundLine) => refundLine.kind === 'return'))
+    .map((row) => ({ saleId: row.sales!.id, amount: Number(row.unit_price) }));
+}
+
 export interface StringChangeEvent {
   label: string;
   at: string;

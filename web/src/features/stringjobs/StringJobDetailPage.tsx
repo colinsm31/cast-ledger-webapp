@@ -31,6 +31,8 @@ import {
   STRING_CHANGE_METHODS,
   giveBackOverages,
   stringChangeEvents,
+  stringChangeChargesToRefund,
+  type ChargeToRefund,
   type JobSaleLineRow,
   type StringChangeQuote,
 } from './stringChange';
@@ -502,6 +504,8 @@ export function StringJobDetailPage() {
         </p>
       </div>
 
+      {job.refunded_at && <ChargesStillToRefund charges={stringChangeChargesToRefund(job.job_sale_lines ?? [])} />}
+
       <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-700">Strings</h2>
@@ -842,4 +846,26 @@ function availabilityById(rows: unknown): Record<string, number> {
     avail[row.product_id] = Number(row.available);
   }
   return avail;
+}
+
+/** A refunded job's string-change charges still to refund, each from its own sale (0079). */
+function ChargesStillToRefund({ charges }: { charges: ChargeToRefund[] }) {
+  if (charges.length === 0) return null;
+  return (
+    <section className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-4">
+      <p className="text-sm text-amber-900">
+        This job's charge is refunded. Its string change was charged on another sale, so refund it there too:
+      </p>
+      <ul className="space-y-1">
+        {charges.map((charge) => (
+          <li key={charge.saleId} className="flex items-center justify-between text-sm">
+            <span className="text-amber-900">String change ${charge.amount.toFixed(2)}</span>
+            <Link to={`/sales/${charge.saleId}/refund`} className="font-medium text-blue-600 hover:underline">
+              Refund
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }

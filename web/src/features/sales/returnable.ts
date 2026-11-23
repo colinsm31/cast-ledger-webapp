@@ -13,6 +13,8 @@ export interface SaleLineForReturn {
   gift_card_id?: string | null;
   unit_price?: number;
   taxable?: boolean;
+  kind?: string;
+  string_jobs?: { status: string; refund_id?: string | null } | null;
 }
 
 export interface RefundedLine {
@@ -43,6 +45,11 @@ export function giftCardLoadRefundCents(lines: SaleLineForReturn[], returnQty: R
 /** A stringing charge (a job's charge or a string-change charge): refunded whole. */
 export function isStringingLine(line: SaleLineForReturn): boolean {
   return line.string_job_id != null;
+}
+
+/** A string change's charge whose job's own charge isn't refunded yet: it waits (0079). */
+export function waitsForJobCharge(line: SaleLineForReturn): boolean {
+  return line.kind === 'string_change' && !line.string_jobs?.refund_id;
 }
 
 /** What refunding a stringing charge does to its job, by the job's status (record_refund, 0074). */

@@ -29,6 +29,7 @@ import {
   refundPriceCents,
   returnableQty,
   stringingNote,
+  waitsForJobCharge,
   type FrameReturn,
 } from './returnable';
 import { jobCode } from '../stringjobs/jobTag';
@@ -126,9 +127,10 @@ export function RefundPage() {
     return refundTotals(sale, qty);
   }
 
-  // A job strung and waiting for pickup is delivered before its charge is refunded.
+  // A job strung and waiting for pickup is delivered before its charge is
+  // refunded; a string change's charge waits for the job's own (0079).
   function waitingForPickup(line: SaleLine): boolean {
-    return line.string_jobs?.status === 'complete';
+    return line.string_jobs?.status === 'complete' || waitsForJobCharge(line);
   }
 
   const { subtotal, tax, total } = useMemo(
@@ -355,10 +357,14 @@ export function RefundPage() {
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium text-slate-900">
-                        Stringing{l.string_jobs ? ` ${jobCode(l.string_jobs.job_number)}` : ''}
+                        {l.kind === 'string_change' ? 'String change' : 'Stringing'}
+                        {l.string_jobs ? ` ${jobCode(l.string_jobs.job_number)}` : ''}
                       </span>
                       <span className="text-xs text-slate-500">
-                        ${fromCents(refundPriceCents(l, refundedLines)).toFixed(2)} · {stringingNote(l.string_jobs?.status)}
+                        ${fromCents(refundPriceCents(l, refundedLines)).toFixed(2)} ·{' '}
+                        {waitsForJobCharge(l)
+                          ? 'a string change: refund the job’s own charge first'
+                          : stringingNote(l.string_jobs?.status)}
                       </span>
                     </span>
                   </label>

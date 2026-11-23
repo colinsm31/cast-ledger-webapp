@@ -17,8 +17,10 @@ export interface SaleLine {
   qty: number;
   unit_price: number;
   taxable: boolean;
+  /** 'string_change' for a string change's charge (0043); 'charge' otherwise. */
+  kind?: string;
   products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
-  string_jobs: { job_number: number; status: string } | null;
+  string_jobs: { job_number: number; status: string; refund_id?: string | null } | null;
   gift_cards: { code: string } | null;
 }
 
@@ -50,7 +52,7 @@ export interface SaleData {
 const SALE_FOR_RETURN_SELECT = [
   'id, tax, tax_rate, customer_id',
   'customers ( first_name, last_name )',
-  'sale_lines ( id, product_id, product_unit_id, string_job_id, gift_card_id, qty, unit_price, taxable, products ( brand, name, attributes ), string_jobs ( job_number, status ), gift_cards ( code ) )',
+  'sale_lines ( id, product_id, product_unit_id, string_job_id, gift_card_id, qty, unit_price, taxable, kind, products ( brand, name, attributes ), string_jobs ( job_number, status, refund_id ), gift_cards ( code ) )',
   'sale_payments ( method, amount, gift_card_id, gift_cards ( code ) )',
   'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty, kind, unit_price ), refund_payments ( method, amount, gift_card_id ) )',
 ].join(', ');
