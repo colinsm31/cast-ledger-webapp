@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidEmail, optInLabel, optInProblem, optInsToSave, phoneE164 } from './notificationOptIn';
+import { isValidEmail, optInChangeLabel, optInLabel, optInProblem, optInsToSave, phoneE164 } from './notificationOptIn';
 
 describe('phoneE164 (matches the database)', () => {
   it.each([
@@ -66,5 +66,12 @@ describe('optInLabel', () => {
     expect(optInLabel({ email_opt_in: true, sms_opt_in: true })).toBe('Ready messages: email and text');
     expect(optInLabel({ email_opt_in: false, sms_opt_in: true })).toBe('Ready messages: text');
     expect(optInLabel({ email_opt_in: false, sms_opt_in: false })).toBeNull();
+  });
+});
+
+describe('optInChangeLabel', () => {
+  it('says what changed', () => {
+    expect(optInChangeLabel({ channel: 'sms', opted_in: true })).toBe('Opted in to texts');
+    expect(optInChangeLabel({ channel: 'email', opted_in: false })).toBe('Opted out of emails');
   });
 });

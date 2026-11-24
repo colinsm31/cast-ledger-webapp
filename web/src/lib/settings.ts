@@ -24,6 +24,10 @@ export interface Settings {
   stringing_turnaround_hours: number;
   /** Days a demo loan lasts by default (0071). */
   demo_loan_days: number;
+  /** The "stringing ready" message templates (0086). */
+  ready_email_subject: string;
+  ready_email_body: string;
+  ready_sms_body: string;
 }
 
 interface SettingsRow {
@@ -42,6 +46,9 @@ interface SettingsRow {
   held_ticket_hours: number;
   stringing_turnaround_hours: number;
   demo_loan_days: number;
+  ready_email_subject: string;
+  ready_email_body: string;
+  ready_sms_body: string;
 }
 
 export const SETTINGS_LOAD_ERROR = "Couldn't load the shop settings";
@@ -69,6 +76,9 @@ export async function fetchSettings(): Promise<Settings> {
     held_ticket_hours: r.held_ticket_hours,
     stringing_turnaround_hours: r.stringing_turnaround_hours,
     demo_loan_days: r.demo_loan_days,
+    ready_email_subject: r.ready_email_subject,
+    ready_email_body: r.ready_email_body,
+    ready_sms_body: r.ready_sms_body,
   };
 }
 
@@ -134,6 +144,9 @@ export interface SettingsForm {
   heldTicketHours: string;
   turnaroundHours: string;
   demoLoanDays: string;
+  readyEmailSubject: string;
+  readyEmailBody: string;
+  readySmsBody: string;
 }
 
 /** The receipt text's limits, matching the database's (0059). */
@@ -142,6 +155,13 @@ export const RECEIPT_TEXT_LIMITS = {
   shopAddress: { label: 'Address', max: 300 },
   returnPolicy: { label: 'Return policy', max: 1000 },
   receiptFooter: { label: 'Receipt footer', max: 500 },
+} as const;
+
+/** The ready templates' limits, matching the database's (0086). */
+export const READY_TEMPLATE_LIMITS = {
+  readyEmailSubject: { label: 'Ready email subject', max: 150 },
+  readyEmailBody: { label: 'Ready email', max: 2000 },
+  readySmsBody: { label: 'Ready text', max: 320 },
 } as const;
 
 const PLAIN_NUMBER = /^\d+(\.\d+)?$/;
@@ -168,6 +188,9 @@ export function settingsToForm(settings: Settings): SettingsForm {
     heldTicketHours: String(settings.held_ticket_hours),
     turnaroundHours: String(settings.stringing_turnaround_hours),
     demoLoanDays: String(settings.demo_loan_days),
+    readyEmailSubject: settings.ready_email_subject,
+    readyEmailBody: settings.ready_email_body,
+    readySmsBody: settings.ready_sms_body,
   };
 }
 
@@ -223,6 +246,13 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
     return { error: 'Demo loans last: enter whole days from 1 to 60.' };
   }
 
+  for (const field of Object.keys(READY_TEMPLATE_LIMITS) as (keyof typeof READY_TEMPLATE_LIMITS)[]) {
+    const { label, max } = READY_TEMPLATE_LIMITS[field];
+    const text = form[field].trim();
+    if (!text) return { error: `${label}: enter the message (placeholders like {first_name} are filled in).` };
+    if (text.length > max) return { error: `${label}: use at most ${max} characters.` };
+  }
+
   return {
     settings: {
       tax_rate: Number(taxRate),
@@ -240,6 +270,9 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
       held_ticket_hours: Number(heldTicketHours),
       stringing_turnaround_hours: Number(turnaroundHours),
       demo_loan_days: Number(demoLoanDays),
+      ready_email_subject: form.readyEmailSubject.trim(),
+      ready_email_body: form.readyEmailBody.trim(),
+      ready_sms_body: form.readySmsBody.trim(),
     },
   };
 }

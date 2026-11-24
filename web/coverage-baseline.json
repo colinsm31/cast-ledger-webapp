@@ -2,10 +2,10 @@
   "updated": "2026-11-24",
   "web": {
     "overall": {
-      "lines": 34.63,
-      "statements": 34.97,
-      "functions": 35.02,
-      "branches": 33.36
+      "lines": 35.53,
+      "statements": 35.86,
+      "functions": 36.06,
+      "branches": 33.97
     },
     "byFolder": {
       "src": {
@@ -18,19 +18,19 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 94.44
+        "lines": 95.48
       },
       "src/features/account": {
         "lines": 0
       },
       "src/features/admin": {
-        "lines": 0
+        "lines": 8.15
       },
       "src/features/categories": {
         "lines": 0
       },
       "src/features/customers": {
-        "lines": 1.27
+        "lines": 1.22
       },
       "src/features/demos": {
         "lines": 97.35
@@ -51,10 +51,10 @@
         "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 22.42
+        "lines": 22.33
       },
       "src/lib": {
-        "lines": 93.52
+        "lines": 93.79
       },
       "src/types": {
         "lines": 75
@@ -97,11 +97,17 @@
       "src/components/LoadError.tsx": {
         "lines": 100
       },
+      "src/components/NotificationLog.tsx": {
+        "lines": 100
+      },
       "src/components/Spinner.tsx": {
         "lines": 100
       },
       "src/features/account/AccountPage.tsx": {
         "lines": 0
+      },
+      "src/features/admin/ReadyTemplateFields.tsx": {
+        "lines": 100
       },
       "src/features/admin/SettingsLayout.tsx": {
         "lines": 0
@@ -135,6 +141,9 @@
       },
       "src/features/customers/NotificationOptInFields.tsx": {
         "lines": 100
+      },
+      "src/features/customers/OptInHistory.tsx": {
+        "lines": 0
       },
       "src/features/customers/RestringHistoryPanel.tsx": {
         "lines": 0
@@ -370,6 +379,9 @@
       "src/lib/notificationOptIn.ts": {
         "lines": 100
       },
+      "src/lib/notifications.ts": {
+        "lines": 100
+      },
       "src/lib/numberInput.ts": {
         "lines": 100
       },
@@ -410,7 +422,7 @@
         "lines": 100
       },
       "src/lib/settings.ts": {
-        "lines": 71.66
+        "lines": 74.24
       },
       "src/lib/staff.ts": {
         "lines": 100

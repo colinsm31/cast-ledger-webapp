@@ -61,3 +61,9 @@ export function optInLabel(customer: OptInState): string | null {
   const channels = [customer.email_opt_in && 'email', customer.sms_opt_in && 'text'].filter(Boolean);
   return channels.length ? `Ready messages: ${channels.join(' and ')}` : null;
 }
+
+/** e.g. "Opted in to texts" / "Opted out of emails", for the opt-in history. */
+export function optInChangeLabel(change: { channel: NotificationChannel; opted_in: boolean }): string {
+  const channel = change.channel === 'sms' ? 'texts' : 'emails';
+  return change.opted_in ? `Opted in to ${channel}` : `Opted out of ${channel}`;
+}

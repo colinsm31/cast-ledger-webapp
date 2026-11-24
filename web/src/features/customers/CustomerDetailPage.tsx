@@ -7,6 +7,8 @@ import { errorMessage } from '../../lib/errors';
 import { exemptionChanged, parseTaxExemption, taxExemptLabel } from '../../lib/taxExempt';
 import { TaxExemptFields } from './TaxExemptFields';
 import { NotificationOptInFields } from './NotificationOptInFields';
+import { OptInHistory } from './OptInHistory';
+import { NotificationLog } from '../../components/NotificationLog';
 import { optInLabel, optInsToSave } from '../../lib/notificationOptIn';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { formatPhone } from '../../lib/phone';
@@ -48,7 +50,7 @@ interface HistorySaleRaw {
   }> | null;
 }
 
-type CustomerTab = 'rackets' | 'restrings' | 'demos' | 'purchases';
+type CustomerTab = 'rackets' | 'restrings' | 'demos' | 'purchases' | 'messages';
 
 export function CustomerDetailPage() {
   const { customerId } = useParams<{ customerId: string }>();
@@ -231,6 +233,9 @@ export function CustomerDetailPage() {
         <TabButton active={tab === 'purchases'} onClick={() => setTab('purchases')}>
           Past purchases
         </TabButton>
+        <TabButton active={tab === 'messages'} onClick={() => setTab('messages')}>
+          Messages
+        </TabButton>
       </div>
 
       {tab === 'rackets' && (
@@ -244,6 +249,13 @@ export function CustomerDetailPage() {
       {tab === 'restrings' && <RestringHistoryPanel customerId={customer.id} />}
 
       {tab === 'demos' && <CustomerDemosPanel customerId={customer.id} />}
+
+      {tab === 'messages' && (
+        <div className="space-y-4">
+          <NotificationLog filter={{ customerId: customer.id }} />
+          <OptInHistory customerId={customer.id} />
+        </div>
+      )}
 
       {tab === 'purchases' && (
         <section className="space-y-2">

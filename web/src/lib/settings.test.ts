@@ -24,6 +24,9 @@ const saved: Settings = {
   held_ticket_hours: 72,
   stringing_turnaround_hours: 24,
   demo_loan_days: 3,
+  ready_email_subject: 'Ready at {shop_name}',
+  ready_email_body: 'Hi {first_name}, your racquet is ready.',
+  ready_sms_body: 'Hi {first_name}, ready at {shop_name}.',
 };
 
 function form(changes: Partial<SettingsForm>): SettingsForm {
@@ -111,6 +114,19 @@ describe('parseSettingsForm', () => {
       error: 'Base labor charge: use at most 2 decimal places.',
     });
     expect(parseSettingsForm(form({ stringingLabor: '0' }))).toHaveProperty('settings.stringing_labor', 0);
+  });
+
+  it('needs each ready template, within its limit', () => {
+    expect(parseSettingsForm(form({ readySmsBody: '  ' }))).toEqual({
+      error: 'Ready text: enter the message (placeholders like {first_name} are filled in).',
+    });
+    expect(parseSettingsForm(form({ readySmsBody: 'x'.repeat(321) }))).toEqual({
+      error: 'Ready text: use at most 320 characters.',
+    });
+    expect(parseSettingsForm(form({ readyEmailSubject: 'x'.repeat(151) }))).toEqual({
+      error: 'Ready email subject: use at most 150 characters.',
+    });
+    expect(parseSettingsForm(form({ readyEmailBody: ' Ready! ' }))).toHaveProperty('settings.ready_email_body', 'Ready!');
   });
 
   it('takes an empty or whole-number reorder point', () => {
