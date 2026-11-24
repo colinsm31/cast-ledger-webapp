@@ -251,7 +251,8 @@ export function CustomerDetailPage() {
       {tab === 'demos' && <CustomerDemosPanel customerId={customer.id} />}
 
       {tab === 'messages' && (
-        <div className="space-y-4">
+        // Keyed on the record's last change, so an edit's opt-in changes show.
+        <div key={customer.updated_at} className="space-y-4">
           <NotificationLog filter={{ customerId: customer.id }} />
           <OptInHistory customerId={customer.id} />
         </div>
