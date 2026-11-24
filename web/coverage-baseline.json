@@ -2,10 +2,10 @@
   "updated": "2026-11-24",
   "web": {
     "overall": {
-      "lines": 35.74,
-      "statements": 36.12,
-      "functions": 36.19,
-      "branches": 34.31
+      "lines": 36.57,
+      "statements": 36.93,
+      "functions": 37.14,
+      "branches": 34.99
     },
     "byFolder": {
       "src": {
@@ -45,7 +45,7 @@
         "lines": 24.12
       },
       "src/features/sales": {
-        "lines": 22.18
+        "lines": 23.39
       },
       "src/features/scan": {
         "lines": 61.7
@@ -54,7 +54,7 @@
         "lines": 22.2
       },
       "src/lib": {
-        "lines": 93.91
+        "lines": 94.21
       },
       "src/types": {
         "lines": 75
@@ -232,6 +232,9 @@
       "src/features/sales/DiscountApprovalDialog.tsx": {
         "lines": 0
       },
+      "src/features/sales/EmailReceiptForm.tsx": {
+        "lines": 100
+      },
       "src/features/sales/ExchangePage.tsx": {
         "lines": 88.79
       },
@@ -358,6 +361,9 @@
       "src/lib/edgeFunctions.ts": {
         "lines": 100
       },
+      "src/lib/emailReceipt.ts": {
+        "lines": 100
+      },
       "src/lib/errors.ts": {
         "lines": 100
       },
@@ -405,6 +411,9 @@
       },
       "src/lib/receipt.ts": {
         "lines": 62.16
+      },
+      "src/lib/receiptEmail.ts": {
+        "lines": 100
       },
       "src/lib/receiptLayout.ts": {
         "lines": 100
