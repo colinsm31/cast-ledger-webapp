@@ -40,6 +40,7 @@ import { PaymentScreen, type Tender } from '../sales/PaymentScreen';
 import { PromiseFields, RushBadge } from './PromiseFields';
 import { jobCode } from './jobTag';
 import { NotificationLog } from '../../components/NotificationLog';
+import { sendQueuedMessagesQuietly } from '../../lib/sendNotifications';
 import {
   PROMISE_STATE_CLASSES,
   fromLocalInput,
@@ -108,6 +109,8 @@ export function StringJobDetailPage() {
   const [busy, setBusy] = useState(false);
   // Bumped when the job is marked complete, so its ready messages show.
   const [messagesRefresh, setMessagesRefresh] = useState(0);
+  // What happened to the ready messages just sent, for staff.
+  const [messageNotice, setMessageNotice] = useState<string | null>(null);
   const [pendingChange, setPendingChange] = useState<PendingStringChange | null>(null);
   const [changeTenders, setChangeTenders] = useState<Tender[]>([]);
   const [changeReason, setChangeReason] = useState('');
@@ -369,7 +372,11 @@ export function StringJobDetailPage() {
       setError(errorMessage(err));
       return;
     }
-    if (target === 'complete') setMessagesRefresh((count) => count + 1);
+    if (target === 'complete') {
+      // The job is complete whatever happens to its messages.
+      setMessageNotice(await sendQueuedMessagesQuietly({ stringJobId: jobId }));
+      setMessagesRefresh((count) => count + 1);
+    }
     // Delivered jobs live under the customer, not on their own page.
     if (target === 'delivered') {
       const customerId = job?.customer_rackets?.customer_id;
@@ -621,6 +628,7 @@ export function StringJobDetailPage() {
       <JobHistory job={job} />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {messageNotice && <p className="text-sm text-slate-600">{messageNotice}</p>}
 
       {/* Lifecycle actions */}
       {!editing && (

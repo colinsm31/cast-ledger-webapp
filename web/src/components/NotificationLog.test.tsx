@@ -11,6 +11,11 @@ vi.mock('../lib/notifications', async (importOriginal) => ({
   resendNotification: (...a: unknown[]) => resendNotification(...a),
 }));
 
+const sendQueuedMessagesQuietly = vi.fn();
+vi.mock('../lib/sendNotifications', () => ({
+  sendQueuedMessagesQuietly: (...a: unknown[]) => sendQueuedMessagesQuietly(...a),
+}));
+
 const { NotificationLog } = await import('./NotificationLog');
 
 afterEach(() => {
@@ -57,13 +62,23 @@ describe('NotificationLog', () => {
   it('sends a failed message again, then reloads', async () => {
     fetchNotifications.mockResolvedValue([row({ status: 'failed', error: 'Timed out', attempts: 2 })]);
     resendNotification.mockResolvedValue(undefined);
-    const onResent = vi.fn();
-    render(<NotificationLog filter={{ customerId: 'c1' }} onResent={onResent} />);
+    sendQueuedMessagesQuietly.mockResolvedValue('Ready notice sent.');
+    render(<NotificationLog filter={{ customerId: 'c1' }} />);
     expect(await screen.findByText(/2 tries/)).toBeTruthy();
     fireEvent.click(screen.getByText('Send again'));
-    await waitFor(() => expect(onResent).toHaveBeenCalled());
+    expect(await screen.findByText('Ready notice sent.')).toBeTruthy();
     expect(resendNotification).toHaveBeenCalledWith('n1');
+    expect(sendQueuedMessagesQuietly).toHaveBeenCalledWith({ stringJobId: 'j1' }, 'Ready notice');
     await waitFor(() => expect(fetchNotifications).toHaveBeenCalledTimes(2));
+  });
+
+  it('sends a receipt again by its sale', async () => {
+    fetchNotifications.mockResolvedValue([row({ kind: 'receipt', string_job_id: null, sale_id: 's1', status: 'skipped' })]);
+    resendNotification.mockResolvedValue(undefined);
+    sendQueuedMessagesQuietly.mockResolvedValue(null);
+    render(<NotificationLog filter={{ saleId: 's1' }} />);
+    fireEvent.click(await screen.findByText('Send again'));
+    await waitFor(() => expect(sendQueuedMessagesQuietly).toHaveBeenCalledWith({ saleId: 's1' }, 'Receipt'));
   });
 
   it('shows why a message can\'t go again', async () => {

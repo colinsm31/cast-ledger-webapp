@@ -11,6 +11,7 @@ import {
   type NotificationStatus,
 } from '../lib/notifications';
 import { LoadError } from './LoadError';
+import { sendQueuedMessagesQuietly } from '../lib/sendNotifications';
 
 const STATUS_CLASSES: Record<NotificationStatus, string> = {
   queued: 'bg-slate-100 text-slate-700',
@@ -25,26 +26,25 @@ function when(iso: string): string {
 }
 
 // Messages sent (or tried) to a customer, for a customer, a job or a sale
-// (0086). A failed or not-sent message can be sent again; `onResent` lets the
-// page hand it to the sender.
+// (0086). A failed or not-sent message can be sent again: it's put back in
+// the queue and handed to the sender.
 export function NotificationLog({
   filter,
   title = 'Messages',
   refreshKey = 0,
   emptyText = 'No messages yet.',
-  onResent,
 }: {
   filter: { customerId?: string; stringJobId?: string; saleId?: string };
   title?: string;
   /** Change it to load again, e.g. after something new was queued. */
   refreshKey?: number;
   emptyText?: string;
-  onResent?: (row: NotificationRow) => Promise<void> | void;
 }) {
   const { customerId, stringJobId, saleId } = filter;
   const [rows, setRows] = useState<NotificationRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [loadCount, setLoadCount] = useState(0);
   const reload = useCallback(() => setLoadCount((count) => count + 1), []);
@@ -69,9 +69,15 @@ export function NotificationLog({
   async function sendAgain(row: NotificationRow) {
     setBusyId(row.id);
     setActionError(null);
+    setNotice(null);
     try {
       await resendNotification(row.id);
-      await onResent?.(row);
+      setNotice(
+        await sendQueuedMessagesQuietly(
+          row.string_job_id ? { stringJobId: row.string_job_id } : { saleId: row.sale_id ?? undefined },
+          notificationKindLabel(row.kind),
+        ),
+      );
     } catch (err) {
       setActionError(errorMessage(err));
     } finally {
@@ -85,6 +91,7 @@ export function NotificationLog({
       <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
       {loadError && <LoadError message={loadError} onRetry={reload} />}
       {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+      {notice && <p className="text-sm text-slate-600">{notice}</p>}
       {rows && rows.length === 0 && <p className="text-sm text-slate-500">{emptyText}</p>}
       {rows && rows.length > 0 && (
         <ul className="divide-y divide-slate-100">
