@@ -2,10 +2,10 @@
   "updated": "2026-11-23",
   "web": {
     "overall": {
-      "lines": 33.46,
-      "statements": 33.81,
-      "functions": 33.72,
-      "branches": 32.02
+      "lines": 34.27,
+      "statements": 34.61,
+      "functions": 34.66,
+      "branches": 32.62
     },
     "byFolder": {
       "src": {
@@ -45,16 +45,16 @@
         "lines": 24.12
       },
       "src/features/sales": {
-        "lines": 19.5
+        "lines": 22.18
       },
       "src/features/scan": {
         "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 21.8
+        "lines": 22.42
       },
       "src/lib": {
-        "lines": 93.29
+        "lines": 93.32
       },
       "src/types": {
         "lines": 75
@@ -221,7 +221,7 @@
         "lines": 0
       },
       "src/features/sales/ExchangePage.tsx": {
-        "lines": 88.07
+        "lines": 88.79
       },
       "src/features/sales/FrameReturnFields.tsx": {
         "lines": 100
@@ -230,7 +230,7 @@
         "lines": 0
       },
       "src/features/sales/GiftCardRefundEntry.tsx": {
-        "lines": 18.75
+        "lines": 58.92
       },
       "src/features/sales/HeldTicketsPanel.tsx": {
         "lines": 0
@@ -266,7 +266,7 @@
         "lines": 100
       },
       "src/features/sales/saleForReturn.ts": {
-        "lines": 87.5
+        "lines": 100
       },
       "src/features/sales/ticketJobQueries.ts": {
         "lines": 0

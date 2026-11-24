@@ -53,6 +53,7 @@ import {
   moneyPaymentsOf,
   refundedLinesOf,
   refundTotals,
+  saleCustomerInactive,
   saleRefundable,
   type SaleData,
   type SaleLine,
@@ -155,7 +156,14 @@ export function RefundPage() {
   // What Void suggests: the payments money can go back to (an exchange's
   // credit as the types it came from, 0082), less any gift card made
   // inactive since (it can't take money back, 0076).
-  const suggestedPayments = useMemo(() => moneyPaymentsOf(sale).filter(canRefundTo), [sale]);
+  // Store credit can't go to a customer made inactive since (0076) either.
+  const suggestedPayments = useMemo(
+    () =>
+      moneyPaymentsOf(sale)
+        .filter(canRefundTo)
+        .filter((p) => p.method !== 'store_credit' || !saleCustomerInactive(sale)),
+    [sale],
+  );
   const changedTypes = paymentTypeChanges(
     refundable,
     tenders.map((t) => ({ method: refundSource(t.method, t.giftCardId), amount: t.amount })),
@@ -448,7 +456,9 @@ export function RefundPage() {
             {refundMethodsFor(
               settings?.accept_checks ?? false,
               sale.sale_payments.some((p) => p.method === 'check'),
-            ).map((m) => (
+            )
+              .filter((m) => m !== 'store_credit' || !saleCustomerInactive(sale))
+              .map((m) => (
               <button key={m} onClick={() => setMode(m)} className="rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-800 hover:border-blue-300 hover:bg-blue-50">
                 {METHOD_LABEL[m]}
               </button>

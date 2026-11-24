@@ -161,9 +161,13 @@ describe('ExchangePage', () => {
     quoteFails = true;
     fireEvent.click(screen.getByRole('button', { name: 'Pick overgrip' }));
     expect(await screen.findByText('The price check failed')).toBeTruthy();
-    const button = screen.getByRole('button', { name: 'Working out the new items’ total…' }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
     expect(screen.getByText('Working out the difference')).toBeTruthy();
+    // A failed check can be tried again, without re-adding anything.
+    quoteFails = false;
+    quoteTotal = 75.79;
+    fireEvent.click(screen.getByRole('button', { name: 'Check prices again' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Collect $43.31' })).toBeTruthy());
+    expect(screen.queryByText('The price check failed')).toBeNull();
   });
 
   it('gives back onto any gift card, and offers store credit only with a customer', async () => {

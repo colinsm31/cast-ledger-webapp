@@ -72,6 +72,9 @@ export function ExchangePage() {
   const [frameReturns, setFrameReturns] = useState<Record<string, FrameReturn>>({});
   const [newLines, setNewLines] = useState<NewLine[]>([]);
   const [quote, setQuote] = useState<SaleQuote | null>(null);
+  // The price check failed: offer to try it again (bumping the attempt reruns it).
+  const [quoteFailed, setQuoteFailed] = useState(false);
+  const [quoteAttempt, setQuoteAttempt] = useState(0);
   const [reason, setReason] = useState('');
   const [step, setStep] = useState<'choose' | 'settle'>('choose');
   const [giveBackTenders, setGiveBackTenders] = useState<Tender[]>([]);
@@ -100,16 +103,26 @@ export function ExchangePage() {
   // failed check leaves no total to settle against.
   useEffect(() => {
     setQuote(null);
+    setQuoteFailed(false);
     if (saleLines.length === 0) return;
     let active = true;
     fetchSaleQuote(saleLines, sale?.customer_id ?? null).then(
       (fresh) => active && setQuote(fresh),
-      (err) => active && setError(errorMessage(err)),
+      (err) => {
+        if (!active) return;
+        setQuoteFailed(true);
+        setError(errorMessage(err));
+      },
     );
     return () => {
       active = false;
     };
-  }, [saleLines, sale?.customer_id]);
+  }, [saleLines, sale?.customer_id, quoteAttempt]);
+
+  function checkPricesAgain() {
+    setError(null);
+    setQuoteAttempt((attempt) => attempt + 1);
+  }
 
   // MARK: - Totals
 
@@ -356,13 +369,15 @@ export function ExchangePage() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button
-        onClick={continueToSettle}
-        disabled={saving || totalPending}
+        onClick={totalPending && quoteFailed ? checkPricesAgain : continueToSettle}
+        disabled={saving || (totalPending && !quoteFailed)}
         className="w-full rounded-lg bg-blue-600 px-4 py-3 text-base font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
       >
         {saving
           ? 'Saving…'
-          : totalPending
+          : totalPending && quoteFailed
+            ? 'Check prices again'
+            : totalPending
             ? 'Working out the new items’ total…'
             : difference > ExchangeConstants.evenTolerance
             ? `Collect $${difference.toFixed(2)}`

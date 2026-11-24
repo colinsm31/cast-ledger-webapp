@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { inactiveGiftCardMessage } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useDialog } from '../../components/Dialog';
-import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
+import { hasSubCent, parsePlainAmount, SUB_CENT_MESSAGE } from '../../lib/money';
 import { roundMoney } from '../../lib/saleMath';
 
 const inputClass = 'rounded-lg border border-slate-300 px-3 py-2 text-sm';
@@ -38,7 +38,16 @@ export function GiftCardRefundEntry({
   const [busy, setBusy] = useState(false);
   const [missingCode, setMissingCode] = useState<string | null>(null);
   const subCent = hasSubCent(value);
-  const amount = subCent ? 0 : roundMoney(Number(value) || 0);
+  const amount = roundMoney(parsePlainAmount(value) ?? 0);
+  const notAnAmount = value.trim() !== '' && !subCent && parsePlainAmount(value) === null;
+  // Gone (closed by the screen around it): a lookup still in flight adds nothing.
+  const gone = useRef(false);
+  useEffect(() => {
+    gone.current = false;
+    return () => {
+      gone.current = true;
+    };
+  }, []);
 
   function checkInput(): string | null {
     const trimmedCode = code.replace(/\s+/g, '').trim();
@@ -62,6 +71,7 @@ export function GiftCardRefundEntry({
       .select('gift_card_id, code, is_active')
       .eq('code', trimmedCode)
       .maybeSingle();
+    if (gone.current) return;
     setBusy(false);
     if (error) {
       onError(errorMessage(error));
@@ -86,9 +96,10 @@ export function GiftCardRefundEntry({
       message: `No card has code ${trimmedCode}. A new card with this code gets $${amount.toFixed(2)}. It didn't pay for this sale, so you'll be asked for a reason.`,
       confirmLabel: 'Issue new card',
     });
-    if (!ok) return;
+    if (!ok || gone.current) return;
     setBusy(true);
     const { data, error } = await supabase.rpc('ensure_gift_card', { p_code: trimmedCode, p_customer_id: customerId });
+    if (gone.current) return;
     setBusy(false);
     if (error) {
       onError(errorMessage(error));
@@ -120,6 +131,7 @@ export function GiftCardRefundEntry({
         />
       </div>
       {subCent && <p className="text-xs text-red-600">{SUB_CENT_MESSAGE}.</p>}
+      {notAnAmount && <p className="text-xs text-red-600">Enter an amount like 12.50.</p>}
       {missingCode && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-red-600">No gift card with code {missingCode}.</span>
@@ -140,7 +152,11 @@ export function GiftCardRefundEntry({
         >
           {busy ? '…' : `Add $${amount.toFixed(2)}`}
         </button>
-        <button onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+        <button
+          onClick={onCancel}
+          disabled={busy}
+          className="rounded-lg border border-slate-300 px-4 py-2 text-sm disabled:opacity-50"
+        >
           Cancel
         </button>
       </div>

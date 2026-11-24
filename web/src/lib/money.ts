@@ -14,6 +14,16 @@ export function hasSubCent(text: string): boolean {
   return /[1-9]/.test(decimals.slice(2));
 }
 
+/**
+ * A typed amount as a number, or null unless it's a plain amount: digits with
+ * at most 2 decimal places ("12", "12.5", "12.50", ".50"). "1e3", "Infinity",
+ * "-5" and "12.345" are refused.
+ */
+export function parsePlainAmount(text: string): number | null {
+  const trimmed = text.trim();
+  return /^(\d+(\.\d{0,2})?|\.\d{1,2})$/.test(trimmed) ? Number(trimmed) : null;
+}
+
 /** SUB_CENT_MESSAGE (with the field's name) if any amount has a fraction of a cent, else null. */
 export function subCentError(amounts: Record<string, string>): string | null {
   for (const [label, text] of Object.entries(amounts)) {
