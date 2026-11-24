@@ -47,6 +47,12 @@ describe('stringChangeEvents', () => {
     expect(stringChangeChargesToRefund([rows[0], refunded])).toEqual([]);
   });
 
+  it('lists what\'s left of a string change charge after give-backs, and not one fully given back', () => {
+    const giveBack = (amount: number) => ({ kind: 'string_change' as const, unit_price: amount, refunds: null });
+    expect(stringChangeChargesToRefund([{ ...rows[1], refund_lines: [giveBack(8)] }])).toEqual([{ saleId: 'sale-b', amount: 15 }]);
+    expect(stringChangeChargesToRefund([{ ...rows[1], refund_lines: [giveBack(23)] }])).toEqual([]);
+  });
+
   it('lists each charge and give-back with a link to its sale', () => {
     expect(stringChangeEvents(rows)).toEqual([
       { label: 'String change −$10.00', at: '2026-10-03T10:00:00Z', by: staff, href: '/sales/sale-a' },

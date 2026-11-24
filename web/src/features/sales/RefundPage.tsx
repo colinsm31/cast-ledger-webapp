@@ -28,7 +28,7 @@ import {
   isUnitLine,
   refundPriceCents,
   returnableQty,
-  stringingNote,
+  stringingLineNote,
   waitsForJobCharge,
   type FrameReturn,
 } from './returnable';
@@ -351,10 +351,7 @@ export function RefundPage() {
                         {l.string_jobs ? ` ${jobCode(l.string_jobs.job_number)}` : ''}
                       </span>
                       <span className="text-xs text-slate-500">
-                        ${fromCents(refundPriceCents(l, refundedLines)).toFixed(2)} ·{' '}
-                        {waitsForJobCharge(l)
-                          ? 'a string change: refund the job’s own charge first'
-                          : stringingNote(l.string_jobs?.status)}
+                        ${fromCents(refundPriceCents(l, refundedLines)).toFixed(2)} · {stringingLineNote(l)}
                       </span>
                     </span>
                   </label>

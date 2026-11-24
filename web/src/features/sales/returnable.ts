@@ -55,9 +55,20 @@ export function isStringingLine(line: SaleLineForReturn): boolean {
   return line.string_job_id != null;
 }
 
-/** A string change's charge whose job's own charge isn't refunded yet: it waits (0079). */
+/**
+ * A string change's charge whose job's own charge isn't refunded yet: it
+ * waits (0079), unless the job is delivered, when it comes back on its own (0084).
+ */
 export function waitsForJobCharge(line: SaleLineForReturn): boolean {
-  return line.kind === 'string_change' && !line.string_jobs?.refund_id;
+  return line.kind === 'string_change' && !line.string_jobs?.refund_id && line.string_jobs?.status !== 'delivered';
+}
+
+/** What refunding a stringing line does to its job (record_refund, 0074/0084). */
+export function stringingLineNote(line: SaleLineForReturn): string {
+  if (line.kind !== 'string_change') return stringingNote(line.string_jobs?.status);
+  return waitsForJobCharge(line)
+    ? 'a string change: refund the job’s own charge first, or deliver the job'
+    : 'a string change: the job stays as it is';
 }
 
 /** What refunding a stringing charge does to its job, by the job's status (record_refund, 0074). */

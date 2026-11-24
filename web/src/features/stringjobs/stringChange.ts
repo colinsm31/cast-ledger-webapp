@@ -1,5 +1,5 @@
 import type { PaymentMethod } from '../../types/domain';
-import { roundMoney } from '../../lib/saleMath';
+import { fromCents, roundMoney, toCents } from '../../lib/saleMath';
 import type { StaffRef } from '../../lib/staff';
 
 /** What changing a paid job's strings would cost (the string_change_quote RPC). */
@@ -52,14 +52,22 @@ export interface ChargeToRefund {
 }
 
 /**
- * The job's string-change charges (0043) that haven't come back. Once the
- * job's own charge is refunded, each is refunded from its own sale (0079).
+ * The job's string-change charges (0043) that haven't come back, each at what's
+ * left of it after later string-change give-backs (record_refund's price).
+ * One fully given back has nothing left and isn't listed. Once the job's own
+ * charge is refunded, each is refunded from its own sale (0079).
  */
 export function stringChangeChargesToRefund(rows: JobSaleLineRow[]): ChargeToRefund[] {
   return rows
     .filter((row) => row.kind === 'string_change' && row.sales)
     .filter((row) => !(row.refund_lines ?? []).some((refundLine) => refundLine.kind === 'return'))
-    .map((row) => ({ saleId: row.sales!.id, amount: Number(row.unit_price) }));
+    .map((row) => {
+      const givenBackCents = (row.refund_lines ?? [])
+        .filter((refundLine) => refundLine.kind === 'string_change')
+        .reduce((sum, refundLine) => sum + toCents(Number(refundLine.unit_price)), 0);
+      return { saleId: row.sales!.id, amount: fromCents(toCents(Number(row.unit_price)) - givenBackCents) };
+    })
+    .filter((charge) => charge.amount > 0);
 }
 
 export interface StringChangeEvent {
