@@ -19,12 +19,13 @@ export interface NotificationRow {
   error: string | null;
   attempts: number;
   created_at: string;
+  sending_at: string | null;
   finished_at: string | null;
 }
 
 /** The columns the screens read (not the receipt's HTML). */
 export const NOTIFICATION_COLUMNS =
-  'id, kind, channel, customer_id, string_job_id, sale_id, to_address, subject, body, status, error, attempts, created_at, finished_at';
+  'id, kind, channel, customer_id, string_job_id, sale_id, to_address, subject, body, status, error, attempts, created_at, sending_at, finished_at';
 
 /** The placeholders a ready template can use, as the database fills them (job_ready_values). */
 export const READY_PLACEHOLDERS = ['first_name', 'last_name', 'job_number', 'racquet', 'shop_name'] as const;
@@ -78,9 +79,17 @@ export function channelLabel(channel: NotificationRow['channel']): string {
   return channel === 'sms' ? 'Text' : 'Email';
 }
 
-/** Failed and not-sent messages can be put back in the queue. */
-export function canResend(row: Pick<NotificationRow, 'status'>): boolean {
-  return row.status === 'failed' || row.status === 'skipped';
+/** After this long "sending", the sender is taken to have stopped (claim_notifications, 0088). */
+export const STUCK_SENDING_MINUTES = 10;
+
+/**
+ * Send again works on a message that failed, wasn't sent or is still waiting,
+ * and on one stuck sending (resend_notification, 0088); not on a sent one.
+ */
+export function canResend(row: Pick<NotificationRow, 'status' | 'sending_at'>, now: number = Date.now()): boolean {
+  if (row.status === 'failed' || row.status === 'skipped' || row.status === 'queued') return true;
+  if (row.status !== 'sending' || !row.sending_at) return false;
+  return now - new Date(row.sending_at).getTime() >= STUCK_SENDING_MINUTES * 60_000;
 }
 
 export async function fetchNotifications(filter: {

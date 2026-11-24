@@ -1,5 +1,5 @@
-// Ask the send-notifications Edge Function to send a job's or a sale's queued
-// messages (0086). Sending never blocks the work that queued them: a failure
+// Ask the send-notifications Edge Function to send one message, or a job's or
+// a sale's queued messages (0086, 0088). Sending never blocks the work that queued them: a failure
 // is reported, and the message stays in the log to send again.
 import { invokeEdgeFunction } from './edgeFunctions';
 import { errorMessage } from './errors';
@@ -11,10 +11,14 @@ export interface SendSummary {
   results: { id: string; status: 'sent' | 'failed' | 'skipped'; error?: string }[];
 }
 
-export async function sendQueuedMessages(target: { stringJobId?: string; saleId?: string }): Promise<SendSummary> {
+/** What to send; exactly one is given, so a request never sends the whole shop's queue. */
+export type SendTarget = { notificationId: string } | { stringJobId: string } | { saleId: string };
+
+export async function sendQueuedMessages(target: SendTarget): Promise<SendSummary> {
   return invokeEdgeFunction<SendSummary>('send-notifications', {
-    ...(target.stringJobId ? { string_job_id: target.stringJobId } : {}),
-    ...(target.saleId ? { sale_id: target.saleId } : {}),
+    ...('notificationId' in target ? { notification_id: target.notificationId } : {}),
+    ...('stringJobId' in target ? { string_job_id: target.stringJobId } : {}),
+    ...('saleId' in target ? { sale_id: target.saleId } : {}),
   });
 }
 
@@ -36,7 +40,7 @@ export function sendSummaryText(summary: SendSummary, noun = 'Ready message'): s
 
 /** Send, turning any failure into a line for staff; never throws. */
 export async function sendQueuedMessagesQuietly(
-  target: { stringJobId?: string; saleId?: string },
+  target: SendTarget,
   noun?: string,
 ): Promise<string | null> {
   try {

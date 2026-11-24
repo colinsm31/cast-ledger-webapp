@@ -109,8 +109,9 @@ export function StringJobDetailPage() {
   const [busy, setBusy] = useState(false);
   // Bumped when the job is marked complete, so its ready messages show.
   const [messagesRefresh, setMessagesRefresh] = useState(0);
-  // What happened to the ready messages just sent, for staff.
-  const [messageNotice, setMessageNotice] = useState<string | null>(null);
+  // What happened to the ready messages just sent, for staff, and for which
+  // job: moving to another job while they send doesn't show it there.
+  const [messageNotice, setMessageNotice] = useState<{ jobId: string; text: string } | null>(null);
   const [pendingChange, setPendingChange] = useState<PendingStringChange | null>(null);
   const [changeTenders, setChangeTenders] = useState<Tender[]>([]);
   const [changeReason, setChangeReason] = useState('');
@@ -361,29 +362,35 @@ export function StringJobDetailPage() {
 
   async function advance(target: StringJobStatus) {
     if (!jobId) return;
+    const advancedJobId = jobId;
     setBusy(true);
     setError(null);
     const { error: err } = await supabase.rpc('advance_string_job', {
-      p_job_id: jobId,
+      p_job_id: advancedJobId,
       p_target_status: target,
     });
-    setBusy(false);
     if (err) {
+      setBusy(false);
       setError(errorMessage(err));
       return;
     }
-    if (target === 'complete') {
-      // The job is complete whatever happens to its messages.
-      setMessageNotice(await sendQueuedMessagesQuietly({ stringJobId: jobId }));
-      setMessagesRefresh((count) => count + 1);
-    }
     // Delivered jobs live under the customer, not on their own page.
     if (target === 'delivered') {
+      setBusy(false);
       const customerId = job?.customer_rackets?.customer_id;
       navigate(customerId ? `/customers/${customerId}` : '/string-jobs/open');
       return;
     }
+    // Show the job as it is now before the buttons come back, so they match it.
     await reload();
+    setBusy(false);
+    if (target === 'complete') {
+      // The job is complete whatever happens to its messages.
+      setMessageNotice({ jobId: advancedJobId, text: 'Sending the ready message…' });
+      const text = await sendQueuedMessagesQuietly({ stringJobId: advancedJobId });
+      setMessageNotice(text ? { jobId: advancedJobId, text } : null);
+      setMessagesRefresh((count) => count + 1);
+    }
   }
 
   async function cancelJob() {
@@ -628,7 +635,7 @@ export function StringJobDetailPage() {
       <JobHistory job={job} />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
-      {messageNotice && <p className="text-sm text-slate-600">{messageNotice}</p>}
+      {messageNotice?.jobId === job.id && <p className="text-sm text-slate-600">{messageNotice.text}</p>}
 
       {/* Lifecycle actions */}
       {!editing && (
@@ -699,7 +706,11 @@ export function StringJobDetailPage() {
           filter={{ stringJobId: job.id }}
           title="Ready messages"
           refreshKey={messagesRefresh}
-          emptyText="No ready message was queued: the customer hasn't opted in to emails or texts."
+          emptyText={
+            status === 'complete'
+              ? "No ready message was queued: the customer hasn't opted in to emails or texts."
+              : 'No ready message was sent for this job.'
+          }
         />
       )}
     </div>

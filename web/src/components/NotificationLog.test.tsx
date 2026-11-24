@@ -37,6 +37,7 @@ const row = (changes: Partial<NotificationRow>): NotificationRow => ({
   error: null,
   attempts: 1,
   created_at: '2026-11-24T18:00:00Z',
+  sending_at: null,
   finished_at: null,
   ...changes,
 });
@@ -68,17 +69,29 @@ describe('NotificationLog', () => {
     fireEvent.click(screen.getByText('Send again'));
     expect(await screen.findByText('Ready notice sent.')).toBeTruthy();
     expect(resendNotification).toHaveBeenCalledWith('n1');
-    expect(sendQueuedMessagesQuietly).toHaveBeenCalledWith({ stringJobId: 'j1' }, 'Ready notice');
+    // Just this message, never the job's or the shop's whole queue (#9).
+    expect(sendQueuedMessagesQuietly).toHaveBeenCalledWith({ notificationId: 'n1' }, 'Ready notice');
     await waitFor(() => expect(fetchNotifications).toHaveBeenCalledTimes(2));
   });
 
-  it('sends a receipt again by its sale', async () => {
-    fetchNotifications.mockResolvedValue([row({ kind: 'receipt', string_job_id: null, sale_id: 's1', status: 'skipped' })]);
+  it('sends a message again even when its job or sale was deleted', async () => {
+    fetchNotifications.mockResolvedValue([row({ kind: 'receipt', string_job_id: null, sale_id: null, status: 'skipped' })]);
     resendNotification.mockResolvedValue(undefined);
     sendQueuedMessagesQuietly.mockResolvedValue(null);
-    render(<NotificationLog filter={{ saleId: 's1' }} />);
+    render(<NotificationLog filter={{ customerId: 'c1' }} />);
     fireEvent.click(await screen.findByText('Send again'));
-    await waitFor(() => expect(sendQueuedMessagesQuietly).toHaveBeenCalledWith({ saleId: 's1' }, 'Receipt'));
+    await waitFor(() => expect(sendQueuedMessagesQuietly).toHaveBeenCalledWith({ notificationId: 'n1' }, 'Receipt'));
+  });
+
+  it('offers Send again on a message left waiting, or stuck sending (#1)', async () => {
+    fetchNotifications.mockResolvedValue([
+      row({ id: 'w', status: 'queued' }),
+      row({ id: 'stuck', status: 'sending', sending_at: '2026-11-24T18:00:00Z' }),
+      row({ id: 'now', status: 'sending', sending_at: new Date().toISOString() }),
+    ]);
+    render(<NotificationLog filter={{ customerId: 'c1' }} />);
+    expect(await screen.findByText('Waiting to send')).toBeTruthy();
+    expect(screen.getAllByText('Send again')).toHaveLength(2);
   });
 
   it('shows why a message can\'t go again', async () => {

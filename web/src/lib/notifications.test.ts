@@ -65,10 +65,14 @@ describe('labels', () => {
     expect(channelLabel('email')).toBe('Email');
   });
   it('lets failed and not-sent messages go again', () => {
-    expect(canResend({ status: 'failed' })).toBe(true);
-    expect(canResend({ status: 'skipped' })).toBe(true);
-    expect(canResend({ status: 'sent' })).toBe(false);
-    expect(canResend({ status: 'queued' })).toBe(false);
+    const now = Date.parse('2026-11-24T18:30:00Z');
+    expect(canResend({ status: 'failed', sending_at: null }, now)).toBe(true);
+    expect(canResend({ status: 'skipped', sending_at: null }, now)).toBe(true);
+    expect(canResend({ status: 'queued', sending_at: null }, now)).toBe(true);
+    expect(canResend({ status: 'sent', sending_at: null }, now)).toBe(false);
+    expect(canResend({ status: 'sending', sending_at: '2026-11-24T18:25:00Z' }, now)).toBe(false);
+    expect(canResend({ status: 'sending', sending_at: '2026-11-24T18:20:00Z' }, now)).toBe(true);
+    expect(canResend({ status: 'sending', sending_at: null }, now)).toBe(false);
   });
 });
 

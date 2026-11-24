@@ -15,7 +15,10 @@ const summary = (sent: number, failed: number, skipped: number, error?: string) 
 describe('sendQueuedMessages', () => {
   beforeEach(() => invokeEdgeFunction.mockReset());
 
-  it('asks the function for one job or one sale', async () => {
+  it('asks the function for one message, one job or one sale', async () => {
+    invokeEdgeFunction.mockResolvedValue(summary(1, 0, 0));
+    await sendQueuedMessages({ notificationId: 'n1' });
+    expect(invokeEdgeFunction).toHaveBeenCalledWith('send-notifications', { notification_id: 'n1' });
     invokeEdgeFunction.mockResolvedValue(summary(1, 0, 0));
     await sendQueuedMessages({ stringJobId: 'j1' });
     expect(invokeEdgeFunction).toHaveBeenCalledWith('send-notifications', { string_job_id: 'j1' });

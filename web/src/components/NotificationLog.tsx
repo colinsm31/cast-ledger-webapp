@@ -26,8 +26,9 @@ function when(iso: string): string {
 }
 
 // Messages sent (or tried) to a customer, for a customer, a job or a sale
-// (0086). A failed or not-sent message can be sent again: it's put back in
-// the queue and handed to the sender.
+// (0086). A message that failed, wasn't sent, is still waiting or is stuck
+// sending can be sent again (0088): it's put back in the queue and that one
+// message is handed to the sender.
 export function NotificationLog({
   filter,
   title = 'Messages',
@@ -73,10 +74,7 @@ export function NotificationLog({
     try {
       await resendNotification(row.id);
       setNotice(
-        await sendQueuedMessagesQuietly(
-          row.string_job_id ? { stringJobId: row.string_job_id } : { saleId: row.sale_id ?? undefined },
-          notificationKindLabel(row.kind),
-        ),
+        await sendQueuedMessagesQuietly({ notificationId: row.id }, notificationKindLabel(row.kind)),
       );
     } catch (err) {
       setActionError(errorMessage(err));
