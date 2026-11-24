@@ -10,6 +10,8 @@ const person = (id: string, first: string): Customer => ({
   email: null,
   is_active: true,
   tax_exempt: false,
+  email_opt_in: false,
+  sms_opt_in: false,
   tax_exempt_id: null,
   created_at: '',
   updated_at: '',

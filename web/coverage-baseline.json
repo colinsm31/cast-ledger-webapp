@@ -1,11 +1,11 @@
 {
-  "updated": "2026-11-23",
+  "updated": "2026-11-24",
   "web": {
     "overall": {
-      "lines": 34.27,
-      "statements": 34.61,
-      "functions": 34.66,
-      "branches": 32.62
+      "lines": 34.63,
+      "statements": 34.97,
+      "functions": 35.02,
+      "branches": 33.36
     },
     "byFolder": {
       "src": {
@@ -30,7 +30,7 @@
         "lines": 0
       },
       "src/features/customers": {
-        "lines": 0
+        "lines": 1.27
       },
       "src/features/demos": {
         "lines": 97.35
@@ -54,7 +54,7 @@
         "lines": 22.42
       },
       "src/lib": {
-        "lines": 93.32
+        "lines": 93.52
       },
       "src/types": {
         "lines": 75
@@ -132,6 +132,9 @@
       },
       "src/features/customers/NewStringJobPage.tsx": {
         "lines": 0
+      },
+      "src/features/customers/NotificationOptInFields.tsx": {
+        "lines": 100
       },
       "src/features/customers/RestringHistoryPanel.tsx": {
         "lines": 0
@@ -362,6 +365,9 @@
         "lines": 100
       },
       "src/lib/newCustomer.ts": {
+        "lines": 100
+      },
+      "src/lib/notificationOptIn.ts": {
         "lines": 100
       },
       "src/lib/numberInput.ts": {

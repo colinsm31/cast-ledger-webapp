@@ -214,6 +214,9 @@ export interface Customer extends Deactivation {
   /** Sales to them charge no tax (0058); only an admin can change it. */
   tax_exempt: boolean;
   tax_exempt_id: string | null;
+  /** They agreed to be emailed / texted when their stringing is ready (0085). */
+  email_opt_in: boolean;
+  sms_opt_in: boolean;
   created_at: string;
   updated_at: string;
 }
