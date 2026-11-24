@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabase';
 import { inactiveGiftCardMessage } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useDialog } from '../../components/Dialog';
-import { hasSubCent, parsePlainAmount, SUB_CENT_MESSAGE } from '../../lib/money';
+import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
+import { parseNumberField } from '../../lib/numberInput';
 import { roundMoney } from '../../lib/saleMath';
 
 const inputClass = 'rounded-lg border border-slate-300 px-3 py-2 text-sm';
@@ -38,8 +39,9 @@ export function GiftCardRefundEntry({
   const [busy, setBusy] = useState(false);
   const [missingCode, setMissingCode] = useState<string | null>(null);
   const subCent = hasSubCent(value);
-  const amount = roundMoney(parsePlainAmount(value) ?? 0);
-  const notAnAmount = value.trim() !== '' && !subCent && parsePlainAmount(value) === null;
+  const parsedAmount = parseNumberField(value, 'Amount');
+  const amount = 'value' in parsedAmount ? roundMoney(parsedAmount.value ?? 0) : 0;
+  const notAnAmount = !subCent && 'error' in parsedAmount;
   // Gone (closed by the screen around it): a lookup still in flight adds nothing.
   const gone = useRef(false);
   useEffect(() => {

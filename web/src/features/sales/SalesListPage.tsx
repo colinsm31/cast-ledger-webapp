@@ -8,6 +8,7 @@ import { LoadError } from '../../components/LoadError';
 import { useBack } from '../../app/BackContext';
 import { Spinner } from '../../components/Spinner';
 import { useLatestRequest } from '../../lib/latestRequest';
+import { formatDateTime } from '../../lib/dates';
 
 type Period = 'today' | 'wtd' | 'mtd' | 'ytd' | 'custom';
 type Tab = 'summary' | 'tickets';
@@ -60,10 +61,6 @@ function parseLocalDate(s: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   if (!m) return null;
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-}
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 const money = (v: number) => `$${Number(v).toFixed(2)}`;
 

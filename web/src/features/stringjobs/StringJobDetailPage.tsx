@@ -82,7 +82,7 @@ const JOB_SELECT = [
   'cancelled_by_staff:profiles!string_jobs_cancelled_by_fkey ( email )',
   'paid_sale:sales!string_jobs_paid_sale_id_fkey ( id, sold_at, rung_by:profiles!sales_user_id_fkey ( email ) )',
   'job_sale_lines:sale_lines ( kind, unit_price, sales ( id, sold_at, rung_by:profiles!sales_user_id_fkey ( email ) ), ' +
-    'refund_lines ( kind, unit_price, refunds ( id, sale_id, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ) ) ) )',
+    'refund_lines ( kind, qty, unit_price, refunds ( id, sale_id, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ) ) ) )',
 ].join(', ');
 
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

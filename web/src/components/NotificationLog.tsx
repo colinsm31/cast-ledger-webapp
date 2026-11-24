@@ -13,6 +13,7 @@ import {
 } from '../lib/notifications';
 import { LoadError } from './LoadError';
 import { sendQueuedMessagesQuietly } from '../lib/sendNotifications';
+import { formatDateTimeShort } from '../lib/dates';
 
 const STATUS_CLASSES: Record<NotificationStatus, string> = {
   queued: 'bg-slate-100 text-slate-700',
@@ -22,9 +23,6 @@ const STATUS_CLASSES: Record<NotificationStatus, string> = {
   skipped: 'bg-amber-100 text-amber-800',
 };
 
-function when(iso: string): string {
-  return new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-}
 
 // Messages sent (or tried) to a customer, for a customer, a job or a sale
 // (0086). A message that failed, wasn't sent, is still waiting or is stuck
@@ -103,7 +101,7 @@ export function NotificationLog({
                   {notificationKindLabel(row.kind)} · {channelLabel(row.channel)} to {row.to_address}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {when(row.created_at)}
+                  {formatDateTimeShort(row.created_at)}
                   {row.attempts > 1 && ` · ${row.attempts} tries`}
                 </p>
                 {row.error && <p className="text-xs text-red-700">{row.error}</p>}

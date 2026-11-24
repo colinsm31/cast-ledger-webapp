@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { LoadError } from '../../components/LoadError';
 import { optInChangeLabel } from '../../lib/notificationOptIn';
+import { formatDateTimeShort } from '../../lib/dates';
 
 interface OptInChange {
   id: string;
@@ -52,7 +53,7 @@ export function OptInHistory({ customerId }: { customerId: string }) {
             <li key={change.id} className="text-slate-700">
               {optInChangeLabel(change)}{' '}
               <span className="text-xs text-slate-500">
-                · {new Date(change.changed_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} ·{' '}
+                · {formatDateTimeShort(change.changed_at)} ·{' '}
                 {change.reason}
               </span>
             </li>

@@ -40,6 +40,7 @@ export interface JobSaleLineRow {
   sales: { id: string; sold_at: string; rung_by: StaffRef | null } | null;
   refund_lines: {
     kind: 'return' | 'string_change';
+    qty: number;
     unit_price: number;
     refunds: { id: string; sale_id: string; refunded_at: string; refunded_by: StaffRef | null } | null;
   }[];
@@ -64,10 +65,15 @@ export function stringChangeChargesToRefund(rows: JobSaleLineRow[]): ChargeToRef
     .map((row) => {
       const givenBackCents = (row.refund_lines ?? [])
         .filter((refundLine) => refundLine.kind === 'string_change')
-        .reduce((sum, refundLine) => sum + toCents(Number(refundLine.unit_price)), 0);
+        .reduce((sum, refundLine) => sum + givenBackCentsOf(refundLine), 0);
       return { saleId: row.sales!.id, amount: fromCents(toCents(Number(row.unit_price)) - givenBackCents) };
     })
     .filter((charge) => charge.amount > 0);
+}
+
+/** What a give-back returned, in cents: its quantity times its price, as record_refund counts it. */
+function givenBackCentsOf(refundLine: { qty: number; unit_price: number }): number {
+  return (refundLine.qty ?? 1) * toCents(Number(refundLine.unit_price));
 }
 
 export interface StringChangeEvent {
@@ -92,7 +98,7 @@ export function stringChangeEvents(rows: JobSaleLineRow[]): StringChangeEvent[] 
     for (const refundLine of row.refund_lines ?? []) {
       if (refundLine.kind !== 'string_change' || !refundLine.refunds) continue;
       events.push({
-        label: `String change −$${Number(refundLine.unit_price).toFixed(2)}`,
+        label: `String change −$${fromCents(givenBackCentsOf(refundLine)).toFixed(2)}`,
         at: refundLine.refunds.refunded_at,
         by: refundLine.refunds.refunded_by,
         href: `/sales/${refundLine.refunds.sale_id}`,
