@@ -1,21 +1,28 @@
-// Email a sale's receipt (0087): draw it from the saved sale, queue it, and
-// hand it to the sender.
+// Email a sale's receipt. The database builds the email from the saved sale,
+// in the printed letter receipt's layout (receipt_email_content, 0090); only
+// the sale, the address and the time zone to write the time in go from here.
+// Then the one queued email is handed to the sender.
 import { supabase } from './supabase';
-import { fetchReceipt } from './receipt';
-import { receiptEmailHtml, receiptEmailText } from './receiptEmail';
 import { sendQueuedMessagesQuietly } from './sendNotifications';
+
+/** This browser's time zone, e.g. "America/Chicago", or undefined if it can't tell. */
+export function browserTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /** Queue and send; resolves to a line for staff, throws if it couldn't be queued. */
 export async function emailReceipt(saleId: string, to: string): Promise<string> {
-  const receipt = await fetchReceipt(saleId);
-  const { error } = await supabase.rpc('queue_receipt_email', {
+  const { data, error } = await supabase.rpc('queue_receipt_email', {
     p_sale_id: saleId,
     p_to: to.trim(),
-    p_html: receiptEmailHtml(receipt),
-    p_text: receiptEmailText(receipt),
+    p_time_zone: browserTimeZone() ?? null,
   });
   if (error) throw error;
-  return (await sendQueuedMessagesQuietly({ saleId }, 'Receipt')) ?? 'Receipt queued.';
+  return (await sendQueuedMessagesQuietly({ notificationId: data as string }, 'Receipt')) ?? 'Receipt queued.';
 }
 
 /** Keep the address on the customer's record, for next time. */

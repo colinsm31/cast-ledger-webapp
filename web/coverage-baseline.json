@@ -2,10 +2,10 @@
   "updated": "2026-11-24",
   "web": {
     "overall": {
-      "lines": 36.57,
-      "statements": 36.93,
-      "functions": 37.14,
-      "branches": 34.99
+      "lines": 36.13,
+      "statements": 36.44,
+      "functions": 36.52,
+      "branches": 34.85
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 95.54
+        "lines": 95.6
       },
       "src/features/account": {
         "lines": 0
@@ -51,10 +51,10 @@
         "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 22.2
+        "lines": 21.98
       },
       "src/lib": {
-        "lines": 94.21
+        "lines": 94
       },
       "src/types": {
         "lines": 75
@@ -411,9 +411,6 @@
       },
       "src/lib/receipt.ts": {
         "lines": 62.16
-      },
-      "src/lib/receiptEmail.ts": {
-        "lines": 100
       },
       "src/lib/receiptLayout.ts": {
         "lines": 100
