@@ -70,16 +70,26 @@ export function approveDiscountAsAdmin(
   );
 }
 
-/** What a load-refund approval covers (0078): one sale's loads, for this total. */
+/** What a load-refund approval covers: one sale's loads (0078), these lines (0083), for this total. */
 export interface RefundApprovalScope {
   saleId: string;
   amount: number;
+  saleLineIds: string[];
+}
+
+/**
+ * Whether the server refused a refund because of its admin approval (missing,
+ * expired, used, or for other loads): one kept for a retry would only be
+ * refused again, so it's dropped and the admin asked again.
+ */
+export function isApprovalRefusal(message: string): boolean {
+  return /admin('s)? approv/i.test(message);
 }
 
 /** How long a load-refund approval lasts on the server (refund_approvals.expires_at, 0075). */
 export const REFUND_APPROVAL_MINUTES = 15;
 
-/** An admin's approval for refunding one sale's gift card loads (approve_refund, 0078). */
+/** An admin's approval for refunding one sale's gift card loads (approve_refund, 0083). */
 export function approveRefundAsAdmin(
   credentials: AdminCredentials,
   scope: RefundApprovalScope,
@@ -87,7 +97,11 @@ export function approveRefundAsAdmin(
 ): Promise<string> {
   return approveAsAdmin(
     credentials,
-    { rpc: 'approve_refund', args: { p_sale_id: scope.saleId, p_amount: scope.amount }, what: 'refunds' },
+    {
+      rpc: 'approve_refund',
+      args: { p_sale_id: scope.saleId, p_amount: scope.amount, p_sale_line_ids: scope.saleLineIds },
+      what: 'refunds',
+    },
     makeClient,
   );
 }

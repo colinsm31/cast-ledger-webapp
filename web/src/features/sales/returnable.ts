@@ -42,6 +42,14 @@ export function giftCardLoadRefundCents(lines: SaleLineForReturn[], returnQty: R
     .reduce((sum, l) => sum + (returnQty[l.id] ?? 0) * toCents(Number(l.unit_price ?? 0)), 0);
 }
 
+/** The gift card load lines a return gives back, sorted: the lines an admin approves (0083). */
+export function giftCardLoadLineIds(lines: SaleLineForReturn[], returnQty: Record<string, number>): string[] {
+  return lines
+    .filter((l) => isGiftCardLoadLine(l) && (returnQty[l.id] ?? 0) > 0)
+    .map((l) => l.id)
+    .sort();
+}
+
 /** A stringing charge (a job's charge or a string-change charge): refunded whole. */
 export function isStringingLine(line: SaleLineForReturn): boolean {
   return line.string_job_id != null;

@@ -3,6 +3,7 @@ import {
   frameReturnLine,
   frameReturnProblem,
   hasItemsToReturn,
+  giftCardLoadLineIds,
   giftCardLoadRefundCents,
   giftCardLoadUnused,
   hasReturnable,
@@ -120,6 +121,7 @@ describe('gift card loads (0075)', () => {
     const grip = { id: 'grip', product_id: 'p1', product_unit_id: null, qty: 2, unit_price: 10, taxable: true };
     expect(giftCardLoadRefundCents([load, other, grip], { load: 1, load2: 1, grip: 2 })).toBe(4550);
     expect(giftCardLoadRefundCents([load, other, grip], { grip: 1 })).toBe(0);
+    expect(giftCardLoadLineIds([other, load, grip], { load: 1, load2: 1, grip: 2 })).toEqual(['load', 'load2']);
   });
 });
 
