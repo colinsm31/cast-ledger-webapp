@@ -2,10 +2,10 @@
   "updated": "2026-11-23",
   "web": {
     "overall": {
-      "lines": 29.7,
-      "statements": 30.17,
-      "functions": 29.32,
-      "branches": 28.91
+      "lines": 34.27,
+      "statements": 34.61,
+      "functions": 34.66,
+      "branches": 32.62
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 92.96
+        "lines": 94.44
       },
       "src/features/account": {
         "lines": 0
@@ -45,19 +45,19 @@
         "lines": 24.12
       },
       "src/features/sales": {
-        "lines": 6.38
+        "lines": 22.18
       },
       "src/features/scan": {
         "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 21.3
+        "lines": 22.42
       },
       "src/lib": {
-        "lines": 93.22
+        "lines": 93.32
       },
       "src/types": {
-        "lines": 66.67
+        "lines": 75
       }
     },
     "byFile": {
@@ -78,6 +78,12 @@
       },
       "src/auth/SignInPage.tsx": {
         "lines": 0
+      },
+      "src/components/ActiveStatus.tsx": {
+        "lines": 93.93
+      },
+      "src/components/AdminApprovalDialog.tsx": {
+        "lines": 100
       },
       "src/components/Barcode.tsx": {
         "lines": 100
@@ -209,16 +215,22 @@
         "lines": 100
       },
       "src/features/sales/CheckEntry.tsx": {
-        "lines": 0
+        "lines": 9.09
       },
       "src/features/sales/DiscountApprovalDialog.tsx": {
         "lines": 0
+      },
+      "src/features/sales/ExchangePage.tsx": {
+        "lines": 88.79
       },
       "src/features/sales/FrameReturnFields.tsx": {
         "lines": 100
       },
       "src/features/sales/GiftCardLookupPage.tsx": {
         "lines": 0
+      },
+      "src/features/sales/GiftCardRefundEntry.tsx": {
+        "lines": 58.92
       },
       "src/features/sales/HeldTicketsPanel.tsx": {
         "lines": 0
@@ -227,7 +239,7 @@
         "lines": 0
       },
       "src/features/sales/PaymentScreen.tsx": {
-        "lines": 0
+        "lines": 17.04
       },
       "src/features/sales/ProductFinder.tsx": {
         "lines": 0
@@ -251,6 +263,9 @@
         "lines": 100
       },
       "src/features/sales/returnable.ts": {
+        "lines": 100
+      },
+      "src/features/sales/saleForReturn.ts": {
         "lines": 100
       },
       "src/features/sales/ticketJobQueries.ts": {
@@ -410,7 +425,7 @@
         "lines": 100
       },
       "src/types/domain.ts": {
-        "lines": 66.66
+        "lines": 75
       }
     }
   }

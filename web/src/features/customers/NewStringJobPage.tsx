@@ -318,6 +318,9 @@ export function NewStringJobPage() {
     );
   }
 
+  // An inactive customer can't have a new string job (0076): say so before the form is filled in.
+  const customerInactive = customer?.is_active === false;
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -330,6 +333,12 @@ export function NewStringJobPage() {
           {racket.grip_size ? ` · grip ${racket.grip_size}` : ''}
           {racket.barcode ? ` · ${racket.barcode}` : ''}
         </p>
+        {customerInactive && (
+          <p className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            {customerName(customer!)} is inactive, so they can’t have a new string job: make them active again on their
+            page first.
+          </p>
+        )}
       </div>
 
       <LastSetupPanel setups={lastSetups} onUse={applySetup} />
@@ -421,6 +430,7 @@ export function NewStringJobPage() {
           onClick={() => void save()}
           disabled={
             saving ||
+            customerInactive ||
             !settings ||
             rowProblems.length > 0 ||
             unavailable.length > 0 ||

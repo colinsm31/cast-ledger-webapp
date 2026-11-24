@@ -34,9 +34,12 @@ const emptyDraft: RacketDraft = {
 
 export function CustomerRacketsPanel({
   customerId,
+  customerActive = true,
   prefillBarcode,
 }: {
   customerId: string;
+  /** An inactive customer can't have a new string job (0076). */
+  customerActive?: boolean;
   /** A scanned barcode to register: opens the add form with it filled in. */
   prefillBarcode?: string;
 }) {
@@ -200,6 +203,7 @@ export function CustomerRacketsPanel({
                       View string job
                     </button>
                   ) : (
+                    customerActive && (
                     <button
                       onClick={() =>
                         navigate(`/customers/${customerId}/rackets/${racket.id}/restring`)
@@ -208,6 +212,7 @@ export function CustomerRacketsPanel({
                     >
                       New string job
                     </button>
+                    )
                   )}
                   <button
                     onClick={() => setEditingId(racket.id)}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { InactiveBadge } from '../../components/ActiveStatus';
 import { searchCustomers } from '../../lib/customerSearch';
 import { errorMessage } from '../../lib/errors';
 import { looksLikeBarcode, mightBeCode, normalizeBarcode } from '../../lib/barcode';
@@ -57,7 +58,7 @@ export function HomePage() {
     const handle = setTimeout(async () => {
       let found: Customer[] = [];
       try {
-        found = await searchCustomers(term);
+        found = await searchCustomers(term, undefined, true);
       } catch {
         // A failed lookup just shows no matches; the user can retype.
       }
@@ -125,7 +126,7 @@ export function HomePage() {
   async function openNameMatch(name: string, isLatest: () => boolean) {
     let found: Customer[];
     try {
-      found = await searchCustomers(name);
+      found = await searchCustomers(name, undefined, true);
     } catch (err) {
       if (isLatest()) setUpcResult({ kind: 'error', message: errorMessage(err) });
       return;
@@ -199,7 +200,10 @@ export function HomePage() {
                     onClick={() => navigate(`/customers/${c.id}`)}
                     className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left hover:bg-slate-50"
                   >
-                    <span className="font-medium text-slate-900">{customerNameLastFirst(c)}</span>
+                    <span className="font-medium text-slate-900">
+                      {customerNameLastFirst(c)}
+                      {!c.is_active && <InactiveBadge />}
+                    </span>
                     <span className="text-sm text-slate-500">
                       {[c.phone_number, c.email].filter(Boolean).join(' · ')}
                     </span>

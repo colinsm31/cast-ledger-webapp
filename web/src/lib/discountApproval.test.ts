@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 vi.mock('./supabase', () => ({ supabaseUrl: 'http://localhost', supabaseAnonKey: 'anon' }));
-const { approveDiscountAsAdmin, createApprovalClient } = await import('./discountApproval');
+const { approveDiscountAsAdmin, approveRefundAsAdmin, createApprovalClient, isApprovalRefusal } = await import('./discountApproval');
 
 const signInWithPassword = vi.fn();
 const signOut = vi.fn();
@@ -49,9 +49,45 @@ describe('approveDiscountAsAdmin', () => {
   });
 });
 
+describe('approveRefundAsAdmin', () => {
+  beforeEach(() => {
+    signInWithPassword.mockReset().mockResolvedValue({ error: null });
+    signOut.mockReset().mockResolvedValue({ error: null });
+    rpc.mockReset().mockResolvedValue({ data: 'refund-approval-1', error: null });
+  });
+
+  it('signs the admin in, approves this sale’s loads, and signs them out of this device only', async () => {
+    await expect(
+      approveRefundAsAdmin(
+        { email: 'admin@shop.test', password: 'pw' },
+        { saleId: 'sale-1', amount: 20, saleLineIds: ['line-1'] },
+        fakeClient,
+      ),
+    ).resolves.toBe('refund-approval-1');
+    expect(rpc).toHaveBeenCalledWith('approve_refund', { p_sale_id: 'sale-1', p_amount: 20, p_sale_line_ids: ['line-1'] });
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('names refunds when the account isn’t an admin', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'Only an admin' } });
+    await expect(approveRefundAsAdmin({ email: 'staff@shop.test', password: 'pw' }, { saleId: 'sale-1', amount: 20, saleLineIds: ['line-1'] }, fakeClient)).rejects.toThrow(
+      'That account isn’t an admin, so it can’t approve refunds.',
+    );
+  });
+});
+
 describe('createApprovalClient', () => {
   it('makes a client that keeps nothing in storage', () => {
     const client = createApprovalClient();
     expect(client.auth).toBeDefined();
+  });
+});
+
+describe('isApprovalRefusal', () => {
+  it('knows the server\'s refusals of an approval', () => {
+    expect(isApprovalRefusal('The admin approval has expired or been used: ask again')).toBe(true);
+    expect(isApprovalRefusal('The admin approved refunding other gift card loads on this sale: ask again')).toBe(true);
+    expect(isApprovalRefusal("Refunding a gift card load needs an admin's approval")).toBe(true);
+    expect(isApprovalRefusal('Refund payments (10) must equal the refund total (20)')).toBe(false);
   });
 });

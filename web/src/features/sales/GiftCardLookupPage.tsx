@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { GiftCardBalance } from '../../types/domain';
+import type { Deactivation, GiftCardBalance } from '../../types/domain';
+import { ActiveStatusPanel, InactiveBadge } from '../../components/ActiveStatus';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useLatestRequest } from '../../lib/latestRequest';
@@ -18,6 +19,7 @@ interface CardTxn {
 
 interface Result {
   card: GiftCardBalance;
+  deactivation: Deactivation;
   customer: { id: string; first_name: string; last_name: string } | null;
   txns: CardTxn[];
 }
@@ -76,7 +78,7 @@ export function GiftCardLookupPage() {
       return;
     }
     const card = data as GiftCardBalance;
-    const [custRes, txnRes] = await Promise.all([
+    const [custRes, txnRes, cardRes] = await Promise.all([
       card.customer_id
         ? supabase.from('customers').select('id, first_name, last_name').eq('id', card.customer_id).maybeSingle()
         : Promise.resolve({ data: null }),
@@ -85,17 +87,19 @@ export function GiftCardLookupPage() {
         .select('id, amount, reason, sale_id, created_at')
         .eq('gift_card_id', card.gift_card_id)
         .order('created_at', { ascending: false }),
+      supabase.from('gift_cards').select('deactivated_at, deactivated_reason').eq('id', card.gift_card_id).maybeSingle(),
     ]);
     if (!isLatest()) return;
     setSearching(false);
     // A card whose history or owner didn't load isn't shown as "no history" (#36).
-    const detailsError = ('error' in custRes ? custRes.error : null) ?? txnRes.error;
+    const detailsError = ('error' in custRes ? custRes.error : null) ?? txnRes.error ?? cardRes.error;
     if (detailsError) {
       setError(`Couldn't load this card's history: ${errorMessage(detailsError)}. Press Check to try again.`);
       return;
     }
     setResult({
       card,
+      deactivation: (cardRes.data as Deactivation | null) ?? {},
       customer: (custRes.data as Result['customer']) ?? null,
       txns: (txnRes.data ?? []) as CardTxn[],
     });
@@ -176,7 +180,10 @@ export function GiftCardLookupPage() {
 
       {result && (
         <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <p className="text-xs font-medium text-slate-500">Card {result.card.code}</p>
+          <p className="text-xs font-medium text-slate-500">
+            Card {result.card.code}
+            {!result.card.is_active && <InactiveBadge />}
+          </p>
           <p className="mt-1 text-4xl font-bold text-slate-900">${Number(result.card.balance).toFixed(2)}</p>
           <p className="mt-2 text-sm text-slate-500">
             {result.customer ? (
@@ -190,7 +197,7 @@ export function GiftCardLookupPage() {
               'Anonymous card'
             )}
           </p>
-          {!adjusting && (
+          {!adjusting && result.card.is_active && (
             <button
               onClick={() => {
                 setAdjusting(true);
@@ -245,6 +252,22 @@ export function GiftCardLookupPage() {
               {adjHasSubCent && <p className="w-full text-xs text-red-600">{SUB_CENT_MESSAGE}.</p>}
             </div>
           )}
+          <div className="mt-4">
+            <ActiveStatusPanel
+              noun="gift card"
+              isActive={result.card.is_active}
+              deactivation={result.deactivation}
+              setActive={async (active, reason) => {
+                const { error: err } = await supabase.rpc('set_gift_card_active', {
+                  p_gift_card_id: result.card.gift_card_id,
+                  p_active: active,
+                  p_reason: reason,
+                });
+                if (err) throw err;
+              }}
+              onChanged={() => void lookup(result.card.code)}
+            />
+          </div>
         </section>
       )}
 

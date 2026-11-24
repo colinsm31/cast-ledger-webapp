@@ -27,6 +27,8 @@ interface SaleLineRaw {
   id: string;
   product_id: string | null;
   product_unit_id: string | null;
+  string_job_id: string | null;
+  gift_card_id: string | null;
   qty: number;
   unit_price: number;
   list_price: number | null;
@@ -60,9 +62,19 @@ interface SaleDetail {
     tax: number;
     refunded_at: string;
     refunded_by: StaffRef | null;
-    refund_lines: { sale_line_id: string; qty: number }[];
+    refund_lines: { sale_line_id: string; qty: number; kind: string; unit_price: number }[];
     refund_payments: { method: string; check_number: string | null }[];
+    /** Set when the return was part of an exchange: the sale it went toward (0077). */
+    exchanges: OneOrMany<{ sale_id: string }>;
   }>;
+  /** Set when this sale is an exchange's new sale: the refund it came from (0077). */
+  exchanges: OneOrMany<{ refunds: { sale_id: string } | null }>;
+}
+
+// A one-to-one embed comes back as an object; be ready for a list too.
+type OneOrMany<T> = T | T[] | null;
+function firstOf<T>(value: OneOrMany<T>): T | null {
+  return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
 export function SaleDetailPage() {
@@ -100,9 +112,10 @@ export function SaleDetailPage() {
             'customers ( first_name, last_name )',
             'rung_by:profiles!sales_user_id_fkey ( email )',
             'discount_approver:profiles!sales_discount_approved_by_fkey ( email )',
-            'sale_lines ( id, product_id, product_unit_id, qty, unit_price, list_price, price_reason, price_before_discount, line_discount, ticket_discount_each, discount_reason, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
+            'sale_lines ( id, product_id, product_unit_id, string_job_id, gift_card_id, qty, unit_price, list_price, price_reason, price_before_discount, line_discount, ticket_discount_each, discount_reason, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
             'sale_payments ( method, amount, check_number )',
-            'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( sale_line_id, qty ), refund_payments ( method, check_number ) )',
+            'refunds ( id, subtotal, tax, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ), refund_lines ( sale_line_id, qty, kind, unit_price ), refund_payments ( method, check_number ), exchanges ( sale_id ) )',
+            'exchanges ( refunds ( sale_id ) )',
           ].join(', '),
         )
         .eq('id', saleId)
@@ -157,6 +170,14 @@ export function SaleDetailPage() {
               className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
             >
               Return / Refund
+            </Link>
+          )}
+          {canRefund && (
+            <Link
+              to={`/sales/${sale.id}/exchange`}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Exchange
             </Link>
           )}
           <Link
@@ -264,6 +285,16 @@ export function SaleDetailPage() {
         </section>
       )}
 
+      {firstOf(sale.exchanges)?.refunds && (
+        <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          An exchange: paid partly by items returned from{' '}
+          <Link to={`/sales/${firstOf(sale.exchanges)!.refunds!.sale_id}`} className="text-blue-600 hover:underline">
+            an earlier sale
+          </Link>
+          .
+        </p>
+      )}
+
       {/* Refunds against this sale */}
       {sale.refunds.length > 0 && (
         <section className="rounded-xl border border-slate-200 bg-white p-4">
@@ -275,6 +306,14 @@ export function SaleDetailPage() {
                   {new Date(r.refunded_at).toLocaleString()}
                   {staffLabel(r.refunded_by) && ` · by ${staffLabel(r.refunded_by)}`}
                   {` · ${returnedItemsLabel(r.refund_lines)}`}
+                  {firstOf(r.exchanges) && (
+                    <>
+                      {' · exchanged for '}
+                      <Link to={`/sales/${firstOf(r.exchanges)!.sale_id}`} className="text-blue-600 hover:underline">
+                        a new sale
+                      </Link>
+                    </>
+                  )}
                   {r.refund_payments
                     .filter((p) => p.method === 'check')
                     .map((p) => ` · ${paymentLabel(p.method, p.check_number)}`)

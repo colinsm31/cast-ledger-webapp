@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasSubCent, subCentError } from './money';
+import { hasSubCent, parsePlainAmount, subCentError } from './money';
 
 describe('hasSubCent', () => {
   it('flags a fraction of a cent', () => {
@@ -20,5 +20,20 @@ describe('subCentError', () => {
   it('names the first field with a fraction of a cent', () => {
     expect(subCentError({ 'Sell price': '10.00', Cost: '4.125' })).toBe('Cost: use at most 2 decimal places.');
     expect(subCentError({ 'Sell price': '10.00', Cost: '' })).toBeNull();
+  });
+});
+
+describe('parsePlainAmount', () => {
+  it('reads plain amounts', () => {
+    expect(parsePlainAmount('12')).toBe(12);
+    expect(parsePlainAmount(' 12.5 ')).toBe(12.5);
+    expect(parsePlainAmount('12.50')).toBe(12.5);
+    expect(parsePlainAmount('.50')).toBe(0.5);
+  });
+
+  it('refuses anything else', () => {
+    for (const text of ['1e3', 'Infinity', '-5', '12.345', '', 'abc', '1,000', '0x10']) {
+      expect(parsePlainAmount(text)).toBeNull();
+    }
   });
 });

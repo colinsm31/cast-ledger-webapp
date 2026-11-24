@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { giveBackOverages, stringChangeEvents, type JobSaleLineRow } from './stringChange';
+import { giveBackOverages, stringChangeChargesToRefund, stringChangeEvents, type JobSaleLineRow } from './stringChange';
 
 describe('giveBackOverages', () => {
   const refundable = { cash: 13, credit: 0, store_credit: 10 };
@@ -40,6 +40,18 @@ describe('stringChangeEvents', () => {
       refund_lines: [],
     },
   ];
+
+  it('lists string-change charges not refunded yet (0079)', () => {
+    expect(stringChangeChargesToRefund(rows)).toEqual([{ saleId: 'sale-b', amount: 23 }]);
+    const refunded = { ...rows[1], refund_lines: [{ kind: 'return' as const, unit_price: 23, refunds: null }] };
+    expect(stringChangeChargesToRefund([rows[0], refunded])).toEqual([]);
+  });
+
+  it('lists what\'s left of a string change charge after give-backs, and not one fully given back', () => {
+    const giveBack = (amount: number) => ({ kind: 'string_change' as const, unit_price: amount, refunds: null });
+    expect(stringChangeChargesToRefund([{ ...rows[1], refund_lines: [giveBack(8)] }])).toEqual([{ saleId: 'sale-b', amount: 15 }]);
+    expect(stringChangeChargesToRefund([{ ...rows[1], refund_lines: [giveBack(23)] }])).toEqual([]);
+  });
 
   it('lists each charge and give-back with a link to its sale', () => {
     expect(stringChangeEvents(rows)).toEqual([

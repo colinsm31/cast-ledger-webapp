@@ -25,6 +25,21 @@ export function refundMethodsFor(acceptChecks: boolean, salePaidByCheck: boolean
   return acceptChecks || salePaidByCheck ? [...methods, 'check'] : methods;
 }
 
+/** A tender as record_sale, record_refund and record_exchange take it. */
+export function toPaymentPayload(tender: {
+  method: PaymentMethod;
+  amount: number;
+  giftCardId?: string;
+  checkNumber?: string;
+}) {
+  return {
+    method: tender.method,
+    amount: tender.amount,
+    gift_card_id: tender.giftCardId ?? null,
+    check_number: tender.checkNumber ?? null,
+  };
+}
+
 export const CHECK_NUMBER_MESSAGE = 'Enter the check number (digits only, up to 10).';
 
 /** The trimmed check number, or null when it isn't 1–10 digits. */
@@ -33,8 +48,19 @@ export function normalizeCheckNumber(raw: string): string | null {
   return /^[0-9]{1,10}$/.test(trimmed) ? trimmed : null;
 }
 
-/** "Cash", "Check #1042" — a saved payment or refund, for display. */
+/**
+ * A saved payment or refund that only an exchange writes (0077): the returned
+ * items' value moving to the new sale. It isn't offered as a payment type.
+ */
+export const EXCHANGE_METHOD = 'exchange' as const;
+
+/** A payment type as saved: one the shop offers, or an exchange's credit. */
+export type SavedPaymentMethod = PaymentMethod | typeof EXCHANGE_METHOD;
+const EXCHANGE_LABEL = 'Exchange credit';
+
+/** "Cash", "Check #1042", "Exchange credit" — a saved payment or refund, for display. */
 export function paymentLabel(method: string, checkNumber?: string | null): string {
+  if (method === EXCHANGE_METHOD) return EXCHANGE_LABEL;
   const label = PAYMENT_METHOD_LABEL[method as PaymentMethod] ?? method;
   return method === 'check' && checkNumber ? `${label} #${checkNumber}` : label;
 }

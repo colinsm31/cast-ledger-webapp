@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type { Customer, ProductUnitStatus } from '../../types/domain';
 import { unitUnavailableMessage } from '../../lib/unitStatus';
-import { customerName, customerNameLastFirst } from '../../types/domain';
+import { customerName, customerNameLastFirst, inactiveGiftCardMessage } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { useCustomerMatches } from '../../lib/customerSearch';
 import { createCustomer, newCustomerFormFrom, newCustomerRow, type NewCustomerForm } from '../../lib/newCustomer';
@@ -58,6 +58,7 @@ import { taxExemptLabel, taxRateFor } from '../../lib/taxExempt';
 import type { SaleDeliveryWarning } from './SaleDetailPage';
 import { decideJobLine, ownerWarnings, type TicketJob } from './ticketJobs';
 import { fetchTicketJob, fetchUnpaidOpenJobs } from './ticketJobQueries';
+import { InactiveBadge } from '../../components/ActiveStatus';
 
 const NEW_SALE_PATH = '/sales/new';
 
@@ -487,9 +488,13 @@ export function NewSalePage() {
     // If the card already carries a balance, confirm this is an intentional reload.
     const { data: existing } = await supabase
       .from('gift_card_balance')
-      .select('balance')
+      .select('balance, is_active')
       .eq('code', code)
       .maybeSingle();
+    if (existing && !(existing as { is_active: boolean }).is_active) {
+      setScanMsg(inactiveGiftCardMessage(code));
+      return;
+    }
     const existingBalance = existing ? Number((existing as { balance: number }).balance) : 0;
     if (existingBalance > 0) {
       const ok = await confirm({
@@ -735,13 +740,19 @@ export function NewSalePage() {
       const synced = applyServerListPrices(recalledLines, await currentListPrices(recalledLines));
       clearTicket();
       setLines(synced.lines);
-      setCustomer(recalled.customer);
+      // A customer made inactive while the ticket was on hold can't be on the sale (0076).
+      const recalledCustomer = recalled.customer?.is_active === false ? null : recalled.customer;
+      setCustomer(recalledCustomer);
       setJobCtx(recalled.content.stringJobId ? { id: recalled.content.stringJobId, deliver: recalled.content.deliverAfter } : null);
       setTicketDiscount(recalled.content.ticketDiscount ?? '');
       setTicketDiscountOpen(Boolean(recalled.content.ticketDiscount));
       setDiscountOpenKeys(new Set(synced.lines.filter((line) => line.discount).map((line) => line.key)));
       setShowHeld(false);
-      setHoldNotice(`Recalled “${recalled.name}”.`);
+      setHoldNotice(
+        recalled.customer && !recalledCustomer
+          ? `Recalled “${recalled.name}” without ${customerNameLastFirst(recalled.customer)}, who is inactive now.`
+          : `Recalled “${recalled.name}”.`,
+      );
       if (synced.notices.length > 0) setPriceNotice(`Prices changed while it was on hold: ${synced.notices.join(' ')}`);
     } catch (err) {
       setError(`The ticket couldn't be recalled: ${errorMessage(err)}`);
@@ -1263,7 +1274,9 @@ function CustomerBar({
 }) {
   const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState('');
-  const { matches, searching } = useCustomerMatches(query);
+  // Inactive customers are shown but can't be picked, so the cashier sees
+  // one before making a duplicate with "+ New customer" (0076).
+  const { matches, searching } = useCustomerMatches(query, true);
   // A new customer being added from here, without leaving the ticket.
   const [newCustomer, setNewCustomer] = useState<NewCustomerForm | null>(null);
 
@@ -1341,9 +1354,14 @@ function CustomerBar({
                   onChange(c);
                   setPicking(false);
                 }}
-                className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left hover:bg-slate-50"
+                disabled={!c.is_active}
+                title={c.is_active ? undefined : 'Inactive: make them active again on their page first'}
+                className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
               >
-                <span className="font-medium text-slate-900">{customerNameLastFirst(c)}</span>
+                <span className="font-medium text-slate-900">
+                  {customerNameLastFirst(c)}
+                  {!c.is_active && <InactiveBadge />}
+                </span>
                 <span className="text-sm text-slate-500">
                   {[c.phone_number, c.email].filter(Boolean).join(' · ')}
                 </span>

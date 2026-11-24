@@ -1,68 +1,63 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { JsonValue, PaymentMethod } from '../../types/domain';
+import type { PaymentMethod } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
-import { useDialog } from '../../components/Dialog';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useSettings } from '../../lib/settings';
-import { PAYMENT_METHOD_LABEL as METHOD_LABEL, paymentLabel, refundMethodsFor } from '../../lib/paymentMethods';
+import {
+  PAYMENT_METHOD_LABEL as METHOD_LABEL,
+  paymentLabel,
+  refundMethodsFor,
+  toPaymentPayload,
+} from '../../lib/paymentMethods';
 import { CheckEntry } from './CheckEntry';
 import {
   DEFAULT_FRAME_RETURN,
   frameReturnLine,
   frameReturnProblem,
   hasItemsToReturn,
+  giftCardLoadLineIds,
+  giftCardLoadRefundCents,
+  giftCardLoadUnused,
+  isGiftCardLoadLine,
+  isStringingLine,
   isUnitLine,
+  refundPriceCents,
   returnableQty,
+  stringingLineNote,
+  waitsForJobCharge,
   type FrameReturn,
 } from './returnable';
+import { jobCode } from '../stringjobs/jobTag';
+import { useAuth } from '../../auth/AuthContext';
+import { AdminApprovalDialog } from '../../components/AdminApprovalDialog';
+import { approveRefundAsAdmin, isApprovalRefusal, REFUND_APPROVAL_MINUTES } from '../../lib/discountApproval';
 import { FrameReturnFields } from './FrameReturnFields';
+import { GiftCardRefundEntry } from './GiftCardRefundEntry';
 import {
   allocateToOriginalPayments,
-  computeSaleTotals,
   fromCents,
   paymentTypeChanges,
-  refundableByMethod,
   refundSource,
-  refundTaxCents,
   roundMoney,
   toCents,
 } from '../../lib/saleMath';
-
-interface SaleLine {
-  id: string;
-  product_id: string | null;
-  product_unit_id: string | null;
-  qty: number;
-  unit_price: number;
-  products: { brand: string | null; name: string; attributes: Record<string, JsonValue> | null } | null;
-}
-interface SalePayment {
-  method: PaymentMethod;
-  amount: number;
-  gift_card_id: string | null;
-  gift_cards: { code: string } | null;
-}
-interface EarlierRefund {
-  subtotal: number;
-  tax: number;
-  refund_lines: { sale_line_id: string; qty: number }[];
-  refund_payments: { method: PaymentMethod; amount: number; gift_card_id: string | null }[];
-}
-interface SaleData {
-  id: string;
-  tax: number;
-  tax_rate: number;
-  customer_id: string | null;
-  customers: { first_name: string; last_name: string } | null;
-  sale_lines: SaleLine[];
-  sale_payments: SalePayment[];
-  refunds: EarlierRefund[];
-}
+import {
+  canRefundTo,
+  lineLabel,
+  loadSaleForReturn,
+  moneyPaymentsOf,
+  refundedLinesOf,
+  refundTotals,
+  saleCustomerInactive,
+  saleRefundable,
+  type SaleData,
+  type SaleLine,
+} from './saleForReturn';
 
 interface Tender {
   id: string;
@@ -71,17 +66,6 @@ interface Tender {
   giftCardId?: string;
   code?: string;
   checkNumber?: string;
-}
-
-// Payments keyed by what limits a refund: the type, or the gift card itself.
-function bySource(payments: { method: PaymentMethod; amount: number; gift_card_id: string | null }[]) {
-  return payments.map((p) => ({ method: refundSource(p.method, p.gift_card_id), amount: p.amount }));
-}
-
-function lineLabel(p: SaleLine['products']): string {
-  if (!p) return '—';
-  const attrs = Object.values(p.attributes ?? {}).filter((v) => v != null && v !== '').map(String);
-  return [p.brand, p.name, ...attrs].filter(Boolean).join(' ');
 }
 
 const inputClass = 'rounded-lg border border-slate-300 px-3 py-2 text-sm';
@@ -102,58 +86,53 @@ export function RefundPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Each loaded gift card's balance, and the admin's approval for refunding a load (0075).
+  const [cardBalances, setCardBalances] = useState<Record<string, number>>({});
+  const [askingApproval, setAskingApproval] = useState(false);
+  // An approval kept after a failed refund, so a retry of the same loads
+  // doesn't need the admin again (the failed refund didn't use it up).
+  const [keptApproval, setKeptApproval] = useState<{ id: string; lines: string; expiresAt: number } | null>(null);
   const { settings } = useSettings();
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     if (!saleId) return;
     void (async () => {
-      const { data, error: err } = await supabase
-        .from('sales')
-        .select(
-          [
-            'id, tax, tax_rate, customer_id',
-            'customers ( first_name, last_name )',
-            'sale_lines ( id, product_id, product_unit_id, qty, unit_price, products ( brand, name, attributes ) )',
-            'sale_payments ( method, amount, gift_card_id, gift_cards ( code ) )',
-            'refunds ( subtotal, tax, refund_lines ( sale_line_id, qty ), refund_payments ( method, amount, gift_card_id ) )',
-          ].join(', '),
-        )
-        .eq('id', saleId)
-        .single();
-      if (err) setLoadError(errorMessage(err));
-      else setSale(data as unknown as SaleData);
+      let loaded: SaleData;
+      try {
+        loaded = await loadSaleForReturn(saleId);
+      } catch (err) {
+        setLoadError(errorMessage(err));
+        return;
+      }
+      setSale(loaded);
+      // What each loaded card holds now: only an unused load is refunded.
+      const cardIds = loaded.sale_lines.map((l) => l.gift_card_id).filter((id): id is string => !!id);
+      if (cardIds.length > 0) {
+        const { data: balances, error: balanceErr } = await supabase
+          .from('gift_card_balance')
+          .select('gift_card_id, balance')
+          .in('gift_card_id', cardIds);
+        if (balanceErr) setLoadError(errorMessage(balanceErr));
+        else setCardBalances(Object.fromEntries((balances ?? []).map((b) => [b.gift_card_id as string, Number(b.balance)])));
+      }
     })();
   }, [saleId]);
 
-  // Remaining returnable qty per product line and racquet frame (original
-  // minus already refunded).
-  const remaining = useMemo(
-    () => (sale ? returnableQty(sale.sale_lines, (sale.refunds ?? []).flatMap((r) => r.refund_lines ?? [])) : {}),
-    [sale],
-  );
+  const refundedLines = useMemo(() => refundedLinesOf(sale), [sale]);
 
-  // Refund subtotal, tax and total for a set of return quantities. Tax follows
-  // record_refund: cumulative over this sale's refunds, at the sale's rate, and
-  // never more than the sale charged.
+  // Remaining returnable qty per product line, racquet frame and stringing
+  // charge (original minus already refunded).
+  const remaining = useMemo(() => (sale ? returnableQty(sale.sale_lines, refundedLines) : {}), [sale, refundedLines]);
+
   function refundTotalsFor(qty: Record<string, number>) {
-    if (!sale) return { subtotal: 0, tax: 0, total: 0 };
-    const { subtotal } = computeSaleTotals(
-      sale.sale_lines.map((l) => ({ qty: qty[l.id] ?? 0, price: l.unit_price })),
-      { taxRate: 0, taxStringing: false },
-    );
-    const refundSubtotalCents = toCents(subtotal);
-    const taxCentsForRefund = refundTaxCents({
-      previousSubtotalCents: sale.refunds.reduce((s, r) => s + toCents(r.subtotal), 0),
-      previousTaxCents: sale.refunds.reduce((s, r) => s + toCents(r.tax), 0),
-      saleTaxCents: toCents(sale.tax),
-      refundSubtotalCents,
-      taxRate: sale.tax_rate,
-    });
-    return {
-      subtotal,
-      tax: fromCents(taxCentsForRefund),
-      total: fromCents(refundSubtotalCents + taxCentsForRefund),
-    };
+    return refundTotals(sale, qty);
+  }
+
+  // A job strung and waiting for pickup is delivered before its charge is
+  // refunded; a string change's charge waits for the job's own (0079).
+  function waitingForPickup(line: SaleLine): boolean {
+    return line.string_jobs?.status === 'complete' || waitsForJobCharge(line);
   }
 
   const { subtotal, tax, total } = useMemo(
@@ -171,13 +150,18 @@ export function RefundPage() {
 
   // What each payment type the sale used can still give back (a gift card
   // only to the card that paid), and which this refund over-sends to (a
-  // payment-type change, which needs a reason).
-  const refundable = useMemo(
+  // payment-type change, which needs a reason). An exchange's credit (0077)
+  // counts as the original sale's payment types (0081).
+  const refundable = useMemo(() => saleRefundable(sale), [sale]);
+  // What Void suggests: the payments money can go back to (an exchange's
+  // credit as the types it came from, 0082), less any gift card made
+  // inactive since (it can't take money back, 0076).
+  // Store credit can't go to a customer made inactive since (0076) either.
+  const suggestedPayments = useMemo(
     () =>
-      refundableByMethod(
-        bySource(sale?.sale_payments ?? []),
-        bySource((sale?.refunds ?? []).flatMap((r) => r.refund_payments)),
-      ),
+      moneyPaymentsOf(sale)
+        .filter(canRefundTo)
+        .filter((p) => p.method !== 'store_credit' || !saleCustomerInactive(sale)),
     [sale],
   );
   const changedTypes = paymentTypeChanges(
@@ -187,13 +171,13 @@ export function RefundPage() {
   // "Cash", or "Gift Card GC-123" for a card.
   const cardCodes = useMemo(() => {
     const codes = new Map<string, string>();
-    for (const p of sale?.sale_payments ?? []) if (p.gift_card_id && p.gift_cards) codes.set(p.gift_card_id, p.gift_cards.code);
+    for (const p of moneyPaymentsOf(sale)) if (p.gift_card_id && p.gift_cards) codes.set(p.gift_card_id, p.gift_cards.code);
     for (const t of tenders) if (t.giftCardId && t.code) codes.set(t.giftCardId, t.code);
     return codes;
   }, [sale, tenders]);
   function sourceLabel(source: string): string {
     const [method, cardId] = source.split(':') as [PaymentMethod, string | undefined];
-    return cardId ? `${METHOD_LABEL[method]} ${cardCodes.get(cardId) ?? ''}`.trim() : METHOD_LABEL[method];
+    return cardId ? `${METHOD_LABEL[method]} ${cardCodes.get(cardId) ?? ''}`.trim() : paymentLabel(method);
   }
   const needsMethodChangeReason = changedTypes.length > 0;
 
@@ -207,13 +191,16 @@ export function RefundPage() {
     if (!sale) return;
     // Return everything still returnable, and prefill the original tenders.
     const q: Record<string, number> = {};
-    for (const id of Object.keys(remaining)) q[id] = remaining[id];
+    for (const line of sale.sale_lines) {
+      const usedLoad = isGiftCardLoadLine(line) && !giftCardLoadUnused(line, cardBalances[line.gift_card_id ?? '']);
+      if ((remaining[line.id] ?? 0) > 0 && !waitingForPickup(line) && !usedLoad) q[line.id] = remaining[line.id];
+    }
     setReturnQty(q);
     // Send the money back the way it came, up to what each payment type can
     // still give back; anything left over is for the cashier to place.
     const { allocations } = allocateToOriginalPayments(
       toCents(refundTotalsFor(q).total),
-      sale.sale_payments ?? [],
+      suggestedPayments,
       refundable,
       (p) => refundSource(p.method, p.gift_card_id),
     );
@@ -236,7 +223,20 @@ export function RefundPage() {
     setMode('none');
   }
 
-  async function process() {
+  // A gift card load comes back only with an admin's approval (0075), unless
+  // an admin is the one signed in.
+  const loadCents = giftCardLoadRefundCents(sale?.sale_lines ?? [], returnQty);
+  const loadLineIds = giftCardLoadLineIds(sale?.sale_lines ?? [], returnQty);
+  const refundsLoad = loadCents > 0;
+
+  /** The kept approval, while it still covers these loads and hasn't expired. */
+  function usableKeptApproval(): string | null {
+    if (!keptApproval || keptApproval.lines !== loadLineIds.join(',') || Date.now() >= keptApproval.expiresAt) return null;
+    return keptApproval.id;
+  }
+
+  async function process(givenApprovalId: string | null = null) {
+    const approvalId = givenApprovalId ?? (refundsLoad ? usableKeptApproval() : null);
     if (!itemsChosen) {
       setError('Choose at least one item to return.');
       return;
@@ -257,6 +257,10 @@ export function RefundPage() {
       setError('Give a reason for refunding to a different payment type.');
       return;
     }
+    if (refundsLoad && !approvalId && !isAdmin) {
+      setAskingApproval(true);
+      return;
+    }
     setSaving(true);
     setError(null);
     const lines = sale!.sale_lines
@@ -269,19 +273,24 @@ export function RefundPage() {
     const { error: err } = await supabase.rpc('record_refund', {
       p_sale_id: saleId,
       p_lines: lines,
-      p_payments: tenders.map((t) => ({
-        method: t.method,
-        amount: t.amount,
-        gift_card_id: t.giftCardId ?? null,
-        check_number: t.checkNumber ?? null,
-      })),
+      p_payments: tenders.map(toPaymentPayload),
       p_reason: reason.trim() || null,
       p_note: null,
       p_method_change_reason: needsMethodChangeReason ? methodChangeReason.trim() : null,
+      p_approval_id: approvalId,
     });
     setSaving(false);
     if (err) {
-      setError(errorMessage(err));
+      const message = errorMessage(err);
+      if (approvalId && isApprovalRefusal(message)) {
+        // Refused for its approval: the next try asks the admin again.
+        setKeptApproval(null);
+      } else if (approvalId && approvalId !== keptApproval?.id) {
+        // A minute short of the server's limit, so a retry doesn't race it.
+        const expiresAt = Date.now() + (REFUND_APPROVAL_MINUTES - 1) * 60_000;
+        setKeptApproval({ id: approvalId, lines: loadLineIds.join(','), expiresAt });
+      }
+      setError(message);
       return;
     }
     navigate(`/sales/${saleId}`);
@@ -313,7 +322,49 @@ export function RefundPage() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {returnableLines.map((l) =>
-              isUnitLine(l) ? (
+              isGiftCardLoadLine(l) ? (
+                <li key={l.id} className="p-3">
+                  <label className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={(returnQty[l.id] ?? 0) > 0}
+                      disabled={!giftCardLoadUnused(l, cardBalances[l.gift_card_id ?? ''])}
+                      onChange={(e) => setQty(l.id, e.target.checked ? l.qty : 0)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-slate-900">
+                        Gift card load{l.gift_cards ? ` · ${l.gift_cards.code}` : ''}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        ${(l.qty * Number(l.unit_price)).toFixed(2)} ·{' '}
+                        {giftCardLoadUnused(l, cardBalances[l.gift_card_id ?? ''])
+                          ? 'comes back off the card; needs an admin'
+                          : `the card has $${Number(cardBalances[l.gift_card_id ?? ''] ?? 0).toFixed(2)} left, so this load has been used`}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              ) : isStringingLine(l) ? (
+                <li key={l.id} className="p-3">
+                  <label className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={(returnQty[l.id] ?? 0) > 0}
+                      disabled={waitingForPickup(l)}
+                      onChange={(e) => setQty(l.id, e.target.checked ? 1 : 0)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-slate-900">
+                        {l.kind === 'string_change' ? 'String change' : 'Stringing'}
+                        {l.string_jobs ? ` ${jobCode(l.string_jobs.job_number)}` : ''}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        ${fromCents(refundPriceCents(l, refundedLines)).toFixed(2)} · {stringingLineNote(l)}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              ) : isUnitLine(l) ? (
                 <li key={l.id} className="p-3">
                   <label className="flex items-center gap-3">
                     <input
@@ -405,7 +456,9 @@ export function RefundPage() {
             {refundMethodsFor(
               settings?.accept_checks ?? false,
               sale.sale_payments.some((p) => p.method === 'check'),
-            ).map((m) => (
+            )
+              .filter((m) => m !== 'store_credit' || !saleCustomerInactive(sale))
+              .map((m) => (
               <button key={m} onClick={() => setMode(m)} className="rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-800 hover:border-blue-300 hover:bg-blue-50">
                 {METHOD_LABEL[m]}
               </button>
@@ -432,7 +485,14 @@ export function RefundPage() {
           />
         )}
         {mode === 'gift_card' && (
-          <GiftCardAdder defaultValue={remainingToAllocate} defaultCode={sale.sale_payments.find((p) => p.gift_cards)?.gift_cards?.code ?? ''} customerId={sale.customer_id} onCancel={() => setMode('none')} onAdd={(amt, id, code) => addTender({ method: 'gift_card', amount: amt, giftCardId: id, code })} onError={setError} />
+          <GiftCardRefundEntry
+            defaultValue={remainingToAllocate}
+            defaultCode={suggestedPayments.find((p) => p.gift_cards)?.gift_cards?.code ?? ''}
+            customerId={sale.customer_id}
+            onCancel={() => setMode('none')}
+            onAdd={(amt, id, code) => addTender({ method: 'gift_card', amount: amt, giftCardId: id, code })}
+            onError={setError}
+          />
         )}
       </section>
       )}
@@ -473,6 +533,21 @@ export function RefundPage() {
             ? 'Return items · nothing to refund'
             : `Process refund · $${total.toFixed(2)}`}
       </button>
+
+      {askingApproval && (
+        <AdminApprovalDialog
+          message={`Refunding a gift card load needs an admin. An admin can approve refunding $${fromCents(loadCents).toFixed(2)} of gift card loads on this sale by signing in here. You stay signed in.`}
+          approveLabel="Approve refund"
+          approve={(credentials) =>
+            approveRefundAsAdmin(credentials, { saleId: sale.id, amount: fromCents(loadCents), saleLineIds: loadLineIds })
+          }
+          onApproved={(approvalId) => {
+            setAskingApproval(false);
+            void process(approvalId);
+          }}
+          onCancel={() => setAskingApproval(false)}
+        />
+      )}
     </div>
   );
 }
@@ -505,69 +580,3 @@ function AmountAdder({ label, defaultValue, onCancel, onAdd }: { label: string; 
 
 // Refund onto a gift card: an existing card is looked up by its code (a typo
 // no longer creates a card). A new card is issued only when asked for.
-function GiftCardAdder({ defaultValue, defaultCode, customerId, onCancel, onAdd, onError }: { defaultValue: number; defaultCode: string; customerId: string | null; onCancel: () => void; onAdd: (amt: number, id: string, code: string) => void; onError: (m: string) => void }) {
-  const { confirm } = useDialog();
-  const [code, setCode] = useState(defaultCode);
-  const [value, setValue] = useState(defaultValue > 0 ? defaultValue.toFixed(2) : '');
-  const [busy, setBusy] = useState(false);
-  const [missingCode, setMissingCode] = useState<string | null>(null);
-  const subCent = hasSubCent(value);
-  const amt = subCent ? 0 : roundMoney(Number(value) || 0);
-
-  function checkInput(): string | null {
-    const c = code.replace(/\s+/g, '').trim();
-    if (!c) { onError('Enter a gift card code.'); return null; }
-    if (amt <= 0) { onError('Enter an amount.'); return null; }
-    return c;
-  }
-
-  async function add() {
-    const c = checkInput();
-    if (!c) return;
-    setBusy(true);
-    const { data, error } = await supabase.from('gift_card_balance').select('gift_card_id, code').eq('code', c).maybeSingle();
-    setBusy(false);
-    if (error) { onError(errorMessage(error)); return; }
-    if (!data) { setMissingCode(c); return; }
-    onAdd(amt, data.gift_card_id as string, data.code as string);
-  }
-
-  async function issueNewCard() {
-    const c = checkInput();
-    if (!c) return;
-    const ok = await confirm({
-      title: 'Issue a new gift card?',
-      message: `No card has code ${c}. A new card with this code gets $${amt.toFixed(2)}. It didn't pay for this sale, so you'll be asked for a reason.`,
-      confirmLabel: 'Issue new card',
-    });
-    if (!ok) return;
-    setBusy(true);
-    const { data, error } = await supabase.rpc('ensure_gift_card', { p_code: c, p_customer_id: customerId });
-    setBusy(false);
-    if (error) { onError(errorMessage(error)); return; }
-    onAdd(amt, data as string, c);
-  }
-
-  return (
-    <div className="space-y-2 rounded-lg bg-slate-50 p-3">
-      <span className="text-xs font-medium text-slate-500">Refund to gift card</span>
-      <div className="flex gap-2">
-        <input autoFocus value={code} onChange={(e) => { setCode(e.target.value); setMissingCode(null); }} placeholder="Card code" className={`${inputClass} flex-1`} />
-        <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" placeholder="0.00" className={`${inputClass} w-24`} />
-      </div>
-      {subCent && <p className="text-xs text-red-600">{SUB_CENT_MESSAGE}.</p>}
-      {missingCode && (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-red-600">No gift card with code {missingCode}.</span>
-          <button onClick={() => void issueNewCard()} disabled={busy} className="text-blue-600 hover:underline disabled:opacity-50">
-            Issue a new card with this code
-          </button>
-        </div>
-      )}
-      <div className="flex gap-2">
-        <button onClick={() => void add()} disabled={busy || amt <= 0} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{busy ? '…' : `Add $${amt.toFixed(2)}`}</button>
-        <button onClick={onCancel} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel</button>
-      </div>
-    </div>
-  );
-}

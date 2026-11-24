@@ -3,10 +3,21 @@ import {
   frameReturnLine,
   frameReturnProblem,
   hasItemsToReturn,
+  giftCardLoadLineIds,
+  giftCardLoadRefundCents,
+  giftCardLoadUnused,
   hasReturnable,
+  isGiftCardLoadLine,
+  isStringingLine,
   isUnitLine,
+  refundPriceCents,
+  refundSubtotals,
   returnableQty,
   returnedItemsLabel,
+  stringingLineNote,
+  stringingNote,
+  taxedRefundedCents,
+  waitsForJobCharge,
 } from './returnable';
 
 describe('returnedItemsLabel', () => {
@@ -87,5 +98,85 @@ describe('a returned frame', () => {
 describe('isUnitLine', () => {
   it('picks out a racquet frame\'s line', () => {
     expect(lines.map(isUnitLine)).toEqual([false, true, false]);
+  });
+});
+
+describe('gift card loads (0075)', () => {
+  const load = { id: 'load', product_id: null, product_unit_id: null, gift_card_id: 'gc1', qty: 1, unit_price: 25, taxable: false };
+
+  it('are returnable whole, once', () => {
+    expect(isGiftCardLoadLine(load)).toBe(true);
+    expect(returnableQty([load], [])).toEqual({ load: 1 });
+    expect(returnableQty([load], [{ sale_line_id: 'load', qty: 1 }])).toEqual({ load: 0 });
+  });
+
+  it('come back only while the card still holds all of the load', () => {
+    expect(giftCardLoadUnused(load, 25)).toBe(true);
+    expect(giftCardLoadUnused(load, 40)).toBe(true);
+    expect(giftCardLoadUnused(load, 24.99)).toBe(false);
+    expect(giftCardLoadUnused(load, undefined)).toBe(false);
+  });
+
+  it('add up to what an admin approves refunding (0078)', () => {
+    const other = { ...load, id: 'load2', gift_card_id: 'gc2', unit_price: 20.5 };
+    const grip = { id: 'grip', product_id: 'p1', product_unit_id: null, qty: 2, unit_price: 10, taxable: true };
+    expect(giftCardLoadRefundCents([load, other, grip], { load: 1, load2: 1, grip: 2 })).toBe(4550);
+    expect(giftCardLoadRefundCents([load, other, grip], { grip: 1 })).toBe(0);
+    expect(giftCardLoadLineIds([other, load, grip], { load: 1, load2: 1, grip: 2 })).toEqual(['load', 'load2']);
+  });
+});
+
+describe('stringing charges (0074)', () => {
+  const stringing = { id: 'job', product_id: null, product_unit_id: null, string_job_id: 'j1', qty: 1, unit_price: 20, taxable: false };
+  const grip = { id: 'grip', product_id: 'p1', product_unit_id: null, qty: 2, unit_price: 10, taxable: true };
+  const giveBack = { sale_line_id: 'job', qty: 1, kind: 'string_change', unit_price: 8 };
+
+  it('are refunded whole, once', () => {
+    expect(isStringingLine(stringing)).toBe(true);
+    expect(returnableQty([stringing], [])).toEqual({ job: 1 });
+    expect(returnableQty([stringing], [{ sale_line_id: 'job', qty: 1, kind: 'return', unit_price: 20 }])).toEqual({ job: 0 });
+  });
+
+  it('give back their price less string-change give-backs, which don\'t count as returns', () => {
+    expect(refundPriceCents(stringing, [giveBack])).toBe(1200);
+    expect(returnableQty([stringing], [giveBack])).toEqual({ job: 1 });
+    expect(returnableQty([stringing], [{ ...giveBack, unit_price: 20 }])).toEqual({ job: 0 });
+    expect(returnedItemsLabel([giveBack, { sale_line_id: 'grip', qty: 1 }])).toBe('1 item returned');
+  });
+
+  it('count toward the refund but only taxed lines count toward tax', () => {
+    expect(refundSubtotals([stringing, grip], [giveBack], { job: 1, grip: 1 })).toEqual({
+      subtotalCents: 2200,
+      taxableCents: 1000,
+    });
+    expect(
+      taxedRefundedCents([stringing, grip], [giveBack, { sale_line_id: 'grip', qty: 1, kind: 'return', unit_price: 10 }]),
+    ).toBe(1000);
+  });
+
+  it('say what refunding does to the job', () => {
+    expect(stringingNote('entered')).toBe('not strung yet: refunding cancels the job');
+    expect(stringingNote('complete')).toBe('strung and waiting: deliver it before refunding');
+    expect(stringingNote('delivered')).toBe('the job stays on record, marked refunded');
+  });
+});
+
+describe('a string change\'s charge (0079)', () => {
+  const change = { id: 'chg', product_id: null, product_unit_id: null, string_job_id: 'j1', qty: 1, kind: 'string_change' };
+
+  it('waits until the job\'s own charge is refunded', () => {
+    expect(waitsForJobCharge({ ...change, string_jobs: { status: 'entered', refund_id: null } })).toBe(true);
+    expect(waitsForJobCharge({ ...change, string_jobs: { status: 'cancelled', refund_id: 'r1' } })).toBe(false);
+    expect(waitsForJobCharge({ ...change, kind: 'charge', string_jobs: { status: 'entered', refund_id: null } })).toBe(false);
+  });
+
+  it('comes back on its own once the job is delivered (0084)', () => {
+    const delivered = { ...change, string_jobs: { status: 'delivered', refund_id: null } };
+    expect(waitsForJobCharge(delivered)).toBe(false);
+    expect(stringingLineNote(delivered)).toBe('a string change: the job stays as it is');
+    expect(stringingLineNote({ ...change, string_jobs: { status: 'entered', refund_id: null } })).toMatch(/deliver the job/);
+    expect(stringingLineNote({ ...change, kind: 'charge', string_jobs: { status: 'entered', refund_id: null } })).toBe(
+      'not strung yet: refunding cancels the job',
+    );
   });
 });

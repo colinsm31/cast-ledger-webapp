@@ -31,6 +31,8 @@ import {
   STRING_CHANGE_METHODS,
   giveBackOverages,
   stringChangeEvents,
+  stringChangeChargesToRefund,
+  type ChargeToRefund,
   type JobSaleLineRow,
   type StringChangeQuote,
 } from './stringChange';
@@ -474,14 +476,18 @@ export function StringJobDetailPage() {
           <h1 className="text-xl font-bold text-slate-900">{customer ? customerName(customer) : 'String job'}</h1>
           <span className="text-sm font-semibold text-slate-500">{jobCode(job.job_number)}</span>
           <StatusBadge status={status} />
-          {status !== 'cancelled' && (
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                job.paid_sale_id ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-              }`}
-            >
-              {job.paid_sale_id ? 'Paid' : 'Unpaid'}
-            </span>
+          {job.refunded_at ? (
+            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">Refunded</span>
+          ) : (
+            status !== 'cancelled' && (
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  job.paid_sale_id ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {job.paid_sale_id ? 'Paid' : 'Unpaid'}
+              </span>
+            )
           )}
           {status === 'entered' && job.is_rush && <RushBadge />}
           {status !== 'cancelled' && (
@@ -497,6 +503,8 @@ export function StringJobDetailPage() {
           {racket?.barcode ? ` · ${racket.barcode}` : ''}
         </p>
       </div>
+
+      {job.refunded_at && <ChargesStillToRefund charges={stringChangeChargesToRefund(job.job_sale_lines ?? [])} />}
 
       <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4">
         <div className="mb-2 flex items-center justify-between">
@@ -635,8 +643,13 @@ export function StringJobDetailPage() {
                 </button>
               )}
               {job.paid_sale_id ? (
-                // Refunds cover product lines only, so a paid job can't be cancelled.
-                <p className="self-center text-sm text-slate-500">Paid jobs can&apos;t be cancelled.</p>
+                // A paid job is cancelled by refunding its charge (0074).
+                <Link
+                  to={`/sales/${job.paid_sale_id}/refund`}
+                  className="self-center rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                >
+                  Refund to cancel
+                </Link>
               ) : (
                 <button
                   onClick={() => void cancelJob()}
@@ -833,4 +846,26 @@ function availabilityById(rows: unknown): Record<string, number> {
     avail[row.product_id] = Number(row.available);
   }
   return avail;
+}
+
+/** A refunded job's string-change charges still to refund, each from its own sale (0079). */
+function ChargesStillToRefund({ charges }: { charges: ChargeToRefund[] }) {
+  if (charges.length === 0) return null;
+  return (
+    <section className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-4">
+      <p className="text-sm text-amber-900">
+        This job's charge is refunded. Its string change was charged on another sale, so refund it there too:
+      </p>
+      <ul className="space-y-1">
+        {charges.map((charge) => (
+          <li key={charge.saleId} className="flex items-center justify-between text-sm">
+            <span className="text-amber-900">String change ${charge.amount.toFixed(2)}</span>
+            <Link to={`/sales/${charge.saleId}/refund`} className="font-medium text-blue-600 hover:underline">
+              Refund
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
