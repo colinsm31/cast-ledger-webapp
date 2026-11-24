@@ -47,7 +47,6 @@ import {
 } from '../../lib/saleMath';
 import {
   canRefundTo,
-  exchangeCreditPayments,
   lineLabel,
   loadSaleForReturn,
   moneyPaymentsOf,
@@ -152,12 +151,10 @@ export function RefundPage() {
   // payment-type change, which needs a reason). An exchange's credit (0077)
   // counts as the original sale's payment types (0081).
   const refundable = useMemo(() => saleRefundable(sale), [sale]);
-  // What Void suggests: the money payments, less any gift card made inactive
-  // since (it can't take money back, 0076), then the exchange credit's types.
-  const suggestedPayments = useMemo(
-    () => [...moneyPaymentsOf(sale).filter(canRefundTo), ...exchangeCreditPayments(sale)],
-    [sale],
-  );
+  // What Void suggests: the payments money can go back to (an exchange's
+  // credit as the types it came from, 0082), less any gift card made
+  // inactive since (it can't take money back, 0076).
+  const suggestedPayments = useMemo(() => moneyPaymentsOf(sale).filter(canRefundTo), [sale]);
   const changedTypes = paymentTypeChanges(
     refundable,
     tenders.map((t) => ({ method: refundSource(t.method, t.giftCardId), amount: t.amount })),
@@ -165,7 +162,7 @@ export function RefundPage() {
   // "Cash", or "Gift Card GC-123" for a card.
   const cardCodes = useMemo(() => {
     const codes = new Map<string, string>();
-    for (const p of sale?.sale_payments ?? []) if (p.gift_card_id && p.gift_cards) codes.set(p.gift_card_id, p.gift_cards.code);
+    for (const p of moneyPaymentsOf(sale)) if (p.gift_card_id && p.gift_cards) codes.set(p.gift_card_id, p.gift_cards.code);
     for (const t of tenders) if (t.giftCardId && t.code) codes.set(t.giftCardId, t.code);
     return codes;
   }, [sale, tenders]);
