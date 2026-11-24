@@ -83,6 +83,10 @@ describe('fetchNotifications', () => {
     expect(await fetchNotifications({ stringJobId: 'j1' })).toEqual([{ id: 'n1' }]);
     expect(calls).toContainEqual(['eq', 'string_job_id', 'j1']);
     expect(calls).toContainEqual(['order', 'created_at', { ascending: false }]);
+    expect(calls).toContainEqual(['limit', 50]);
+    calls.length = 0;
+    await fetchNotifications({ stringJobId: 'j1' }, 100);
+    expect(calls).toContainEqual(['limit', 100]);
     calls.length = 0;
     await fetchNotifications({ customerId: 'c1', saleId: 's1' });
     expect(calls).toContainEqual(['eq', 'customer_id', 'c1']);

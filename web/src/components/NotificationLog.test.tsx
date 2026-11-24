@@ -51,7 +51,7 @@ describe('NotificationLog', () => {
     expect(screen.getByText("Texting isn't set up yet")).toBeTruthy();
     expect(screen.getByText('Not sent')).toBeTruthy();
     expect(screen.getAllByText('Send again')).toHaveLength(1);
-    expect(fetchNotifications).toHaveBeenCalledWith({ customerId: undefined, stringJobId: 'j1', saleId: undefined });
+    expect(fetchNotifications).toHaveBeenCalledWith({ customerId: undefined, stringJobId: 'j1', saleId: undefined }, 50);
   });
 
   it('says when there are none', async () => {
@@ -100,6 +100,16 @@ describe('NotificationLog', () => {
     render(<NotificationLog filter={{ customerId: 'c1' }} />);
     fireEvent.click(await screen.findByText('Send again'));
     expect(await screen.findByText('Sam has opted out of emails')).toBeTruthy();
+  });
+
+  it('shows older messages on request (#14)', async () => {
+    fetchNotifications.mockImplementation((_filter: unknown, limit: number) =>
+      Promise.resolve(Array.from({ length: Math.min(limit, 60) }, (_, i) => row({ id: `n${i}` }))),
+    );
+    render(<NotificationLog filter={{ customerId: 'c1' }} />);
+    fireEvent.click(await screen.findByText('Show older messages'));
+    await waitFor(() => expect(fetchNotifications).toHaveBeenLastCalledWith(expect.anything(), 100));
+    await waitFor(() => expect(screen.queryByText('Show older messages')).toBeNull());
   });
 
   it('offers a retry when the log fails to load', async () => {

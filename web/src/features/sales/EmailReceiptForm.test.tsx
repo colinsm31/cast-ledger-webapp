@@ -26,7 +26,7 @@ describe('EmailReceiptForm', () => {
     expect(address().value).toBe('pat@example.com');
     expect(screen.queryByText('Save this address to the customer')).toBeNull();
     fireEvent.click(screen.getByText('Send receipt'));
-    await waitFor(() => expect(onSent).toHaveBeenCalledWith('Receipt sent.'));
+    await waitFor(() => expect(onSent).toHaveBeenCalledWith('Receipt sent.', undefined));
     expect(emailReceipt).toHaveBeenCalledWith('s1', 'pat@example.com');
     expect(saveCustomerEmail).not.toHaveBeenCalled();
   });
@@ -39,7 +39,7 @@ describe('EmailReceiptForm', () => {
     fireEvent.change(address(), { target: { value: 'new@example.com' } });
     fireEvent.click(screen.getByLabelText('Save this address to the customer'));
     fireEvent.click(screen.getByText('Send receipt'));
-    await waitFor(() => expect(onSent).toHaveBeenCalledWith('Receipt sent.'));
+    await waitFor(() => expect(onSent).toHaveBeenCalledWith('Receipt sent.', 'new@example.com'));
     expect(saveCustomerEmail).toHaveBeenCalledWith('c1', 'new@example.com');
   });
 
@@ -52,7 +52,7 @@ describe('EmailReceiptForm', () => {
     fireEvent.click(screen.getByLabelText('Save this address to the customer'));
     fireEvent.click(screen.getByText('Send receipt'));
     await waitFor(() =>
-      expect(onSent).toHaveBeenCalledWith("Receipt sent. The address wasn't saved to the customer: denied"),
+      expect(onSent).toHaveBeenCalledWith("Receipt sent. The address wasn't saved to the customer: denied", undefined),
     );
   });
 

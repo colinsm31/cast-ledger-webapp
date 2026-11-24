@@ -38,4 +38,18 @@ describe('NotificationOptInFields', () => {
     expect(screen.getByText('Add a mobile number (10 digits) to opt in to texts')).toBeTruthy();
     expect(screen.queryByText('Add a valid email address to opt in to emails')).toBeNull();
   });
+
+  it('asks for consent again after the address changes', () => {
+    render(
+      <NotificationOptInFields
+        value={{ email_opt_in: false, sms_opt_in: true }}
+        email="new@example.com"
+        phone="(415)555-0123"
+        onChange={vi.fn()}
+        askAgain={{ email: true }}
+      />,
+    );
+    expect(screen.getByText('New email address: ask the customer again before ticking')).toBeTruthy();
+    expect(screen.queryByText(/New mobile number/)).toBeNull();
+  });
 });

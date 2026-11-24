@@ -212,9 +212,15 @@ export function SaleDetailPage() {
           key={sale.id}
           saleId={sale.id}
           customer={sale.customer_id ? { id: sale.customer_id, email: sale.customers?.email ?? null } : null}
-          onSent={(notice) => {
+          onSent={(notice, savedEmail) => {
             setEmailing(false);
             setEmailNotice(notice);
+            // The next Email receipt starts from the address just kept (#13).
+            if (savedEmail !== undefined) {
+              setSale((current) =>
+                current?.customers ? { ...current, customers: { ...current.customers, email: savedEmail } } : current,
+              );
+            }
             setMessagesRefresh((count) => count + 1);
           }}
           onCancel={() => setEmailing(false)}

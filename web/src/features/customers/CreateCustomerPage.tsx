@@ -43,10 +43,6 @@ export function CreateCustomerPage() {
       return;
     }
     const optInsRow = optInsToSave(optIns, { email, phone });
-    if ('error' in optInsRow) {
-      setError(optInsRow.error);
-      return;
-    }
     setSaving(true);
     setError(null);
     const { data, error: err } = await supabase

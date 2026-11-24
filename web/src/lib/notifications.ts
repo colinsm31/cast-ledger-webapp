@@ -92,16 +92,23 @@ export function canResend(row: Pick<NotificationRow, 'status' | 'sending_at'>, n
   return now - new Date(row.sending_at).getTime() >= STUCK_SENDING_MINUTES * 60_000;
 }
 
-export async function fetchNotifications(filter: {
-  customerId?: string;
-  stringJobId?: string;
-  saleId?: string;
-}): Promise<NotificationRow[]> {
+/** How many messages a log shows at first, and how many more each "Show older" adds. */
+export const NOTIFICATION_PAGE_SIZE = 50;
+
+/** The newest `limit` messages; the log offers older ones when it gets a full page. */
+export async function fetchNotifications(
+  filter: {
+    customerId?: string;
+    stringJobId?: string;
+    saleId?: string;
+  },
+  limit: number = NOTIFICATION_PAGE_SIZE,
+): Promise<NotificationRow[]> {
   let query = supabase.from('notifications').select(NOTIFICATION_COLUMNS);
   if (filter.customerId) query = query.eq('customer_id', filter.customerId);
   if (filter.stringJobId) query = query.eq('string_job_id', filter.stringJobId);
   if (filter.saleId) query = query.eq('sale_id', filter.saleId);
-  const { data, error } = await query.order('created_at', { ascending: false }).limit(100);
+  const { data, error } = await query.order('created_at', { ascending: false }).order('id').limit(limit);
   if (error) throw error;
   return (data ?? []) as NotificationRow[];
 }

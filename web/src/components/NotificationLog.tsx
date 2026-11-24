@@ -4,6 +4,7 @@ import {
   canResend,
   channelLabel,
   fetchNotifications,
+  NOTIFICATION_PAGE_SIZE,
   notificationKindLabel,
   notificationStatusLabel,
   resendNotification,
@@ -48,11 +49,13 @@ export function NotificationLog({
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [loadCount, setLoadCount] = useState(0);
+  // Grows by a page each time staff ask for older messages (#14).
+  const [limit, setLimit] = useState(NOTIFICATION_PAGE_SIZE);
   const reload = useCallback(() => setLoadCount((count) => count + 1), []);
 
   useEffect(() => {
     let active = true;
-    fetchNotifications({ customerId, stringJobId, saleId }).then(
+    fetchNotifications({ customerId, stringJobId, saleId }, limit).then(
       (loaded) => {
         if (!active) return;
         setRows(loaded);
@@ -65,7 +68,7 @@ export function NotificationLog({
     return () => {
       active = false;
     };
-  }, [customerId, stringJobId, saleId, refreshKey, loadCount]);
+  }, [customerId, stringJobId, saleId, refreshKey, loadCount, limit]);
 
   async function sendAgain(row: NotificationRow) {
     setBusyId(row.id);
@@ -122,6 +125,14 @@ export function NotificationLog({
             </li>
           ))}
         </ul>
+      )}
+      {rows && rows.length >= limit && (
+        <button
+          onClick={() => setLimit((current) => current + NOTIFICATION_PAGE_SIZE)}
+          className="text-xs font-medium text-blue-700 hover:underline"
+        >
+          Show older messages
+        </button>
       )}
     </section>
   );

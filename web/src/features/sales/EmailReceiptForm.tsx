@@ -16,7 +16,8 @@ export function EmailReceiptForm({
 }: {
   saleId: string;
   customer: { id: string; email: string | null } | null;
-  onSent: (notice: string) => void;
+  /** savedEmail: the address now on the customer's record, when it was kept. */
+  onSent: (notice: string, savedEmail?: string) => void;
   onCancel: () => void;
 }) {
   const [to, setTo] = useState(customer?.email ?? '');
@@ -34,14 +35,16 @@ export function EmailReceiptForm({
     setError(null);
     try {
       let notice = await emailReceipt(saleId, to);
+      let savedEmail: string | undefined;
       if (customer && isNewAddress && saveToCustomer) {
         try {
           await saveCustomerEmail(customer.id, to);
+          savedEmail = to.trim();
         } catch (err) {
           notice += ` The address wasn't saved to the customer: ${errorMessage(err)}`;
         }
       }
-      onSent(notice);
+      onSent(notice, savedEmail);
     } catch (err) {
       setError(errorMessage(err));
     } finally {

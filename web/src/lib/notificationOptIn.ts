@@ -38,22 +38,57 @@ export function optInProblem(channel: NotificationChannel, contact: string): str
   return phoneE164(contact) ? null : 'Add a mobile number (10 digits) to opt in to texts';
 }
 
-/** The opt-ins to save: a box left ticked after its contact was cleared is saved off, as the database does. */
-export function optInsToSave(
-  wanted: OptInState,
-  contact: { email: string; phone: string },
-): OptInState | { error: string } {
-  const emailOn = wanted.email_opt_in && contact.email.trim() !== '';
-  const smsOn = wanted.sms_opt_in && contact.phone.trim() !== '';
-  if (emailOn) {
-    const problem = optInProblem('email', contact.email);
-    if (problem) return { error: problem };
+/**
+ * The opt-ins to save. A box whose email or number was cleared or isn't
+ * usable is saved off, as the form shows it (the box can't be ticked then),
+ * so the customer can still be saved.
+ */
+export function optInsToSave(wanted: OptInState, contact: { email: string; phone: string }): OptInState {
+  return {
+    email_opt_in: wanted.email_opt_in && optInProblem('email', contact.email) === null,
+    sms_opt_in: wanted.sms_opt_in && optInProblem('sms', contact.phone) === null,
+  };
+}
+
+/** An address or number as the database compares them: case, spaces and formatting don't count. */
+function contactKey(channel: NotificationChannel, contact: string | null | undefined): string {
+  const text = (contact ?? '').trim();
+  return channel === 'email' ? text.toLowerCase() : (phoneE164(text) ?? text);
+}
+
+/** Whether an edit gives the channel a new address or number (or clears it). */
+export function contactChanged(
+  channel: NotificationChannel,
+  saved: string | null | undefined,
+  edited: string | null | undefined,
+): boolean {
+  return contactKey(channel, saved) !== contactKey(channel, edited);
+}
+
+export interface SavedContact extends OptInState {
+  email: string | null;
+  phone_number: string | null;
+}
+
+/**
+ * Channels the customer just opted in to again for a new address. The
+ * database turns an opt-in off when its address changes (0089), so these are
+ * saved in a second step, after the new address: the history then shows the
+ * old consent ending and the new one given.
+ */
+export function optInsGivenAgain(
+  saved: SavedContact,
+  edited: { email: string; phone: string },
+  toSave: OptInState,
+): Partial<OptInState> | null {
+  const again: Partial<OptInState> = {};
+  if (toSave.email_opt_in && saved.email_opt_in && contactChanged('email', saved.email, edited.email)) {
+    again.email_opt_in = true;
   }
-  if (smsOn) {
-    const problem = optInProblem('sms', contact.phone);
-    if (problem) return { error: problem };
+  if (toSave.sms_opt_in && saved.sms_opt_in && contactChanged('sms', saved.phone_number, edited.phone)) {
+    again.sms_opt_in = true;
   }
-  return { email_opt_in: emailOn, sms_opt_in: smsOn };
+  return Object.keys(again).length ? again : null;
 }
 
 /** e.g. "Ready messages: email and text", or null when they've opted in to none. */

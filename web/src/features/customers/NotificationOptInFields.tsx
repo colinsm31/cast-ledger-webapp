@@ -2,16 +2,20 @@ import { OPT_IN_WORDING, optInProblem, type NotificationChannel, type OptInState
 
 // The two opt-in boxes on the customer forms (0085). A box can only be ticked
 // once its email or number is usable; staff read the wording to the customer.
+// After the address or number changes (askAgain), its box starts unticked:
+// the customer's consent was for the old one (0089).
 export function NotificationOptInFields({
   value,
   email,
   phone,
   onChange,
+  askAgain = {},
 }: {
   value: OptInState;
   email: string;
   phone: string;
   onChange: (value: OptInState) => void;
+  askAgain?: Partial<Record<NotificationChannel, boolean>>;
 }) {
   const rows: { channel: NotificationChannel; key: keyof OptInState; contact: string }[] = [
     { channel: 'email', key: 'email_opt_in', contact: email },
@@ -35,6 +39,11 @@ export function NotificationOptInFields({
               {OPT_IN_WORDING[channel]}
             </label>
             {problem && contact.trim() !== '' && <p className="ml-6 text-xs text-amber-700">{problem}</p>}
+            {!problem && askAgain[channel] && !value[key] && (
+              <p className="ml-6 text-xs text-amber-700">
+                {channel === 'email' ? 'New email address' : 'New mobile number'}: ask the customer again before ticking
+              </p>
+            )}
           </div>
         );
       })}

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { isValidEmail, optInChangeLabel, optInLabel, optInProblem, optInsToSave, phoneE164 } from './notificationOptIn';
+import {
+  contactChanged,
+  isValidEmail,
+  optInChangeLabel,
+  optInLabel,
+  optInProblem,
+  optInsGivenAgain,
+  optInsToSave,
+  phoneE164,
+} from './notificationOptIn';
 
 describe('phoneE164 (matches the database)', () => {
   it.each([
@@ -51,13 +60,42 @@ describe('optInsToSave', () => {
       sms_opt_in: false,
     });
   });
-  it('refuses unusable details', () => {
-    expect(optInsToSave({ email_opt_in: true, sms_opt_in: false }, { email: 'nope', phone: '' })).toEqual({
-      error: 'Add a valid email address to opt in to emails',
+  it('saves a box off when its detail became unusable, so the customer can still be saved (#11)', () => {
+    expect(optInsToSave({ email_opt_in: true, sms_opt_in: true }, { email: 'nope', phone: '555' })).toEqual({
+      email_opt_in: false,
+      sms_opt_in: false,
     });
-    expect(optInsToSave({ email_opt_in: false, sms_opt_in: true }, { email: '', phone: '555' })).toEqual({
-      error: 'Add a mobile number (10 digits) to opt in to texts',
-    });
+  });
+});
+
+describe('contactChanged (as the database compares them)', () => {
+  it('ignores case, spaces and phone formatting', () => {
+    expect(contactChanged('email', 'Sam@Example.com', ' sam@example.com ')).toBe(false);
+    expect(contactChanged('sms', '(415)555-0123', '415 555 0123')).toBe(false);
+    expect(contactChanged('email', 'sam@example.com', 'sam2@example.com')).toBe(true);
+    expect(contactChanged('sms', '(415)555-0123', '(415)555-0199')).toBe(true);
+    expect(contactChanged('email', 'sam@example.com', '')).toBe(true);
+    expect(contactChanged('email', null, '')).toBe(false);
+  });
+});
+
+describe('optInsGivenAgain', () => {
+  const saved = { email: 'sam@example.com', phone_number: '(415)555-0123', email_opt_in: true, sms_opt_in: true };
+  it('names an opt-in given again for a new address', () => {
+    expect(
+      optInsGivenAgain(saved, { email: 'new@example.com', phone: '(415)555-0123' }, { email_opt_in: true, sms_opt_in: true }),
+    ).toEqual({ email_opt_in: true });
+    expect(
+      optInsGivenAgain(saved, { email: 'new@example.com', phone: '(415)555-0199' }, { email_opt_in: true, sms_opt_in: true }),
+    ).toEqual({ email_opt_in: true, sms_opt_in: true });
+  });
+  it('none when the address is the same, the box is off, or they had not opted in before', () => {
+    expect(optInsGivenAgain(saved, { email: 'sam@example.com', phone: '(415)555-0123' }, { email_opt_in: true, sms_opt_in: true })).toBeNull();
+    expect(optInsGivenAgain(saved, { email: 'new@example.com', phone: '' }, { email_opt_in: false, sms_opt_in: false })).toBeNull();
+    expect(
+      optInsGivenAgain({ ...saved, email_opt_in: false }, { email: 'new@example.com', phone: '(415)555-0123' },
+        { email_opt_in: true, sms_opt_in: true }),
+    ).toBeNull();
   });
 });
 
