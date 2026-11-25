@@ -150,7 +150,7 @@ export function RefundPage() {
 
   // What each payment type the sale used can still give back (a gift card
   // only to the card that paid), and which this refund over-sends to (a
-  // payment-type change, which needs a reason). An exchange's credit (0077)
+  // payment-type change; a reason is optional, 0093). An exchange's credit (0077)
   // counts as the original sale's payment types (0081).
   const refundable = useMemo(() => saleRefundable(sale), [sale]);
   // What Void suggests: the payments money can go back to (an exchange's
@@ -253,10 +253,6 @@ export function RefundPage() {
       setError(frameProblem);
       return;
     }
-    if (needsMethodChangeReason && !methodChangeReason.trim()) {
-      setError('Give a reason for refunding to a different payment type.');
-      return;
-    }
     if (refundsLoad && !approvalId && !isAdmin) {
       setAskingApproval(true);
       return;
@@ -276,7 +272,7 @@ export function RefundPage() {
       p_payments: tenders.map(toPaymentPayload),
       p_reason: reason.trim() || null,
       p_note: null,
-      p_method_change_reason: needsMethodChangeReason ? methodChangeReason.trim() : null,
+      p_method_change_reason: (needsMethodChangeReason && methodChangeReason.trim()) || null,
       p_approval_id: approvalId,
     });
     setSaving(false);
@@ -423,7 +419,7 @@ export function RefundPage() {
       <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
         {refundable.size > 0 && (
           <p className="text-xs text-slate-500">
-            Can go back without a reason:{' '}
+            Left to give back the way the sale was paid:{' '}
             {[...refundable]
               .map(([source, cents]) => `${sourceLabel(source)} $${fromCents(cents).toFixed(2)}`)
               .join(' · ')}
@@ -504,12 +500,12 @@ export function RefundPage() {
         <label className="block space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-4">
           <span className="text-sm font-medium text-amber-900">
             This refund sends more to {changedTypes.map(sourceLabel).join(' and ')} than the sale
-            took that way. Why the different payment type?
+            took that way. Why the different payment type? (optional)
           </span>
           <input
             value={methodChangeReason}
             onChange={(e) => setMethodChangeReason(e.target.value)}
-            placeholder="Reason (required)"
+            placeholder="Reason (optional)"
             className={`${inputClass} w-full bg-white`}
           />
         </label>
@@ -522,8 +518,7 @@ export function RefundPage() {
         disabled={
           saving ||
           !itemsChosen ||
-          Math.abs(remainingToAllocate) > 0.005 ||
-          (needsMethodChangeReason && !methodChangeReason.trim())
+          Math.abs(remainingToAllocate) > 0.005
         }
         className="w-full rounded-lg bg-red-600 px-4 py-3 text-base font-semibold text-white hover:bg-red-700 disabled:opacity-50"
       >

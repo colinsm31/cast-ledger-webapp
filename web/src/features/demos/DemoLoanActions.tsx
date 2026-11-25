@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
-import { checkInProblem, demoDueProblem } from '../../lib/demoLoans';
+import { demoDueProblem, demoNoteProblem } from '../../lib/demoLoans';
 import { fromLocalInput, toLocalInput } from '../../lib/stringJobPromise';
 import type { DemoLoan } from '../../types/domain';
 import { demoInputClass } from './LendDemoForm';
@@ -10,7 +10,7 @@ type Mode = 'idle' | 'checkIn' | 'due';
 
 // MARK: - DemoLoanActions
 //
-// Check a lent demo back in (to the demo fleet, or retired with a reason) or
+// Check a lent demo back in (to the demo fleet, or retired) or
 // give it a new due time (0071). Used on the frame's row and the Demos page.
 export function DemoLoanActions({
   loan,
@@ -26,7 +26,7 @@ export function DemoLoanActions({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const problem = mode === 'checkIn' ? checkInProblem(to, reason) : mode === 'due' ? demoDueProblem(due, new Date()) : null;
+  const problem = mode === 'checkIn' ? demoNoteProblem(reason) : mode === 'due' ? demoDueProblem(due, new Date()) : null;
 
   function open(next: Mode) {
     setMode(next);
@@ -81,7 +81,7 @@ export function DemoLoanActions({
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder={to === 'retired' ? 'Why? e.g. cracked throat' : 'Note (optional)'}
+            placeholder={to === 'retired' ? 'Why? (optional) e.g. cracked throat' : 'Note (optional)'}
             className={`${demoInputClass} min-w-[12rem] flex-1`}
           />
         </div>

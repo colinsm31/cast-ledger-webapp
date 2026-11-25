@@ -7,19 +7,19 @@ import { inactiveGiftCardMessage } from '../types/domain';
 afterEach(cleanup);
 
 describe('ActiveStatusPanel', () => {
-  it('makes an active record inactive only with a reason', async () => {
+  it('makes an active record inactive, with or without a reason', async () => {
     const setActive = vi.fn().mockResolvedValue(undefined);
     const onChanged = vi.fn();
     render(<ActiveStatusPanel noun="gift card" isActive deactivation={{}} setActive={setActive} onChanged={onChanged} />);
     fireEvent.click(screen.getByRole('button', { name: 'Make this gift card inactive…' }));
     fireEvent.click(screen.getByRole('button', { name: 'Make inactive' }));
-    expect(screen.getByText('Say why the gift card is inactive.')).toBeTruthy();
-    expect(setActive).not.toHaveBeenCalled();
+    await waitFor(() => expect(setActive).toHaveBeenCalledWith(false, null));
 
-    fireEvent.change(screen.getByLabelText('Why is this gift card inactive?'), { target: { value: ' Lost ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Make this gift card inactive…' }));
+    fireEvent.change(screen.getByLabelText('Why is this gift card inactive? (optional)'), { target: { value: ' Lost ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Make inactive' }));
-    await waitFor(() => expect(onChanged).toHaveBeenCalled());
-    expect(setActive).toHaveBeenCalledWith(false, 'Lost');
+    await waitFor(() => expect(setActive).toHaveBeenCalledWith(false, 'Lost'));
+    expect(onChanged).toHaveBeenCalledTimes(2);
   });
 
   it('shows why a record is inactive and turns it back on', async () => {
@@ -51,11 +51,21 @@ describe('ActiveStatusPanel', () => {
     expect(screen.getByRole('button', { name: 'Make this customer inactive…' })).toBeTruthy();
   });
 
+  it('keeps a reason to 200 characters', () => {
+    const setActive = vi.fn();
+    render(<ActiveStatusPanel noun="customer" isActive deactivation={{}} setActive={setActive} onChanged={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Make this customer inactive…' }));
+    fireEvent.change(screen.getByLabelText('Why is this customer inactive? (optional)'), { target: { value: 'x'.repeat(201) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Make inactive' }));
+    expect(screen.getByText('Keep the reason to 200 characters.')).toBeTruthy();
+    expect(setActive).not.toHaveBeenCalled();
+  });
+
   it('shows what the database refused', async () => {
     const setActive = vi.fn().mockRejectedValue(new Error('This customer has a string job open'));
     render(<ActiveStatusPanel noun="customer" isActive deactivation={{}} setActive={setActive} onChanged={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Make this customer inactive…' }));
-    fireEvent.change(screen.getByLabelText('Why is this customer inactive?'), { target: { value: 'Duplicate' } });
+    fireEvent.change(screen.getByLabelText('Why is this customer inactive? (optional)'), { target: { value: 'Duplicate' } });
     fireEvent.click(screen.getByRole('button', { name: 'Make inactive' }));
     expect(await screen.findByText('This customer has a string job open')).toBeTruthy();
   });

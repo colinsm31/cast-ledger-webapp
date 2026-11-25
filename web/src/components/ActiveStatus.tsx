@@ -16,7 +16,7 @@ export function InactiveBadge() {
 
 /**
  * Whether a customer or gift card is active, and the control that turns it
- * off (with a reason) or back on. An inactive record stays in history but
+ * off (with an optional reason) or back on. An inactive record stays in history but
  * can't be used at the register.
  */
 export function ActiveStatusPanel({
@@ -41,10 +41,6 @@ export function ActiveStatusPanel({
 
   async function change(active: boolean) {
     const trimmed = reason.trim();
-    if (!active && !trimmed) {
-      setError(`Say why the ${noun} is inactive.`);
-      return;
-    }
     if (trimmed.length > REASON_MAX) {
       setError(`Keep the reason to ${REASON_MAX} characters.`);
       return;
@@ -52,7 +48,7 @@ export function ActiveStatusPanel({
     setBusy(true);
     setError(null);
     try {
-      await setActive(active, active ? null : trimmed);
+      await setActive(active, active ? null : trimmed || null);
       setAsking(false);
       setReason('');
       onChanged();
@@ -95,7 +91,7 @@ export function ActiveStatusPanel({
   return (
     <section className="space-y-2 rounded-xl border border-red-200 bg-red-50 p-4">
       <label className="block space-y-1">
-        <span className="text-xs font-medium text-slate-600">Why is this {noun} inactive?</span>
+        <span className="text-xs font-medium text-slate-600">Why is this {noun} inactive? (optional)</span>
         <input
           autoFocus
           value={reason}

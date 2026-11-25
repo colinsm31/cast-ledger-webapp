@@ -18,8 +18,8 @@ describe('unitMoves', () => {
 });
 
 describe('unitReasonProblem', () => {
-  it('needs a reason of at most 200 characters', () => {
-    expect(unitReasonProblem('  ')).toBe('Give a reason.');
+  it('takes no reason, or one of at most 200 characters', () => {
+    expect(unitReasonProblem('  ')).toBeNull();
     expect(unitReasonProblem('x'.repeat(201))).toBe('Keep the reason to 200 characters.');
     expect(unitReasonProblem(' Cracked throat ')).toBeNull();
   });

@@ -1,11 +1,11 @@
 {
-  "updated": "2026-11-24",
+  "updated": "2026-11-25",
   "web": {
     "overall": {
-      "lines": 36.13,
-      "statements": 36.44,
-      "functions": 36.52,
-      "branches": 34.85
+      "lines": 36.18,
+      "statements": 36.46,
+      "functions": 36.4,
+      "branches": 34.83
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 95.6
+        "lines": 96.77
       },
       "src/features/account": {
         "lines": 0
@@ -45,16 +45,16 @@
         "lines": 24.12
       },
       "src/features/sales": {
-        "lines": 23.39
+        "lines": 23.69
       },
       "src/features/scan": {
         "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 21.98
+        "lines": 22.14
       },
       "src/lib": {
-        "lines": 94
+        "lines": 93.96
       },
       "src/types": {
         "lines": 75
@@ -80,7 +80,7 @@
         "lines": 0
       },
       "src/components/ActiveStatus.tsx": {
-        "lines": 93.93
+        "lines": 100
       },
       "src/components/AdminApprovalDialog.tsx": {
         "lines": 100
@@ -245,7 +245,7 @@
         "lines": 0
       },
       "src/features/sales/GiftCardRefundEntry.tsx": {
-        "lines": 58.92
+        "lines": 59.64
       },
       "src/features/sales/HeldTicketsPanel.tsx": {
         "lines": 0
@@ -347,6 +347,9 @@
         "lines": 100
       },
       "src/lib/customerSearch.ts": {
+        "lines": 100
+      },
+      "src/lib/dates.ts": {
         "lines": 100
       },
       "src/lib/demoLoans.ts": {

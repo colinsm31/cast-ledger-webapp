@@ -352,7 +352,7 @@ function AccountPanel({
   const [saving, setSaving] = useState(false);
 
   const amountHasSubCent = hasSubCent(amount);
-  const canAdd = Number(amount) > 0 && !amountHasSubCent && reason.trim() !== '';
+  const canAdd = Number(amount) > 0 && !amountHasSubCent;
 
   async function addCredit() {
     const amt = Number(amount);
@@ -405,7 +405,7 @@ function AccountPanel({
             <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           </label>
           <label className="flex-1 min-w-[8rem] space-y-1">
-            <span className="text-xs font-medium text-slate-500">Reason</span>
+            <span className="text-xs font-medium text-slate-500">Reason (optional)</span>
             <input value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           </label>
           <button onClick={() => void addCredit()} disabled={saving || !canAdd} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">

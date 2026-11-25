@@ -108,8 +108,6 @@ export function GiftCardLookupPage() {
     if (initial) void lookup(initial);
   }, [searchParams, lookup]);
 
-  // Adding value needs a reason; taking it off doesn't (the server enforces both).
-  const adjNeedsReason = Number(adjAmount) > 0;
   const adjHasSubCent = hasSubCent(adjAmount);
 
   async function adjustBalance() {
@@ -121,10 +119,6 @@ export function GiftCardLookupPage() {
     }
     if (adjHasSubCent) {
       setError(`${SUB_CENT_MESSAGE}.`);
-      return;
-    }
-    if (adjNeedsReason && !adjReason.trim()) {
-      setError('A reason is required to add value to a gift card.');
       return;
     }
     setAdjBusy(true);
@@ -220,7 +214,7 @@ export function GiftCardLookupPage() {
               </label>
               <label className="flex-1 min-w-[8rem] space-y-1">
                 <span className="text-xs font-medium text-slate-500">
-                  {adjNeedsReason ? 'Reason (required to add value)' : 'Reason'}
+                  Reason (optional)
                 </span>
                 <input
                   value={adjReason}
@@ -231,7 +225,7 @@ export function GiftCardLookupPage() {
               </label>
               <button
                 onClick={() => void adjustBalance()}
-                disabled={adjBusy || adjHasSubCent || (adjNeedsReason && !adjReason.trim())}
+                disabled={adjBusy || adjHasSubCent}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {adjBusy ? 'Saving…' : 'Apply'}
