@@ -208,7 +208,7 @@ export function GiftCardLookupPage() {
           )}
           {adjusting && (
             <div className="mt-3 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
-              <label className="w-28 space-y-1">
+              <label className={`${isAdmin ? 'w-28' : 'w-40'} space-y-1`}>
                 <span className="text-xs font-medium text-slate-500">{isAdmin ? 'Amount (± )' : 'Amount to take off (−)'}</span>
                 <input
                   autoFocus
