@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
-import { fetchSettings, parseSettingsForm, settingsToForm } from '../../lib/settings';
+import { fetchSettings, parseSettingsForm, QB_ACCOUNT_FIELDS, QB_ACCOUNT_MAX, settingsToForm } from '../../lib/settings';
 import type { SettingsForm } from '../../lib/settings';
 import { useAuth } from '../../auth/AuthContext';
 import { Spinner } from '../../components/Spinner';
@@ -198,6 +198,26 @@ export function SettingsPage() {
           Week starts on Monday (otherwise Sunday)
         </label>
         <p className="text-xs text-slate-400">Affects the “Week to date” period on the sales report.</p>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-700">QuickBooks accounts</h2>
+        <p className="text-xs text-slate-400">
+          The account each line of the daily summary export posts to. Use the names in your QuickBooks chart of accounts.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {QB_ACCOUNT_FIELDS.map(({ key, label }) => (
+            <label key={key} className="space-y-1">
+              <span className="text-xs font-medium text-slate-500">{label}</span>
+              <input
+                value={form.qbAccounts[key]}
+                maxLength={QB_ACCOUNT_MAX}
+                onChange={(e) => update({ qbAccounts: { ...form.qbAccounts, [key]: e.target.value } })}
+                className={inputClass}
+              />
+            </label>
+          ))}
+        </div>
       </section>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

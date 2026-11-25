@@ -3,7 +3,25 @@ import { supabase } from './supabase';
 import { errorMessage } from './errors';
 import { hasSubCent } from './money';
 
-export interface Settings {
+/** The QuickBooks account each daily-summary figure posts to (0101). */
+export const QB_ACCOUNT_FIELDS = [
+  { key: 'qb_cash_account', label: 'Cash' },
+  { key: 'qb_card_account', label: 'Card payments' },
+  { key: 'qb_check_account', label: 'Checks' },
+  { key: 'qb_gift_card_account', label: 'Gift card liability' },
+  { key: 'qb_store_credit_account', label: 'Store credit liability' },
+  { key: 'qb_sales_tax_account', label: 'Sales tax payable' },
+  { key: 'qb_sales_account', label: 'Item sales income' },
+  { key: 'qb_stringing_account', label: 'Stringing income' },
+] as const;
+
+export type QbAccountKey = (typeof QB_ACCOUNT_FIELDS)[number]['key'];
+export type QbAccounts = Record<QbAccountKey, string>;
+
+/** An account name's longest length, matching the database's (0101). */
+export const QB_ACCOUNT_MAX = 100;
+
+export interface Settings extends QbAccounts {
   tax_rate: number; // percent
   tax_stringing: boolean;
   stringing_labor: number;
@@ -30,7 +48,7 @@ export interface Settings {
   ready_sms_body: string;
 }
 
-interface SettingsRow {
+interface SettingsRow extends QbAccounts {
   tax_rate: number | string;
   tax_stringing: boolean;
   stringing_labor: number | string;
@@ -79,7 +97,12 @@ export async function fetchSettings(): Promise<Settings> {
     ready_email_subject: r.ready_email_subject,
     ready_email_body: r.ready_email_body,
     ready_sms_body: r.ready_sms_body,
+    ...pickQbAccounts(r),
   };
+}
+
+function pickQbAccounts(source: QbAccounts): QbAccounts {
+  return Object.fromEntries(QB_ACCOUNT_FIELDS.map(({ key }) => [key, source[key]])) as QbAccounts;
 }
 
 export interface SettingsState {
@@ -147,6 +170,7 @@ export interface SettingsForm {
   readyEmailSubject: string;
   readyEmailBody: string;
   readySmsBody: string;
+  qbAccounts: QbAccounts;
 }
 
 /** The receipt text's limits, matching the database's (0059). */
@@ -191,6 +215,7 @@ export function settingsToForm(settings: Settings): SettingsForm {
     readyEmailSubject: settings.ready_email_subject,
     readyEmailBody: settings.ready_email_body,
     readySmsBody: settings.ready_sms_body,
+    qbAccounts: pickQbAccounts(settings),
   };
 }
 
@@ -253,6 +278,14 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
     if (text.length > max) return { error: `${label}: use at most ${max} characters.` };
   }
 
+  const qbAccounts = {} as QbAccounts;
+  for (const { key, label } of QB_ACCOUNT_FIELDS) {
+    const name = form.qbAccounts[key].trim();
+    if (!name) return { error: `QuickBooks account for ${label.toLowerCase()}: enter the account name.` };
+    if (name.length > QB_ACCOUNT_MAX) return { error: `QuickBooks account for ${label.toLowerCase()}: use at most ${QB_ACCOUNT_MAX} characters.` };
+    qbAccounts[key] = name;
+  }
+
   return {
     settings: {
       tax_rate: Number(taxRate),
@@ -273,6 +306,7 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
       ready_email_subject: form.readyEmailSubject.trim(),
       ready_email_body: form.readyEmailBody.trim(),
       ready_sms_body: form.readySmsBody.trim(),
+      ...qbAccounts,
     },
   };
 }

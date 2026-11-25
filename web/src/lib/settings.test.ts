@@ -27,6 +27,14 @@ const saved: Settings = {
   ready_email_subject: 'Ready at {shop_name}',
   ready_email_body: 'Hi {first_name}, your racquet is ready.',
   ready_sms_body: 'Hi {first_name}, ready at {shop_name}.',
+  qb_cash_account: 'Undeposited Funds',
+  qb_card_account: 'Undeposited Funds',
+  qb_check_account: 'Undeposited Funds',
+  qb_gift_card_account: 'Gift Card Liability',
+  qb_store_credit_account: 'Store Credit Liability',
+  qb_sales_tax_account: 'Sales Tax Payable',
+  qb_sales_account: 'Sales',
+  qb_stringing_account: 'Stringing Income',
 };
 
 function form(changes: Partial<SettingsForm>): SettingsForm {
@@ -127,6 +135,19 @@ describe('parseSettingsForm', () => {
       error: 'Ready email subject: use at most 150 characters.',
     });
     expect(parseSettingsForm(form({ readyEmailBody: ' Ready! ' }))).toHaveProperty('settings.ready_email_body', 'Ready!');
+  });
+
+  it('trims each QuickBooks account name and needs one, within 100 characters', () => {
+    const accounts = (changes: Partial<SettingsForm['qbAccounts']>) => form({ qbAccounts: { ...settingsToForm(saved).qbAccounts, ...changes } });
+    expect(parseSettingsForm(accounts({ qb_cash_account: '  Cash Drawer ' }))).toMatchObject({
+      settings: { qb_cash_account: 'Cash Drawer' },
+    });
+    expect(parseSettingsForm(accounts({ qb_sales_account: '  ' }))).toEqual({
+      error: 'QuickBooks account for item sales income: enter the account name.',
+    });
+    expect(parseSettingsForm(accounts({ qb_check_account: 'x'.repeat(101) }))).toEqual({
+      error: 'QuickBooks account for checks: use at most 100 characters.',
+    });
   });
 
   it('takes an empty or whole-number reorder point', () => {

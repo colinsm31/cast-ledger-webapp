@@ -2,10 +2,10 @@
   "updated": "2026-11-25",
   "web": {
     "overall": {
-      "lines": 41.51,
-      "statements": 41.77,
-      "functions": 44.5,
-      "branches": 38.78
+      "lines": 41.87,
+      "statements": 42.17,
+      "functions": 44.87,
+      "branches": 39.21
     },
     "byFolder": {
       "src": {
@@ -24,7 +24,7 @@
         "lines": 0
       },
       "src/features/admin": {
-        "lines": 8.15
+        "lines": 8.03
       },
       "src/features/categories": {
         "lines": 0
@@ -57,7 +57,7 @@
         "lines": 22.14
       },
       "src/lib": {
-        "lines": 94.36
+        "lines": 94.42
       },
       "src/types": {
         "lines": 75
@@ -250,6 +250,9 @@
       "src/features/reports/PriceChangesReport.tsx": {
         "lines": 100
       },
+      "src/features/reports/QuickBooksExport.tsx": {
+        "lines": 100
+      },
       "src/features/reports/ReportTable.tsx": {
         "lines": 100
       },
@@ -266,6 +269,9 @@
         "lines": 100
       },
       "src/features/reports/priceChanges.ts": {
+        "lines": 100
+      },
+      "src/features/reports/quickbooks.ts": {
         "lines": 100
       },
       "src/features/reports/reportColumns.ts": {
@@ -491,7 +497,7 @@
         "lines": 100
       },
       "src/lib/settings.ts": {
-        "lines": 74.24
+        "lines": 77.33
       },
       "src/lib/staff.ts": {
         "lines": 100
