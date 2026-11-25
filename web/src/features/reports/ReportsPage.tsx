@@ -10,6 +10,7 @@ import { PriceChangesReport } from './PriceChangesReport';
 import { InventoryValueReport } from './InventoryValueReport';
 import { BalancesReport } from './BalancesReport';
 import { StringingReport } from './StringingReport';
+import { DemosReport } from './DemosReport';
 
 // The owner's reports (admin only): each one for a period, with a CSV download.
 
@@ -27,6 +28,7 @@ const REPORTS: ReportTab[] = [
   { key: 'margin', label: 'Gross margin', Report: MarginReport },
   { key: 'discounts', label: 'Discounts & price changes', Report: PriceChangesReport },
   { key: 'stringing', label: 'Stringing', Report: StringingReport },
+  { key: 'demos', label: 'Demo program', Report: DemosReport },
   { key: 'inventory', label: 'Inventory value', Report: InventoryValueReport, usesPeriod: false },
   { key: 'balances', label: 'Gift card liability', Report: BalancesReport, usesPeriod: false },
 ];

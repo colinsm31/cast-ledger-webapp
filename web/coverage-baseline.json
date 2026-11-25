@@ -2,10 +2,10 @@
   "updated": "2026-11-25",
   "web": {
     "overall": {
-      "lines": 41.35,
-      "statements": 41.62,
-      "functions": 44.08,
-      "branches": 38.77
+      "lines": 41.51,
+      "statements": 41.77,
+      "functions": 44.5,
+      "branches": 38.78
     },
     "byFolder": {
       "src": {
@@ -239,6 +239,9 @@
         "lines": 100
       },
       "src/features/reports/BalancesReport.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/DemosReport.tsx": {
         "lines": 100
       },
       "src/features/reports/InventoryValueReport.tsx": {
