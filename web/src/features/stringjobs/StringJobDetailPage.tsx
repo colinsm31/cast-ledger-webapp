@@ -39,6 +39,8 @@ import {
 import { PaymentScreen, type Tender } from '../sales/PaymentScreen';
 import { PromiseFields, RushBadge } from './PromiseFields';
 import { jobCode } from './jobTag';
+import { NotificationLog } from '../../components/NotificationLog';
+import { sendQueuedMessagesQuietly } from '../../lib/sendNotifications';
 import {
   PROMISE_STATE_CLASSES,
   fromLocalInput,
@@ -80,7 +82,7 @@ const JOB_SELECT = [
   'cancelled_by_staff:profiles!string_jobs_cancelled_by_fkey ( email )',
   'paid_sale:sales!string_jobs_paid_sale_id_fkey ( id, sold_at, rung_by:profiles!sales_user_id_fkey ( email ) )',
   'job_sale_lines:sale_lines ( kind, unit_price, sales ( id, sold_at, rung_by:profiles!sales_user_id_fkey ( email ) ), ' +
-    'refund_lines ( kind, unit_price, refunds ( id, sale_id, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ) ) ) )',
+    'refund_lines ( kind, qty, unit_price, refunds ( id, sale_id, refunded_at, refunded_by:profiles!refunds_user_id_fkey ( email ) ) ) )',
 ].join(', ');
 
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -105,6 +107,11 @@ export function StringJobDetailPage() {
   const [strungBy, setStrungBy] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
   const [busy, setBusy] = useState(false);
+  // Bumped when the job is marked complete, so its ready messages show.
+  const [messagesRefresh, setMessagesRefresh] = useState(0);
+  // What happened to the ready messages just sent, for staff, and for which
+  // job: moving to another job while they send doesn't show it there.
+  const [messageNotice, setMessageNotice] = useState<{ jobId: string; text: string } | null>(null);
   const [pendingChange, setPendingChange] = useState<PendingStringChange | null>(null);
   const [changeTenders, setChangeTenders] = useState<Tender[]>([]);
   const [changeReason, setChangeReason] = useState('');
@@ -355,24 +362,35 @@ export function StringJobDetailPage() {
 
   async function advance(target: StringJobStatus) {
     if (!jobId) return;
+    const advancedJobId = jobId;
     setBusy(true);
     setError(null);
     const { error: err } = await supabase.rpc('advance_string_job', {
-      p_job_id: jobId,
+      p_job_id: advancedJobId,
       p_target_status: target,
     });
-    setBusy(false);
     if (err) {
+      setBusy(false);
       setError(errorMessage(err));
       return;
     }
     // Delivered jobs live under the customer, not on their own page.
     if (target === 'delivered') {
+      setBusy(false);
       const customerId = job?.customer_rackets?.customer_id;
       navigate(customerId ? `/customers/${customerId}` : '/string-jobs/open');
       return;
     }
+    // Show the job as it is now before the buttons come back, so they match it.
     await reload();
+    setBusy(false);
+    if (target === 'complete') {
+      // The job is complete whatever happens to its messages.
+      setMessageNotice({ jobId: advancedJobId, text: 'Sending the ready message…' });
+      const text = await sendQueuedMessagesQuietly({ stringJobId: advancedJobId });
+      setMessageNotice(text ? { jobId: advancedJobId, text } : null);
+      setMessagesRefresh((count) => count + 1);
+    }
   }
 
   async function cancelJob() {
@@ -617,6 +635,7 @@ export function StringJobDetailPage() {
       <JobHistory job={job} />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {messageNotice?.jobId === job.id && <p className="text-sm text-slate-600">{messageNotice.text}</p>}
 
       {/* Lifecycle actions */}
       {!editing && (
@@ -680,6 +699,19 @@ export function StringJobDetailPage() {
             </p>
           )}
         </div>
+      )}
+
+      {status !== 'entered' && (
+        <NotificationLog
+          filter={{ stringJobId: job.id }}
+          title="Ready messages"
+          refreshKey={messagesRefresh}
+          emptyText={
+            status === 'complete'
+              ? "No ready message was queued: the customer hasn't opted in to emails or texts."
+              : 'No ready message was sent for this job.'
+          }
+        />
       )}
     </div>
   );

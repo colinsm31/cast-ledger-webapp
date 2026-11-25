@@ -8,6 +8,7 @@ import { errorMessage } from '../../lib/errors';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useBack } from '../../app/BackContext';
+import { formatDateTime } from '../../lib/dates';
 
 interface CardTxn {
   id: string;
@@ -32,10 +33,6 @@ function txnLabel(t: CardTxn): string {
   return Number(t.amount) >= 0 ? 'Loaded' : 'Redeemed';
 }
 
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
-}
 
 export function GiftCardLookupPage() {
   const [searchParams] = useSearchParams();

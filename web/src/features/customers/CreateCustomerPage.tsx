@@ -6,6 +6,8 @@ import { formatPhone } from '../../lib/phone';
 import { parseTaxExemption } from '../../lib/taxExempt';
 import { newCustomerRow, splitName } from '../../lib/newCustomer';
 import { TaxExemptFields } from './TaxExemptFields';
+import { NotificationOptInFields } from './NotificationOptInFields';
+import { optInsToSave } from '../../lib/notificationOptIn';
 import { useBack } from '../../app/BackContext';
 import { ScanFlowParams, withParams } from '../scan/scanFlow';
 
@@ -23,6 +25,7 @@ export function CreateCustomerPage() {
   const [lastName, setLastName] = useState(prefill.last);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [optIns, setOptIns] = useState({ email_opt_in: false, sms_opt_in: false });
   const [taxExempt, setTaxExempt] = useState(false);
   const [taxExemptId, setTaxExemptId] = useState('');
   const [saving, setSaving] = useState(false);
@@ -39,11 +42,12 @@ export function CreateCustomerPage() {
       setError(exemption.error);
       return;
     }
+    const optInsRow = optInsToSave(optIns, { email, phone });
     setSaving(true);
     setError(null);
     const { data, error: err } = await supabase
       .from('customers')
-      .insert({ ...row, ...exemption })
+      .insert({ ...row, ...exemption, ...optInsRow })
       .select('id')
       .single();
     setSaving(false);
@@ -79,6 +83,7 @@ export function CreateCustomerPage() {
         <Field label="Email">
           <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} inputMode="email" />
         </Field>
+        <NotificationOptInFields value={optIns} email={email} phone={phone} onChange={setOptIns} />
         <TaxExemptFields exempt={taxExempt} exemptId={taxExemptId} onExempt={setTaxExempt} onExemptId={setTaxExemptId} />
       </section>
 

@@ -28,6 +28,7 @@ describe('stringChangeEvents', () => {
       refund_lines: [
         {
           kind: 'string_change',
+          qty: 1,
           unit_price: 10,
           refunds: { id: 'r1', sale_id: 'sale-a', refunded_at: '2026-10-03T10:00:00Z', refunded_by: staff },
         },
@@ -43,14 +44,21 @@ describe('stringChangeEvents', () => {
 
   it('lists string-change charges not refunded yet (0079)', () => {
     expect(stringChangeChargesToRefund(rows)).toEqual([{ saleId: 'sale-b', amount: 23 }]);
-    const refunded = { ...rows[1], refund_lines: [{ kind: 'return' as const, unit_price: 23, refunds: null }] };
+    const refunded = { ...rows[1], refund_lines: [{ kind: 'return' as const, qty: 1, unit_price: 23, refunds: null }] };
     expect(stringChangeChargesToRefund([rows[0], refunded])).toEqual([]);
   });
 
   it('lists what\'s left of a string change charge after give-backs, and not one fully given back', () => {
-    const giveBack = (amount: number) => ({ kind: 'string_change' as const, unit_price: amount, refunds: null });
+    const giveBack = (amount: number, qty = 1) => ({ kind: 'string_change' as const, qty, unit_price: amount, refunds: null });
     expect(stringChangeChargesToRefund([{ ...rows[1], refund_lines: [giveBack(8)] }])).toEqual([{ saleId: 'sale-b', amount: 15 }]);
     expect(stringChangeChargesToRefund([{ ...rows[1], refund_lines: [giveBack(23)] }])).toEqual([]);
+  });
+
+  it('counts a give-back\'s quantity, as the server does (#18)', () => {
+    const giveBack = { kind: 'string_change' as const, qty: 2, unit_price: 5, refunds: null };
+    expect(stringChangeChargesToRefund([{ ...rows[1], refund_lines: [giveBack] }])).toEqual([{ saleId: 'sale-b', amount: 13 }]);
+    const refunds = { id: 'r2', sale_id: 'sale-b', refunded_at: '2026-10-04T10:00:00Z', refunded_by: staff };
+    expect(stringChangeEvents([{ ...rows[1], refund_lines: [{ ...giveBack, refunds }] }])[1].label).toBe('String change −$10.00');
   });
 
   it('lists each charge and give-back with a link to its sale', () => {

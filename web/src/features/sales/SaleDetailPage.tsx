@@ -15,6 +15,8 @@ import { paymentLabel } from '../../lib/paymentMethods';
 import { saleLineLabel } from '../../lib/saleLines';
 import { fromCents } from '../../lib/saleMath';
 import { SoldRacketsPanel } from './SoldRacketsPanel';
+import { EmailReceiptForm } from './EmailReceiptForm';
+import { NotificationLog } from '../../components/NotificationLog';
 
 /** Passed by the register when a sale went through but delivering its racquet failed. */
 export interface SaleDeliveryWarning {
@@ -48,7 +50,8 @@ interface SaleDetail {
   subtotal: number;
   tax: number;
   payment_method: string | null;
-  customers: { first_name: string; last_name: string } | null;
+  customer_id: string | null;
+  customers: { first_name: string; last_name: string; email: string | null } | null;
   rung_by: StaffRef | null;
   ticket_discount: number | null;
   ticket_discount_reason: string | null;
@@ -81,6 +84,10 @@ export function SaleDetailPage() {
   const { saleId } = useParams<{ saleId: string }>();
   const [sale, setSale] = useState<SaleDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [emailing, setEmailing] = useState(false);
+  const [emailNotice, setEmailNotice] = useState<string | null>(null);
+  // Bumped after a receipt is emailed, so the sale's message log shows it.
+  const [messagesRefresh, setMessagesRefresh] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
   // The register's "delivery failed" warning shows for the sale it was about,
@@ -103,13 +110,15 @@ export function SaleDetailPage() {
     const isLatest = startRequest();
     setSale(null);
     setError(null);
+    setEmailing(false);
+    setEmailNotice(null);
     void (async () => {
       const { data, error: err } = await supabase
         .from('sales')
         .select(
           [
-            'id, sold_at, subtotal, tax, payment_method, ticket_discount, ticket_discount_reason, tax_exempt_id',
-            'customers ( first_name, last_name )',
+            'id, sold_at, subtotal, tax, payment_method, ticket_discount, ticket_discount_reason, tax_exempt_id, customer_id',
+            'customers ( first_name, last_name, email )',
             'rung_by:profiles!sales_user_id_fkey ( email )',
             'discount_approver:profiles!sales_discount_approved_by_fkey ( email )',
             'sale_lines ( id, product_id, product_unit_id, string_job_id, gift_card_id, qty, unit_price, list_price, price_reason, price_before_discount, line_discount, ticket_discount_each, discount_reason, kind, products ( brand, name, attributes ), gift_cards ( code ) )',
@@ -164,6 +173,15 @@ export function SaleDetailPage() {
           >
             Print receipt
           </Link>
+          <button
+            onClick={() => {
+              setEmailNotice(null);
+              setEmailing(true);
+            }}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Email receipt
+          </button>
           {canRefund && (
             <Link
               to={`/sales/${sale.id}/refund`}
@@ -188,6 +206,27 @@ export function SaleDetailPage() {
           </Link>
         </div>
       </div>
+
+      {emailing && (
+        <EmailReceiptForm
+          key={sale.id}
+          saleId={sale.id}
+          customer={sale.customer_id ? { id: sale.customer_id, email: sale.customers?.email ?? null } : null}
+          onSent={(notice, savedEmail) => {
+            setEmailing(false);
+            setEmailNotice(notice);
+            // The next Email receipt starts from the address just kept (#13).
+            if (savedEmail !== undefined) {
+              setSale((current) =>
+                current?.customers ? { ...current, customers: { ...current.customers, email: savedEmail } } : current,
+              );
+            }
+            setMessagesRefresh((count) => count + 1);
+          }}
+          onCancel={() => setEmailing(false)}
+        />
+      )}
+      {emailNotice && <p className="text-sm text-slate-600">{emailNotice}</p>}
 
       <SoldRacketsPanel
         unitIds={sale.sale_lines.map((line) => line.product_unit_id).filter((id): id is string => !!id)}
@@ -331,6 +370,13 @@ export function SaleDetailPage() {
           </ul>
         </section>
       )}
+
+      <NotificationLog
+        filter={{ saleId: sale.id }}
+        title="Emailed receipts"
+        refreshKey={messagesRefresh}
+        emptyText="This receipt hasn't been emailed."
+      />
     </div>
   );
 }

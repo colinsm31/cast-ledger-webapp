@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { Spinner } from '../../components/Spinner';
 import { LoadError } from '../../components/LoadError';
 import { useBack } from '../../app/BackContext';
+import { ReadyTemplateFields } from './ReadyTemplateFields';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -181,6 +182,14 @@ export function SettingsPage() {
         </label>
         <p className="text-xs text-slate-400">Printed on every receipt. Leave a line empty to leave it off.</p>
       </section>
+
+      <ReadyTemplateFields
+        subject={form.readyEmailSubject}
+        emailBody={form.readyEmailBody}
+        smsBody={form.readySmsBody}
+        shopName={form.shopName}
+        onChange={update}
+      />
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-700">Reports</h2>

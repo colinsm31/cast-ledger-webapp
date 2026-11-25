@@ -6,6 +6,10 @@ import { customerName, stringingLineName } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { exemptionChanged, parseTaxExemption, taxExemptLabel } from '../../lib/taxExempt';
 import { TaxExemptFields } from './TaxExemptFields';
+import { NotificationOptInFields } from './NotificationOptInFields';
+import { OptInHistory } from './OptInHistory';
+import { NotificationLog } from '../../components/NotificationLog';
+import { contactChanged, optInLabel, optInsGivenAgain, optInsToSave } from '../../lib/notificationOptIn';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { formatPhone } from '../../lib/phone';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
@@ -46,7 +50,7 @@ interface HistorySaleRaw {
   }> | null;
 }
 
-type CustomerTab = 'rackets' | 'restrings' | 'demos' | 'purchases';
+type CustomerTab = 'rackets' | 'restrings' | 'demos' | 'purchases' | 'messages';
 
 export function CustomerDetailPage() {
   const { customerId } = useParams<{ customerId: string }>();
@@ -158,6 +162,7 @@ export function CustomerDetailPage() {
           <p className="text-sm text-slate-500">
             {[customer.phone_number, customer.email].filter(Boolean).join(' · ') || '—'}
           </p>
+          {optInLabel(customer) && <p className="text-xs text-slate-500">{optInLabel(customer)}</p>}
           {taxExemptLabel(customer) && (
             <p className="mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
               {taxExemptLabel(customer)}
@@ -228,6 +233,9 @@ export function CustomerDetailPage() {
         <TabButton active={tab === 'purchases'} onClick={() => setTab('purchases')}>
           Past purchases
         </TabButton>
+        <TabButton active={tab === 'messages'} onClick={() => setTab('messages')}>
+          Messages
+        </TabButton>
       </div>
 
       {tab === 'rackets' && (
@@ -241,6 +249,14 @@ export function CustomerDetailPage() {
       {tab === 'restrings' && <RestringHistoryPanel customerId={customer.id} />}
 
       {tab === 'demos' && <CustomerDemosPanel customerId={customer.id} />}
+
+      {tab === 'messages' && (
+        // Keyed on the record's last change, so an edit's opt-in changes show.
+        <div key={customer.updated_at} className="space-y-4">
+          <NotificationLog filter={{ customerId: customer.id }} />
+          <OptInHistory customerId={customer.id} />
+        </div>
+      )}
 
       {tab === 'purchases' && (
         <section className="space-y-2">
@@ -442,6 +458,7 @@ function EditCustomerForm({
   // The saved number as stored; it's only reformatted if it's edited.
   const [phone, setPhone] = useState(customer.phone_number ?? '');
   const [email, setEmail] = useState(customer.email ?? '');
+  const [optIns, setOptIns] = useState({ email_opt_in: customer.email_opt_in, sms_opt_in: customer.sms_opt_in });
   const [taxExempt, setTaxExempt] = useState(customer.tax_exempt);
   const [taxExemptId, setTaxExemptId] = useState(customer.tax_exempt_id ?? '');
   const [saving, setSaving] = useState(false);
@@ -459,11 +476,13 @@ function EditCustomerForm({
       onError(exemption.error);
       return;
     }
+    const optInsRow = optInsToSave(optIns, { email, phone });
     onError(null);
     setSaving(true);
     const { error: err } = await supabase
       .from('customers')
       .update({
+        ...optInsRow,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         phone_number: phone.trim() || null,
@@ -472,12 +491,29 @@ function EditCustomerForm({
         ...(exemptionChanged(customer, exemption) ? exemption : {}),
       })
       .eq('id', customer.id);
-    setSaving(false);
     if (err) {
+      setSaving(false);
       onError(errorMessage(err));
       return;
     }
+    const again = optInsGivenAgain(customer, { email, phone }, optInsRow);
+    if (again) {
+      const { error: againErr } = await supabase.from('customers').update(again).eq('id', customer.id);
+      if (againErr) onError(`Saved, but the new opt-in wasn't: ${errorMessage(againErr)}`);
+    }
+    setSaving(false);
     await onSaved();
+  }
+
+  // A new address or number unticks its box: the customer agreed for the old one.
+  function editEmail(value: string) {
+    setEmail(value);
+    if (contactChanged('email', customer.email, value)) setOptIns((current) => ({ ...current, email_opt_in: false }));
+  }
+
+  function editPhone(value: string) {
+    setPhone(value);
+    if (contactChanged('sms', customer.phone_number, value)) setOptIns((current) => ({ ...current, sms_opt_in: false }));
   }
 
   return (
@@ -487,8 +523,18 @@ function EditCustomerForm({
         <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" className={inputClass} />
         <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" className={inputClass} />
       </div>
-      <input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} placeholder="(555)123-4567" className={inputClass} inputMode="tel" />
-      <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className={inputClass} />
+      <input value={phone} onChange={(e) => editPhone(formatPhone(e.target.value))} placeholder="(555)123-4567" className={inputClass} inputMode="tel" />
+      <input value={email} onChange={(e) => editEmail(e.target.value)} placeholder="Email" className={inputClass} />
+      <NotificationOptInFields
+        value={optIns}
+        email={email}
+        phone={phone}
+        onChange={setOptIns}
+        askAgain={{
+          email: customer.email_opt_in && contactChanged('email', customer.email, email),
+          sms: customer.sms_opt_in && contactChanged('sms', customer.phone_number, phone),
+        }}
+      />
       <TaxExemptFields exempt={taxExempt} exemptId={taxExemptId} onExempt={setTaxExempt} onExemptId={setTaxExemptId} />
       <div className="flex gap-2">
         <button
