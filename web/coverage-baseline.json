@@ -2,10 +2,10 @@
   "updated": "2026-11-25",
   "web": {
     "overall": {
-      "lines": 38.34,
-      "statements": 38.63,
-      "functions": 38.67,
-      "branches": 36.88
+      "lines": 39.76,
+      "statements": 40.14,
+      "functions": 41.34,
+      "branches": 37.91
     },
     "byFolder": {
       "src": {
@@ -238,7 +238,19 @@
       "src/features/products/variantLabel.ts": {
         "lines": 100
       },
+      "src/features/reports/ReportTable.tsx": {
+        "lines": 100
+      },
       "src/features/reports/ReportsPage.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/SalesReports.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/reportColumns.ts": {
+        "lines": 100
+      },
+      "src/features/reports/useReport.ts": {
         "lines": 100
       },
       "src/features/sales/CheckEntry.tsx": {
