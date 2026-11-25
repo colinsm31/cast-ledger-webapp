@@ -97,6 +97,14 @@ describe('ReportsPage', () => {
     expect((screen.getByRole('button', { name: 'Download CSV' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('shows inventory value as of now, without a period', async () => {
+    render(<ReportsPage />);
+    await screen.findByText('Strings');
+    fireEvent.click(screen.getByRole('button', { name: 'Inventory value' }));
+    expect(screen.queryByRole('button', { name: 'Month to date' })).toBeNull();
+    await waitFor(() => expect(rpc).toHaveBeenLastCalledWith('report_inventory_value', {}));
+  });
+
   it('waits for a full custom range', async () => {
     render(<ReportsPage />);
     await screen.findByText('Strings');

@@ -2,10 +2,10 @@
   "updated": "2026-11-25",
   "web": {
     "overall": {
-      "lines": 40.39,
-      "statements": 40.7,
-      "functions": 42.3,
-      "branches": 38.09
+      "lines": 40.92,
+      "statements": 41.18,
+      "functions": 43.17,
+      "branches": 38.41
     },
     "byFolder": {
       "src": {
@@ -57,7 +57,7 @@
         "lines": 22.14
       },
       "src/lib": {
-        "lines": 94.35
+        "lines": 94.36
       },
       "src/types": {
         "lines": 75
@@ -238,6 +238,9 @@
       "src/features/products/variantLabel.ts": {
         "lines": 100
       },
+      "src/features/reports/InventoryValueReport.tsx": {
+        "lines": 100
+      },
       "src/features/reports/PriceChangesReport.tsx": {
         "lines": 100
       },
@@ -248,6 +251,9 @@
         "lines": 100
       },
       "src/features/reports/SalesReports.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/inventoryValue.ts": {
         "lines": 100
       },
       "src/features/reports/priceChanges.ts": {

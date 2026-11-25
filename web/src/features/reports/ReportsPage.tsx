@@ -7,6 +7,7 @@ import { usePeriodRange, type DateRange } from '../../lib/reportPeriod';
 import { useSettings } from '../../lib/settings';
 import { BestSellersReport, MarginReport, SalesReport } from './SalesReports';
 import { PriceChangesReport } from './PriceChangesReport';
+import { InventoryValueReport } from './InventoryValueReport';
 
 // The owner's reports (admin only): each one for a period, with a CSV download.
 
@@ -14,6 +15,8 @@ interface ReportTab {
   key: string;
   label: string;
   Report: ComponentType<{ range: DateRange | null }>;
+  /** False for a report about now (or a chosen day), not a period. */
+  usesPeriod?: boolean;
 }
 
 const REPORTS: ReportTab[] = [
@@ -21,6 +24,7 @@ const REPORTS: ReportTab[] = [
   { key: 'best-sellers', label: 'Best-sellers', Report: BestSellersReport },
   { key: 'margin', label: 'Gross margin', Report: MarginReport },
   { key: 'discounts', label: 'Discounts & price changes', Report: PriceChangesReport },
+  { key: 'inventory', label: 'Inventory value', Report: InventoryValueReport, usesPeriod: false },
 ];
 
 export function ReportsPage() {
@@ -41,8 +45,14 @@ export function ReportsPage() {
           </TabButton>
         ))}
       </div>
-      <PeriodPicker state={periodState} />
-      {periodState.range && <tab.Report key={tab.key} range={periodState.range} />}
+      {tab.usesPeriod === false ? (
+        <tab.Report key={tab.key} range={null} />
+      ) : (
+        <>
+          <PeriodPicker state={periodState} />
+          {periodState.range && <tab.Report key={tab.key} range={periodState.range} />}
+        </>
+      )}
     </div>
   );
 }
