@@ -2,10 +2,10 @@
   "updated": "2026-11-25",
   "web": {
     "overall": {
-      "lines": 36.18,
-      "statements": 36.46,
-      "functions": 36.4,
-      "branches": 34.83
+      "lines": 38.34,
+      "statements": 38.63,
+      "functions": 38.67,
+      "branches": 36.88
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 96.77
+        "lines": 96.93
       },
       "src/features/account": {
         "lines": 0
@@ -44,8 +44,11 @@
       "src/features/products": {
         "lines": 24.12
       },
+      "src/features/reports": {
+        "lines": 100
+      },
       "src/features/sales": {
-        "lines": 23.69
+        "lines": 27.95
       },
       "src/features/scan": {
         "lines": 61.7
@@ -54,7 +57,7 @@
         "lines": 22.14
       },
       "src/lib": {
-        "lines": 93.96
+        "lines": 94.35
       },
       "src/types": {
         "lines": 75
@@ -88,6 +91,9 @@
       "src/components/Barcode.tsx": {
         "lines": 100
       },
+      "src/components/CsvButton.tsx": {
+        "lines": 100
+      },
       "src/components/Dialog.tsx": {
         "lines": 91.93
       },
@@ -100,7 +106,13 @@
       "src/components/NotificationLog.tsx": {
         "lines": 100
       },
+      "src/components/PeriodPicker.tsx": {
+        "lines": 100
+      },
       "src/components/Spinner.tsx": {
+        "lines": 100
+      },
+      "src/components/TabButton.tsx": {
         "lines": 100
       },
       "src/features/account/AccountPage.tsx": {
@@ -226,6 +238,9 @@
       "src/features/products/variantLabel.ts": {
         "lines": 100
       },
+      "src/features/reports/ReportsPage.tsx": {
+        "lines": 100
+      },
       "src/features/sales/CheckEntry.tsx": {
         "lines": 9.09
       },
@@ -272,7 +287,7 @@
         "lines": 0
       },
       "src/features/sales/SalesListPage.tsx": {
-        "lines": 0
+        "lines": 95.83
       },
       "src/features/sales/SoldRacketsPanel.tsx": {
         "lines": 100
@@ -281,6 +296,9 @@
         "lines": 100
       },
       "src/features/sales/saleForReturn.ts": {
+        "lines": 100
+      },
+      "src/features/sales/salesListData.ts": {
         "lines": 100
       },
       "src/features/sales/ticketJobQueries.ts": {
@@ -344,6 +362,9 @@
         "lines": 100
       },
       "src/lib/code128.ts": {
+        "lines": 100
+      },
+      "src/lib/csv.ts": {
         "lines": 100
       },
       "src/lib/customerSearch.ts": {
@@ -416,6 +437,9 @@
         "lines": 62.16
       },
       "src/lib/receiptLayout.ts": {
+        "lines": 100
+      },
+      "src/lib/reportPeriod.ts": {
         "lines": 100
       },
       "src/lib/saleLines.ts": {
