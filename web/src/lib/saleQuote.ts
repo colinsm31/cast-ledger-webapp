@@ -20,6 +20,11 @@ export interface SaleLineInput {
   priceReason?: string;
   /** The line's discount box, as typed (see lib/discounts). */
   discount?: string;
+  /**
+   * The list price the register showed (from the last quote). Sent so the
+   * sale is refused if the catalog price has moved since (0105).
+   */
+  listPrice?: number | null;
 }
 
 /** The whole ticket's discount box, as typed. */
@@ -39,7 +44,7 @@ export type SaleLinePayload = (
   | { string_job_id: string; qty: number; unit_price: number }
   | { gift_card_id: string; qty: number; unit_price: number }
   | { product_id: string | undefined; product_unit_id?: string; qty: number; unit_price: number }
-) & { price_reason?: string; discount?: number };
+) & { price_reason?: string; discount?: number; list_price?: number };
 
 export interface QuoteProblem {
   /** 0-based position of the line on the ticket; null for the whole ticket (its discount, the staff limit). */
@@ -83,6 +88,7 @@ export function toSaleLinePayload(line: SaleLineInput): SaleLinePayload {
   const reason = {
     ...(priceReason ? { price_reason: priceReason } : {}),
     ...(discount != null ? { discount } : {}),
+    ...(typeof line.listPrice === 'number' ? { list_price: line.listPrice } : {}),
   };
   if (line.stringJobId) return { string_job_id: line.stringJobId, qty: line.qty, unit_price, ...reason };
   if (line.giftCardId) return { gift_card_id: line.giftCardId, qty: line.qty, unit_price, ...reason };
@@ -158,6 +164,12 @@ export function quoteChangeNotice(shown: SaleTotals, shownTaxRate: number, quote
 }
 
 /** record_sale refused the payments because they don't add up to its total. */
+/** record_sale refused the sale because a catalog price moved since the quote (0105). */
+export function isPriceMovedError(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || !('message' in error)) return false;
+  return String((error as { message: unknown }).message).includes('A price changed in the catalog while this ticket was open');
+}
+
 export function isTotalMismatchError(error: unknown): boolean {
   if (!error || typeof error !== 'object' || !('message' in error)) return false;
   return String((error as { message: unknown }).message).includes('must equal the sale total');
