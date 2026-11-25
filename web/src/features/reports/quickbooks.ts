@@ -2,7 +2,8 @@
 // entry import file: one entry per day, numbered AS-YYYYMMDD, each line with
 // its account, debit or credit, and a memo.
 
-import { toCsv } from '../../lib/csv';
+import { csvMoney, toCsv } from '../../lib/csv';
+import { roundCents } from '../../lib/money';
 import { startOfLocalDay, type DateRange } from '../../lib/reportPeriod';
 
 export interface JournalLine {
@@ -21,12 +22,11 @@ export function journalNumber(day: string): string {
   return `AS-${day.replace(/-/g, '')}`;
 }
 
-const amount = (value: number | null) => (value === null ? null : Math.round(Number(value) * 100) / 100);
 
 export function journalCsv(lines: JournalLine[]): string {
   return toCsv(
     JOURNAL_HEADERS,
-    lines.map((line) => [journalNumber(line.day), line.day, line.account, amount(line.debit), amount(line.credit), line.memo]),
+    lines.map((line) => [journalNumber(line.day), line.day, line.account, csvMoney(line.debit), csvMoney(line.credit), line.memo]),
   );
 }
 
@@ -35,8 +35,8 @@ export function dayTotals(lines: JournalLine[]): { day: string; debits: number; 
   const days = new Map<string, { day: string; debits: number; credits: number }>();
   for (const line of lines) {
     const totals = days.get(line.day) ?? { day: line.day, debits: 0, credits: 0 };
-    totals.debits = Math.round((totals.debits + Number(line.debit ?? 0)) * 100) / 100;
-    totals.credits = Math.round((totals.credits + Number(line.credit ?? 0)) * 100) / 100;
+    totals.debits = roundCents(totals.debits + Number(line.debit ?? 0));
+    totals.credits = roundCents(totals.credits + Number(line.credit ?? 0));
     days.set(line.day, totals);
   }
   return [...days.values()];

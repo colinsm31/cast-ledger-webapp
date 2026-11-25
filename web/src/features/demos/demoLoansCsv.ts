@@ -1,6 +1,6 @@
 // A demo loan list as CSV (Demos out / Demos returned).
 
-import { csvFileName, localDateTimeString, toCsv } from '../../lib/csv';
+import { csvFileNameForToday, localDateTimeString, toCsv } from '../../lib/csv';
 import { demoLoanLabel } from '../../lib/demoLoans';
 import { customerNameLastFirst } from '../../types/domain';
 import { frameRacquetName, type LoanWithFrame } from './demoLoanQueries';
@@ -25,8 +25,10 @@ export function demoLoansCsv(loans: LoanWithFrame[]): string {
   );
 }
 
-/** e.g. "demos-out_2026-11-25.csv", named for the day it was saved. */
-export function demoLoansFileName(which: 'out' | 'returned'): string {
-  const today = new Date();
-  return csvFileName(`demos ${which}`, { from: today, to: today });
+/**
+ * e.g. "demos-out_2026-11-25.csv", named for the day it was saved. The
+ * returned list shows only the latest `latest`, and the name says so.
+ */
+export function demoLoansFileName(which: 'out' | 'returned', latest?: number): string {
+  return csvFileNameForToday(which === 'out' ? 'demos out' : `demos returned latest ${latest ?? ''}`);
 }

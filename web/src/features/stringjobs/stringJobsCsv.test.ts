@@ -14,7 +14,7 @@ describe('stringJobsCsv', () => {
     const text = stringJobsCsv([job, { ...job, job_number: 1043, is_rush: false, paid_sale_id: 's1', customer_rackets: null }]);
     const [header, first, second] = text.split('\r\n');
     expect(header).toBe('Job,Customer,Racquet,Strings,Rush,Promised,Entered,Completed,Assigned to,Strung by,Price,Paid');
-    expect(first).toMatch(/^J1042,"Tester, Pat",Head Speed MP,.*Luxilon.*,Yes,\d{4}-\d{2}-\d{2} \d{2}:\d{2},\d{4}-\d{2}-\d{2} \d{2}:\d{2},,Sam,,30,No$/);
+    expect(first).toMatch(/^J1042,"Tester, Pat",Head Speed MP,.*Luxilon.*,Yes,\d{4}-\d{2}-\d{2} \d{2}:\d{2},\d{4}-\d{2}-\d{2} \d{2}:\d{2},,Sam,,30.00,No$/);
     expect(second).toMatch(/^J1043,,,.*,No,.*,Yes$/);
   });
 });

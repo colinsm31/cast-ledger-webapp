@@ -190,7 +190,7 @@ function ReturnedLoansView() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900">Demos returned</h1>
-        <CsvButton onClick={() => downloadCsv(demoLoansFileName('returned'), demoLoansCsv(loans))} />
+        <CsvButton onClick={() => downloadCsv(demoLoansFileName('returned', RETURNED_LIMIT), demoLoansCsv(loans))} />
         <p className="text-sm text-slate-600">
           {conversionSummary(loans)}
           {loans.length === RETURNED_LIMIT ? ` (latest ${RETURNED_LIMIT})` : ''}

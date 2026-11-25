@@ -1,6 +1,6 @@
 import { CsvButton } from '../../components/CsvButton';
 import { LoadError } from '../../components/LoadError';
-import { csvFileName, csvMoney, downloadCsv, toCsv } from '../../lib/csv';
+import { csvFileName, downloadCsv, itemValueCsv } from '../../lib/csv';
 import type { DateRange } from '../../lib/reportPeriod';
 import { formatReportValue, type ReportColumn } from './reportColumns';
 import { ReportTable } from './ReportTable';
@@ -58,10 +58,7 @@ const SUMMARY_TILES: { key: keyof StringingSummary; label: string; kind: 'count'
 
 /** The summary as a two-column CSV. */
 function summaryCsv(totals: StringingSummary): string {
-  return toCsv(
-    ['Item', 'Value'],
-    SUMMARY_TILES.map((tile) => [tile.label, tile.kind === 'money' ? csvMoney(Number(totals[tile.key])) : Number(totals[tile.key])]),
-  );
+  return itemValueCsv(SUMMARY_TILES.map((tile) => ({ label: tile.label, value: Number(totals[tile.key]), money: tile.kind === 'money' })));
 }
 
 export function StringingReport({ range }: { range: DateRange | null }) {

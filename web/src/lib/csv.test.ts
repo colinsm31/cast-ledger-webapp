@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { csvCell, csvFileName, csvMoney, downloadCsv, localDateString, localDateTimeString, toCsv } from './csv';
+import { csvCell, csvFileName, csvFileNameForToday, csvMoney, downloadCsv, itemValueCsv, localDateString, localDateTimeString, toCsv } from './csv';
 
 describe('csvCell', () => {
   it('leaves plain text and numbers as they are', () => {
@@ -32,9 +32,9 @@ describe('csvCell', () => {
 });
 
 describe('csvMoney', () => {
-  it('rounds to cents', () => {
-    expect(csvMoney(10.005)).toBe(10.01);
-    expect(csvMoney(3)).toBe(3);
+  it('rounds to cents and writes 2 decimals', () => {
+    expect(csvMoney(10.005)).toEqual({ amount: 10.01 });
+    expect(toCsv(['A', 'B', 'C'], [[csvMoney(3), csvMoney(12.5), csvMoney(-4)]])).toBe('A,B,C\r\n3.00,12.50,-4.00\r\n');
   });
   it('gives null for nothing', () => {
     expect(csvMoney(null)).toBeNull();
@@ -96,5 +96,16 @@ describe('downloadCsv', () => {
     const bytes = new Uint8Array(await saved!.arrayBuffer());
     expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
     expect(document.querySelector('a[download]')).toBeNull();
+  });
+});
+
+describe('itemValueCsv / csvFileNameForToday', () => {
+  it('writes a two-column summary, amounts with 2 decimals', () => {
+    expect(itemValueCsv([{ label: 'Sales', value: 5, money: true }, { label: 'Tickets', value: 2, money: false }])).toBe(
+      'Item,Value\r\nSales,5.00\r\nTickets,2\r\n',
+    );
+  });
+  it('names a file for today', () => {
+    expect(csvFileNameForToday('Demos out', new Date(2026, 10, 25, 9))).toBe('demos-out_2026-11-25.csv');
   });
 });

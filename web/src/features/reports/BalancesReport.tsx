@@ -20,7 +20,7 @@ export interface BalanceRow {
 const COLUMNS: ReportColumn<BalanceRow>[] = [
   { label: 'Type', kind: 'text', value: (row) => (row.kind === 'gift_card' ? 'Gift card' : 'Store credit') },
   { label: 'Gift card', kind: 'text', value: (row) => row.code },
-  { label: 'Customer', kind: 'text', value: (row) => row.customer },
+  { label: 'Owner now', kind: 'text', value: (row) => row.customer },
   { label: 'Balance', kind: 'money', value: (row) => row.balance, total: 'sum' },
   { label: 'Last activity', kind: 'text', value: (row) => localDateTimeString(row.last_activity) },
   { label: 'Active', kind: 'text', value: (row) => (row.is_active ? 'Yes' : 'No') },
@@ -61,7 +61,7 @@ export function BalancesReport() {
           columns={COLUMNS}
           csvName={`balances owed ${day}`}
           emptyMessage="Nothing owed on gift cards or store credit."
-          note="Every gift card and customer with a balance at the end of that day, inactive ones included (they still hold value)."
+          note="Every gift card and customer with a balance at the end of that day, inactive ones included (they still hold value). A gift card shows the customer it belongs to now, which may not be who held it on that day."
         />
       )}
     </div>

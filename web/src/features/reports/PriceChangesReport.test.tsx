@@ -40,7 +40,7 @@ describe('PriceChangesReport', () => {
     expect(rpc).toHaveBeenCalledWith('report_price_changes', { p_from: range.from.toISOString(), p_to: range.to.toISOString() });
     fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
     expect(download.mock.calls[0][0]).toBe('discounts-by-person_2026-11-01_to_2026-11-30.csv');
-    expect(download.mock.calls[0][1]).toContain('staff@shop.test,1,2,2,13,0,0\r\n');
+    expect(download.mock.calls[0][1]).toContain('staff@shop.test,1,2.00,2,13.00,0,0.00\r\n');
   });
 
   it('lists every change with its reason, "(none)" included', async () => {
@@ -51,8 +51,8 @@ describe('PriceChangesReport', () => {
     expect(screen.getByText('Ticket discount')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
     const text = download.mock.calls[0][1] as string;
-    expect(text).toContain('Sold at,Type,Item,Qty,From,To,Taken off,Made by,Approved by,Reason,Ticket ID\r\n');
-    expect(text).toContain(',Price change,Overgrip,1,12,10,2,staff@shop.test,,Scuffed,s1\r\n');
-    expect(text).toContain('Total,,,,,,15,,,,\r\n');
+    expect(text).toContain('Sold at,Type,Item,Qty,From,To,Taken off,Made by,Ticket approved by,Reason,Ticket ID\r\n');
+    expect(text).toContain(',Price change,Overgrip,1,12.00,10.00,2.00,staff@shop.test,,Scuffed,s1\r\n');
+    expect(text).toContain('Total,,,,,,15.00,,,,\r\n');
   });
 });

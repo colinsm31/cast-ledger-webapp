@@ -2,8 +2,8 @@
   "updated": "2026-11-25",
   "web": {
     "overall": {
-      "lines": 42.09,
-      "statements": 42.4,
+      "lines": 42.08,
+      "statements": 42.39,
       "functions": 45.32,
       "branches": 39.48
     },
@@ -33,7 +33,7 @@
         "lines": 1.22
       },
       "src/features/demos": {
-        "lines": 97.45
+        "lines": 97.44
       },
       "src/features/home": {
         "lines": 0
@@ -48,16 +48,16 @@
         "lines": 100
       },
       "src/features/sales": {
-        "lines": 28.12
+        "lines": 28.06
       },
       "src/features/scan": {
         "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 22.35
+        "lines": 22.39
       },
       "src/lib": {
-        "lines": 94.43
+        "lines": 94.46
       },
       "src/types": {
         "lines": 75

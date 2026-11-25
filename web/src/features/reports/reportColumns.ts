@@ -2,6 +2,7 @@
 // and how it adds up in the totals row.
 
 import { csvMoney, toCsv, type CsvCell } from '../../lib/csv';
+import { roundCents } from '../../lib/money';
 
 export type ReportValueKind = 'text' | 'money' | 'count' | 'percent';
 export type ReportValue = string | number | null;
@@ -33,7 +34,7 @@ export function reportTotals<Row>(columns: ReportColumn<Row>[], rows: Row[]): Re
   return columns.map((column) => {
     if (column.total === 'sum') {
       const sum = rows.reduce((total, row) => total + Number(column.value(row) ?? 0), 0);
-      return column.kind === 'money' ? Math.round(sum * 100) / 100 : sum;
+      return column.kind === 'money' ? roundCents(sum) : sum;
     }
     return column.total ? column.total(rows) : null;
   });

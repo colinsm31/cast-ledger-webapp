@@ -94,7 +94,7 @@ describe('DemosPage', () => {
     expect(screen.getByText('Back, retired')).toBeTruthy();
     expect(screen.getByText(/Cracked/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
-    expect(download.mock.calls.at(-1)?.[0]).toMatch(/^demos-returned_/);
+    expect(download.mock.calls.at(-1)?.[0]).toMatch(/^demos-returned-latest-\d+_/);
     expect(download.mock.calls.at(-1)?.[1]).toContain(',Retired,Cracked,');
     expect(screen.getByText('Tester, Sam')).toBeTruthy();
     fireEvent.click(screen.getByText('Out now'));

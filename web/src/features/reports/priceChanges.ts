@@ -1,5 +1,7 @@
 // Discounts and price changes (report_price_changes, 0096): rows and per-person totals.
 
+import { roundCents } from '../../lib/money';
+
 export type PriceChangeKind = 'price_change' | 'line_discount' | 'ticket_discount';
 
 export interface PriceChangeRow {
@@ -53,8 +55,12 @@ export function totalsByPerson(rows: PriceChangeRow[]): PersonTotals[] {
       approver.approved_total += amount;
     }
   }
-  const cents = (value: number) => Math.round(value * 100) / 100;
   return [...people.values()]
-    .map((t) => ({ ...t, price_change_total: cents(t.price_change_total), discount_total: cents(t.discount_total), approved_total: cents(t.approved_total) }))
+    .map((t) => ({
+      ...t,
+      price_change_total: roundCents(t.price_change_total),
+      discount_total: roundCents(t.discount_total),
+      approved_total: roundCents(t.approved_total),
+    }))
     .sort((a, b) => a.person.localeCompare(b.person));
 }

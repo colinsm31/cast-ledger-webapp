@@ -1,6 +1,8 @@
 // Inventory value at cost (report_inventory_value, 0097): rows and totals by
 // category or brand.
 
+import { roundCents } from '../../lib/money';
+
 export interface InventoryValueRow {
   product_id: string;
   product: string;
@@ -29,7 +31,6 @@ export interface InventoryGroupRow {
 
 export type InventoryGrouping = 'product' | 'category' | 'brand';
 
-const cents = (value: number) => Math.round(value * 100) / 100;
 
 /** The products' figures added up by category or brand, sorted by value. */
 export function inventoryByGroup(rows: InventoryValueRow[], grouping: 'category' | 'brand'): InventoryGroupRow[] {
@@ -49,6 +50,11 @@ export function inventoryByGroup(rows: InventoryValueRow[], grouping: 'category'
     groups.set(name, group);
   }
   return [...groups.values()]
-    .map((g) => ({ ...g, value_at_cost: cents(g.value_at_cost), retail_value: cents(g.retail_value), demo_value_at_cost: cents(g.demo_value_at_cost) }))
+    .map((g) => ({
+      ...g,
+      value_at_cost: roundCents(g.value_at_cost),
+      retail_value: roundCents(g.retail_value),
+      demo_value_at_cost: roundCents(g.demo_value_at_cost),
+    }))
     .sort((a, b) => b.value_at_cost - a.value_at_cost || a.name.localeCompare(b.name));
 }

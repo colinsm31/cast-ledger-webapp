@@ -1,6 +1,6 @@
 // The Sales list's summary and tickets: their lines, and as CSV.
 import { customerNameLastFirst } from '../../types/domain';
-import { csvMoney, localDateTimeString, toCsv } from '../../lib/csv';
+import { csvMoney, itemValueCsv, localDateTimeString, toCsv } from '../../lib/csv';
 
 export interface Summary {
   gross: number;
@@ -57,10 +57,7 @@ export const SUMMARY_ROWS: { key: keyof Summary; label: string; kind: 'money' | 
 ];
 
 export function summaryCsv(summary: Summary): string {
-  return toCsv(
-    ['Item', 'Value'],
-    SUMMARY_ROWS.map((row) => [row.label, row.kind === 'money' ? csvMoney(summary[row.key]) : summary[row.key]]),
-  );
+  return itemValueCsv(SUMMARY_ROWS.map((row) => ({ label: row.label, value: summary[row.key], money: row.kind === 'money' })));
 }
 
 export function ticketsCsv(tickets: TicketRow[]): string {

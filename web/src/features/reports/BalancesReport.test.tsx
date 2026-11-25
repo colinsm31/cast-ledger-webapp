@@ -40,8 +40,8 @@ describe('BalancesReport', () => {
     await screen.findByText('GC-1');
     fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
     expect(download.mock.calls[0][0]).toBe('balances-owed-2026-11-30.csv');
-    expect(download.mock.calls[0][1]).toContain('Gift card,GC-2,,10,,No\r\n');
-    expect(download.mock.calls[0][1]).toContain('Total,,,55,,\r\n');
+    expect(download.mock.calls[0][1]).toContain('Gift card,GC-2,,10.00,,No\r\n');
+    expect(download.mock.calls[0][1]).toContain('Total,,,55.00,,\r\n');
   });
 
   it('asks for a day when the box is cleared', async () => {

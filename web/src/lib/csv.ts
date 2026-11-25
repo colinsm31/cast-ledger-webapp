@@ -2,13 +2,20 @@
 // Excel, Numbers, Google Sheets and QuickBooks.
 //   - comma-separated, CRLF line ends, UTF-8 with a byte-order mark (so Excel
 //     reads accents and "—" correctly);
-//   - amounts as plain numbers with 2 decimals (no "$", no thousands commas);
+//   - amounts with 2 decimals, e.g. 12.50 (no "$", no thousands commas);
 //   - dates as YYYY-MM-DD;
 //   - text that a spreadsheet would run as a formula (starting with =, +, -, @,
 //     tab or return) is prefixed with ' so it shows as typed. Numbers are never
 //     changed, so a negative amount stays a number.
 
-export type CsvCell = string | number | boolean | null | undefined;
+import { roundCents } from './money';
+
+/** An amount of money, written with 2 decimals (see csvMoney). */
+export interface CsvAmount {
+  amount: number;
+}
+
+export type CsvCell = string | number | boolean | CsvAmount | null | undefined;
 
 const FORMULA_START = /^[=+\-@\t\r]/;
 
@@ -17,14 +24,23 @@ export function csvCell(value: CsvCell): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') return value.amount.toFixed(2);
   const text = FORMULA_START.test(value) ? `'${value}` : value;
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-/** A money amount for a CSV cell: 2 decimals, no "$". */
-export function csvMoney(value: number | null | undefined): number | null {
+/** A money amount for a CSV cell: 2 decimals, no "$"; nothing for no amount. */
+export function csvMoney(value: number | null | undefined): CsvAmount | null {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) return null;
-  return Math.round(Number(value) * 100) / 100;
+  return { amount: roundCents(Number(value)) };
+}
+
+/** A two-column "Item, Value" CSV, for a summary of figures. */
+export function itemValueCsv(items: { label: string; value: number; money: boolean }[]): string {
+  return toCsv(
+    ['Item', 'Value'],
+    items.map((item) => [item.label, item.money ? csvMoney(item.value) : item.value]),
+  );
 }
 
 /** The whole file's text (without the byte-order mark). */
@@ -62,6 +78,11 @@ export function csvFileName(name: string, range?: { from: Date; to: Date }): str
   const from = localDateString(range.from);
   const to = localDateString(lastDay < range.from ? range.from : lastDay);
   return `${slug || 'export'}_${from === to ? from : `${from}_to_${to}`}.csv`;
+}
+
+/** A file name for a list as it is today, e.g. "demos-out_2026-11-25.csv". */
+export function csvFileNameForToday(name: string, now: Date = new Date()): string {
+  return csvFileName(name, { from: now, to: now });
 }
 
 /** Hands the browser a CSV file to save. */

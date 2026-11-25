@@ -37,7 +37,7 @@ describe('StringingReport', () => {
     fireEvent.click(summaryButton);
     expect(download.mock.calls[0][0]).toBe('stringing-summary_2026-11-01_to_2026-11-30.csv');
     expect(download.mock.calls[0][1]).toContain('Jobs taken in,3\r\n');
-    expect(download.mock.calls[0][1]).toContain('Net strings,20\r\n');
+    expect(download.mock.calls[0][1]).toContain('Net strings,20.00\r\n');
     fireEvent.click(stringerButton);
     expect(download.mock.calls[1][1]).toContain("Stringer,Jobs completed,Rush,Customer's own string,On time,Late,Average hours\r\nSam,2,1,1,1,1,48.5\r\n");
   });

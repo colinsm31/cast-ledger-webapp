@@ -15,7 +15,7 @@ import { UNASSIGNED, filterByStringer } from '../../lib/stringerWorkload';
 import { useLookups } from '../lookups/useLookups';
 import { WorkloadPanel } from './WorkloadPanel';
 import { CsvButton } from '../../components/CsvButton';
-import { csvFileName, downloadCsv } from '../../lib/csv';
+import { csvFileNameForToday, downloadCsv } from '../../lib/csv';
 import { stringJobsCsv } from './stringJobsCsv';
 
 const STRINGER_FILTER_KEY = 'acestock.stringerFilter';
@@ -125,10 +125,7 @@ export function StringJobsPage({
           <h1 className="text-xl font-bold text-slate-900">{title}</h1>
           <CsvButton
             disabled={!shown || shown.length === 0}
-            onClick={() => {
-              const today = new Date();
-              downloadCsv(csvFileName(title, { from: today, to: today }), stringJobsCsv(shown ?? []));
-            }}
+            onClick={() => downloadCsv(csvFileNameForToday(title), stringJobsCsv(shown ?? []))}
           />
         </div>
         {waitingQueue && (

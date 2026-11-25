@@ -33,7 +33,7 @@ const DETAIL_COLUMNS: ReportColumn<PriceChangeRow>[] = [
   { label: 'To', kind: 'money', value: (row) => row.to_price },
   { label: 'Taken off', kind: 'money', value: (row) => row.amount, total: 'sum' },
   { label: 'Made by', kind: 'text', value: (row) => row.made_by },
-  { label: 'Approved by', kind: 'text', value: (row) => row.approved_by },
+  { label: 'Ticket approved by', kind: 'text', value: (row) => row.approved_by },
   { label: 'Reason', kind: 'text', value: (row) => row.reason },
   { label: 'Ticket ID', kind: 'text', value: (row) => row.sale_id },
 ];
@@ -73,7 +73,7 @@ export function PriceChangesReport({ range }: { range: DateRange | null }) {
           csvName="discounts-and-price-changes"
           range={range}
           emptyMessage="No discounts or price changes in this period."
-          note='"(none)" means no reason was typed; reasons are optional.'
+          note='"(none)" means no reason was typed; reasons are optional. An admin approves a ticket’s discounts together, so "Ticket approved by" shows on each discount on that ticket.'
         />
       )}
     </div>

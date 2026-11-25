@@ -47,7 +47,7 @@ describe('SalesListPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
     const [name, text] = download.mock.calls[0] as [string, string];
     expect(name).toMatch(/^sales-summary_\d{4}-\d{2}-\d{2}\.csv$/);
-    expect(text).toContain('Item,Value\r\nGross sales,100\r\n');
+    expect(text).toContain('Item,Value\r\nGross sales,100.00\r\n');
     expect(text).toContain('Number of sales tickets,1\r\n');
   });
 
@@ -58,8 +58,8 @@ describe('SalesListPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
     const text = download.mock.calls[0][1] as string;
     expect(text).toContain('Sold at,Customer,Subtotal,Tax,Total,Ticket ID\r\n');
-    expect(text).toContain('"Tester, Pat",100,8.25,108.25,s1');
-    expect(text).toContain('Unidentified Customer,20,0,20,s2');
+    expect(text).toContain('"Tester, Pat",100.00,8.25,108.25,s1');
+    expect(text).toContain('Unidentified Customer,20.00,0.00,20.00,s2');
   });
 
   it('asks for both days of a custom range, then loads through the end day', async () => {

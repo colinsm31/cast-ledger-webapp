@@ -31,8 +31,8 @@ describe('journal helpers', () => {
   it('writes a journal import file', () => {
     expect(journalCsv(lines.slice(3))).toBe(
       'Journal No,Journal Date,Account,Debits,Credits,Description\r\n' +
-        'AS-20261111,2026-11-11,Undeposited Funds,55,,Card\r\n' +
-        'AS-20261111,2026-11-11,"Gift Card Liability, Main",,55,Gift cards sold\r\n',
+        'AS-20261111,2026-11-11,Undeposited Funds,55.00,,Card\r\n' +
+        'AS-20261111,2026-11-11,"Gift Card Liability, Main",,55.00,Gift cards sold\r\n',
     );
   });
   it('totals each day', () => {

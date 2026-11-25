@@ -102,11 +102,7 @@ export function MarginReport({ range }: { range: DateRange | null }) {
   const report = useSalesBy(range, group);
   const anyEstimated = report.rows?.some((row) => row.cost_estimated) ?? false;
   const columns: ReportColumn<SalesByRow>[] = [
-    ...nameColumns(group).map((column, index) =>
-      index === 0
-        ? { ...column, value: (row: SalesByRow) => (row.cost_estimated ? `${row.label} *` : row.label) }
-        : column,
-    ),
+    ...nameColumns(group),
     { label: 'Net qty', kind: 'count', value: (row) => row.net_qty, total: 'sum' },
     { label: 'Net sales', kind: 'money', value: (row) => row.net_sales, total: 'sum' },
     { label: 'Sales with a cost', kind: 'money', value: (row) => row.costed_sales, total: 'sum' },
@@ -119,6 +115,7 @@ export function MarginReport({ range }: { range: DateRange | null }) {
       total: (rows) => marginPercent(sumOf(rows, (r) => r.margin), sumOf(rows, (r) => r.costed_sales)),
     },
     { label: 'Qty without a cost', kind: 'count', value: (row) => row.uncosted_qty, total: 'sum' },
+    { label: 'Estimated cost', kind: 'text', value: (row) => (row.cost_estimated ? 'Yes' : '') },
   ];
   return (
     <div className="space-y-3">
@@ -132,7 +129,8 @@ export function MarginReport({ range }: { range: DateRange | null }) {
           <>
             Margin is net sales less the cost recorded when each item sold, on items that have a cost. Items with no
             cost recorded (and stringing) are left out of margin.
-            {anyEstimated && ' * Includes sales from before costs were kept with each sale; their cost is today’s cost, an estimate.'}
+            {anyEstimated &&
+              ' "Estimated cost" marks rows with sales from before costs were kept with each sale; their cost is the product’s cost at that time, an estimate.'}
           </>
         }
       />

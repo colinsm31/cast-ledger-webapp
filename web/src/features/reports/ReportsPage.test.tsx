@@ -53,8 +53,8 @@ describe('ReportsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
     expect(download.mock.calls[0][0]).toMatch(/^sales-by-category_/);
     expect(csvText()).toContain('Category,Qty sold,Sales,Discounts,Qty returned,Returns,Net qty,Net sales\r\n');
-    expect(csvText()).toContain('Strings,2,40,10,1,20,1,20\r\n');
-    expect(csvText()).toContain('Total,3,70,10,1,20,2,50\r\n');
+    expect(csvText()).toContain('Strings,2,40.00,10.00,1,20.00,1,20.00\r\n');
+    expect(csvText()).toContain('Total,3,70.00,10.00,1,20.00,2,50.00\r\n');
   });
 
   it('groups by staff member with a tickets column', async () => {
@@ -71,10 +71,12 @@ describe('ReportsPage', () => {
     await screen.findByText('Strings');
     const total = screen.getByText('Total').closest('tr')!;
     expect(within(total).getByText('60.0%')).toBeTruthy();
-    expect(screen.queryByText(/today’s cost, an estimate/)).toBeNull();
+    expect(screen.queryByText(/an estimate/)).toBeNull();
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'product' } });
-    expect(await screen.findByText('Wilson String *')).toBeTruthy();
-    expect(screen.getByText(/today’s cost, an estimate/)).toBeTruthy();
+    const wilson = (await screen.findByText('Wilson String')).closest('tr')!;
+    expect(within(wilson).getByText('Yes')).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Estimated cost' })).toBeTruthy();
+    expect(screen.getByText(/an estimate/)).toBeTruthy();
   });
 
   it('ranks best-sellers by quantity, products only', async () => {
@@ -84,7 +86,7 @@ describe('ReportsPage', () => {
     const names = screen.getAllByRole('row').slice(1).map((r) => r.querySelector('td')?.textContent);
     expect(names).toEqual(['Wilson String', 'Head Grip']);
     fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
-    expect(csvText()).toBe('Product,Category,Net qty,Net sales,Margin %\r\nWilson String,Strings,3,30,60\r\nHead Grip,Grips,1,5,60\r\n');
+    expect(csvText()).toBe('Product,Category,Net qty,Net sales,Margin %\r\nWilson String,Strings,3,30.00,60\r\nHead Grip,Grips,1,5.00,60\r\n');
   });
 
   it('shows a failed report with Retry, and an empty one plainly', async () => {

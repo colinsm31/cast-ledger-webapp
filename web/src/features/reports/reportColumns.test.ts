@@ -38,7 +38,7 @@ describe('reportTotals', () => {
 
 describe('reportCsv', () => {
   it('writes the rows and a Total row, amounts as numbers', () => {
-    expect(reportCsv(columns, rows)).toBe('Name,Qty,Amount,Share\r\nA,2,10.1,\r\n\'=B,1,,\r\nTotal,3,10.1,100\r\n');
+    expect(reportCsv(columns, rows)).toBe('Name,Qty,Amount,Share\r\nA,2,10.10,\r\n\'=B,1,,\r\nTotal,3,10.10,100\r\n');
   });
   it('leaves the Total row out when nothing adds up', () => {
     expect(reportCsv([columns[0]], rows)).toBe('Name\r\nA\r\n\'=B\r\n');

@@ -47,7 +47,7 @@ describe('InventoryValueReport', () => {
     expect(screen.getByText('Grip')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
     expect(download.mock.calls[0][0]).toBe('inventory-value-by-product.csv');
-    expect(download.mock.calls[0][1]).toContain('Grip,Strings,3,,,27,0,\r\n');
-    expect(download.mock.calls[0][1]).toContain('Total,,15,,380,727,2,300\r\n');
+    expect(download.mock.calls[0][1]).toContain('Grip,Strings,3,,,27.00,0,\r\n');
+    expect(download.mock.calls[0][1]).toContain('Total,,15,,380.00,727.00,2,300.00\r\n');
   });
 });
