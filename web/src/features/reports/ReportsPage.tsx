@@ -6,6 +6,7 @@ import { TabButton } from '../../components/TabButton';
 import { usePeriodRange, type DateRange } from '../../lib/reportPeriod';
 import { useSettings } from '../../lib/settings';
 import { BestSellersReport, MarginReport, SalesReport } from './SalesReports';
+import { PriceChangesReport } from './PriceChangesReport';
 
 // The owner's reports (admin only): each one for a period, with a CSV download.
 
@@ -19,6 +20,7 @@ const REPORTS: ReportTab[] = [
   { key: 'sales', label: 'Sales', Report: SalesReport },
   { key: 'best-sellers', label: 'Best-sellers', Report: BestSellersReport },
   { key: 'margin', label: 'Gross margin', Report: MarginReport },
+  { key: 'discounts', label: 'Discounts & price changes', Report: PriceChangesReport },
 ];
 
 export function ReportsPage() {
