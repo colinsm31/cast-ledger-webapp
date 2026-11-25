@@ -11,6 +11,9 @@ import { EmptyState } from '../../components/EmptyState';
 import { useBack } from '../../app/BackContext';
 import { DemoLoanActions } from './DemoLoanActions';
 import { DemoHistoryList } from './DemoHistoryList';
+import { CsvButton } from '../../components/CsvButton';
+import { downloadCsv } from '../../lib/csv';
+import { demoLoansCsv, demoLoansFileName } from './demoLoansCsv';
 import {
   fetchOpenLoans,
   fetchReturnedLoans,
@@ -83,6 +86,7 @@ function OpenLoansView() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900">Demos out</h1>
+        <CsvButton disabled={shown.length === 0} onClick={() => downloadCsv(demoLoansFileName('out'), demoLoansCsv(shown))} />
         <p className="text-sm text-slate-600">
           <span className="font-semibold">{loans.length}</span> out
           {overdue > 0 && (
@@ -186,6 +190,7 @@ function ReturnedLoansView() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900">Demos returned</h1>
+        <CsvButton onClick={() => downloadCsv(demoLoansFileName('returned'), demoLoansCsv(loans))} />
         <p className="text-sm text-slate-600">
           {conversionSummary(loans)}
           {loans.length === RETURNED_LIMIT ? ` (latest ${RETURNED_LIMIT})` : ''}

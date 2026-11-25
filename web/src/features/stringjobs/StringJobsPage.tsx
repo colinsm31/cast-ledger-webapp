@@ -14,6 +14,9 @@ import { jobCode } from './jobTag';
 import { UNASSIGNED, filterByStringer } from '../../lib/stringerWorkload';
 import { useLookups } from '../lookups/useLookups';
 import { WorkloadPanel } from './WorkloadPanel';
+import { CsvButton } from '../../components/CsvButton';
+import { csvFileName, downloadCsv } from '../../lib/csv';
+import { stringJobsCsv } from './stringJobsCsv';
 
 const STRINGER_FILTER_KEY = 'acestock.stringerFilter';
 
@@ -118,7 +121,16 @@ export function StringJobsPage({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+          <CsvButton
+            disabled={!shown || shown.length === 0}
+            onClick={() => {
+              const today = new Date();
+              downloadCsv(csvFileName(title, { from: today, to: today }), stringJobsCsv(shown ?? []));
+            }}
+          />
+        </div>
         {waitingQueue && (
           <label className="flex items-center gap-2 text-sm text-slate-600">
             Stringer
