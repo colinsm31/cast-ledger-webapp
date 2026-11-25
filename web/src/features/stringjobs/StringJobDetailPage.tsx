@@ -429,7 +429,6 @@ export function StringJobDetailPage() {
         title={charging ? 'String change: customer owes' : 'String change: customer is owed'}
         backLabel="Back to the job"
         completeLabel={charging ? 'Charge & change strings' : 'Give back & change strings'}
-        completeDisabled={overages.length > 0 && !changeReason.trim()}
         onTendersChange={setChangeTenders}
         onBack={() => {
           setPendingChange(null);
@@ -446,11 +445,10 @@ export function StringJobDetailPage() {
           <p className="text-xs text-slate-500">The strings change once this is complete.</p>
           {!charging && (
             <p className="text-xs text-slate-500">
-              Up to{' '}
+              What the customer paid each way:{' '}
               {STRING_CHANGE_METHODS.map(
                 (m) => `${m === 'store_credit' ? 'store credit' : m} $${Number(quote.refundable?.[m] ?? 0).toFixed(2)}`,
-              ).join(' · ')}{' '}
-              without a reason (what the customer paid each way).
+              ).join(' · ')}.
             </p>
           )}
         </section>
@@ -458,7 +456,7 @@ export function StringJobDetailPage() {
           <label className="block space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-4">
             <span className="text-sm text-amber-900">
               Giving back more as {overages.map((m) => (m === 'store_credit' ? 'store credit' : m)).join(' and ')} than
-              the customer paid that way. Give a reason:
+              the customer paid that way. Reason (optional):
             </span>
             <input
               value={changeReason}

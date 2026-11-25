@@ -24,11 +24,12 @@ describe('DemoLoanActions', () => {
     expect(rpc).toHaveBeenCalledWith('check_in_demo', { p_loan_id: 'l1', p_status: 'demo', p_reason: null });
   });
 
-  it('needs a reason to retire a damaged demo', async () => {
+  it('retires a damaged demo, with or without a reason', async () => {
     render(<DemoLoanActions loan={loan} onChanged={vi.fn()} />);
     fireEvent.click(screen.getByText('Check in'));
     fireEvent.click(screen.getByLabelText('Damaged: retire it'));
-    expect(screen.getByText('Say why the frame is retired.')).toBeTruthy();
+    const confirm = screen.getAllByText('Check in').find((el) => el.className.includes('bg-blue')) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(false); // no reason needed
     fireEvent.change(screen.getByPlaceholderText(/cracked throat/), { target: { value: 'Cracked throat' } });
     fireEvent.click(screen.getAllByText('Check in').find((el) => el.className.includes('bg-blue')) as HTMLElement);
     await waitFor(() =>

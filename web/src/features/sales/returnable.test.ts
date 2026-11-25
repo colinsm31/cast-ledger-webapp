@@ -85,8 +85,9 @@ describe('a returned frame', () => {
     });
   });
 
-  it('is retired only with a reason of at most 200 characters', () => {
-    expect(frameReturnProblem({ status: 'retired', reason: ' ' })).toBe('Say why the returned frame is retired.');
+  it('is retired with no reason, or one of at most 200 characters', () => {
+    expect(frameReturnProblem({ status: 'retired', reason: ' ' })).toBeNull();
+    expect(frameReturnLine('l1', { status: 'retired', reason: ' ' })).toMatchObject({ unit_status: 'retired', unit_reason: null });
     expect(frameReturnProblem({ status: 'retired', reason: 'x'.repeat(201) })).toBe('Keep the reason to 200 characters.');
     expect(frameReturnLine('l1', { status: 'retired', reason: ' Cracked ' })).toMatchObject({
       unit_status: 'retired',

@@ -11,7 +11,7 @@ export interface StringChangeQuote {
   old_price: number;
   new_price: number;
   customer_id: string | null;
-  // give_back only: what each payment type can give back without a reason.
+  // give_back only: what the customer paid each way, net of earlier refunds.
   refundable?: Partial<Record<PaymentMethod, number>>;
 }
 
@@ -20,7 +20,7 @@ export const STRING_CHANGE_METHODS: PaymentMethod[] = ['cash', 'credit', 'store_
 
 /**
  * Payment types a give-back sends more to than the customer paid that way.
- * Each one is a payment-type change, which needs a reason.
+ * Each one is a payment-type change (a reason is optional, 0093).
  */
 export function giveBackOverages(
   tenders: { method: PaymentMethod; amount: number }[],

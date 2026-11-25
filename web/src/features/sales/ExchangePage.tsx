@@ -218,7 +218,7 @@ export function ExchangePage() {
       p_payments: payments.map(toPaymentPayload),
       p_refund_payments: refundPayments.map(toPaymentPayload),
       p_reason: reason.trim() || null,
-      p_method_change_reason: changedTypes.length > 0 ? methodChangeReason.trim() : null,
+      p_method_change_reason: (changedTypes.length > 0 && methodChangeReason.trim()) || null,
     });
     setSaving(false);
     if (err) {
@@ -264,7 +264,6 @@ export function ExchangePage() {
         title="Exchange: customer is owed"
         backLabel="Back to the exchange"
         completeLabel="Give back & complete exchange"
-        completeDisabled={changedTypes.length > 0 && !methodChangeReason.trim()}
         onTendersChange={setGiveBackTenders}
         onBack={() => setStep('choose')}
         onComplete={(tenders) => void submit([], tenders)}
@@ -273,7 +272,7 @@ export function ExchangePage() {
         {changedTypes.length > 0 && (
           <label className="block space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-4">
             <span className="text-sm text-amber-900">
-              Giving back more to a payment type than the sale took that way. Give a reason:
+              Giving back more to a payment type than the sale took that way. Reason (optional):
             </span>
             <input
               value={methodChangeReason}

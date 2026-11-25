@@ -95,7 +95,7 @@ export function GiftCardRefundEntry({
     if (!trimmedCode) return;
     const ok = await confirm({
       title: 'Issue a new gift card?',
-      message: `No card has code ${trimmedCode}. A new card with this code gets $${amount.toFixed(2)}. It didn't pay for this sale, so you'll be asked for a reason.`,
+      message: `No card has code ${trimmedCode}. A new card with this code gets $${amount.toFixed(2)}. It didn't pay for this sale.`,
       confirmLabel: 'Issue new card',
     });
     if (!ok || gone.current) return;

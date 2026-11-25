@@ -30,7 +30,6 @@ export function unitMoves(status: ProductUnitStatus): UnitMove[] {
 /** What's wrong with a reason, or null. */
 export function unitReasonProblem(reason: string): string | null {
   const text = reason.trim();
-  if (!text) return 'Give a reason.';
   if (text.length > UNIT_REASON_MAX) return `Keep the reason to ${UNIT_REASON_MAX} characters.`;
   return null;
 }

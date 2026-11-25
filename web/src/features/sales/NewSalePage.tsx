@@ -31,8 +31,6 @@ import {
 import {
   applyServerListPrices,
   isPriceChanged,
-  isPriceReasonError,
-  missingPriceReasons,
   PRICE_REASON_LOOKUP_KIND,
 } from '../../lib/priceOverride';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
@@ -600,12 +598,9 @@ export function NewSalePage() {
         return;
       }
     }
-    const missingReasons = [
-      ...missingPriceReasons(lines),
-      ...discountProblems(lines, { discount: ticketDiscount }),
-    ];
-    if (missingReasons.length > 0) {
-      setError(missingReasons.join('\n'));
+    const discountErrors = discountProblems(lines, { discount: ticketDiscount });
+    if (discountErrors.length > 0) {
+      setError(discountErrors.join('\n'));
       return;
     }
     setError(null);
@@ -622,17 +617,14 @@ export function NewSalePage() {
       setQuoting(false);
     }
     // Catalog prices that moved while the ticket was open: unchanged lines take
-    // the new price. Stop so the cashier sees the new total, or gives a reason
-    // for a line that now differs from its list price.
+    // the new price. Stop so the cashier sees the new total.
     const synced = applyServerListPrices(lines, fresh.listPrices);
     if (synced.changed) {
       setLines(synced.lines);
-      const nowMissing = missingPriceReasons(synced.lines);
       if (synced.notices.length > 0) {
         setPriceNotice(`Prices changed in the catalog: ${synced.notices.join(' ')} Check the ticket, then press Payment Type again.`);
+        return;
       }
-      if (nowMissing.length > 0) setError(nowMissing.join('\n'));
-      if (synced.notices.length > 0 || nowMissing.length > 0) return;
     }
     // The customer's exemption changed while the ticket was open: show the new total first.
     if (customer && fresh.taxExemptId !== (customer.tax_exempt ? customer.tax_exempt_id : null)) {
@@ -798,12 +790,6 @@ export function NewSalePage() {
         setApprovalId(null);
         closePayment();
         await openPayment(null);
-        return;
-      }
-      if (isPriceReasonError(err)) {
-        // A list price moved after the quote: back to the ticket to pick it up.
-        closePayment();
-        await openPayment();
         return;
       }
       setError(errorMessage(err));
@@ -982,7 +968,7 @@ export function NewSalePage() {
                         kind={PRICE_REASON_LOOKUP_KIND}
                         value={l.priceReason ?? ''}
                         onChange={(reason) => updateLine(l.key, { priceReason: reason })}
-                        placeholder="Reason for the price change"
+                        placeholder="Reason for the price change (optional)"
                       />
                     </div>
                   )}

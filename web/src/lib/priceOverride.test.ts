@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   applyServerListPrices,
   isPriceChanged,
-  isPriceReasonError,
-  missingPriceReasons,
   priceChangeNote,
   priceReasonOf,
 } from './priceOverride';
@@ -36,18 +34,6 @@ describe('priceReasonOf', () => {
     expect(priceReasonOf({ priceReason: ' Damaged ' })).toBe('Damaged');
     expect(priceReasonOf({ priceReason: '  ' })).toBeUndefined();
     expect(priceReasonOf({})).toBeUndefined();
-  });
-});
-
-describe('missingPriceReasons', () => {
-  it('names each changed line without a reason', () => {
-    expect(
-      missingPriceReasons([
-        overgrip,
-        { ...overgrip, label: 'Strings', price: '15' },
-        { ...overgrip, label: 'Bag', price: '15', priceReason: 'Damaged' },
-      ]),
-    ).toEqual(['Strings: the price changed from $20.00, so give a reason.']);
   });
 });
 
@@ -96,17 +82,5 @@ describe('priceChangeNote', () => {
   it('says nothing at the list price or with none', () => {
     expect(priceChangeNote(20, '20.00', null)).toBeNull();
     expect(priceChangeNote(null, 20, null)).toBeNull();
-  });
-});
-
-describe('isPriceReasonError', () => {
-  it('spots record_sale refusing a changed price with no reason', () => {
-    expect(isPriceReasonError({ message: 'Price changed from $20.00 on line 2: give a reason' })).toBe(true);
-  });
-
-  it('ignores other errors and non-errors', () => {
-    expect(isPriceReasonError({ message: 'Sale line price must be >= 0' })).toBe(false);
-    expect(isPriceReasonError('Price changed from $20.00: give a reason')).toBe(false);
-    expect(isPriceReasonError(null)).toBe(false);
   });
 });

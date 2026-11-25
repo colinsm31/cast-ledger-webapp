@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  checkInProblem,
   conversionSummary,
   defaultDemoDue,
   demoDueProblem,
@@ -37,13 +36,6 @@ describe('demoLoans', () => {
   it('keeps notes to 200 characters', () => {
     expect(demoNoteProblem(' card on file ')).toBeNull();
     expect(demoNoteProblem('x'.repeat(201))).toBe('Keep each note to 200 characters.');
-  });
-
-  it('needs a reason to retire a frame on check-in', () => {
-    expect(checkInProblem('demo', '')).toBeNull();
-    expect(checkInProblem('retired', '  ')).toBe('Say why the frame is retired.');
-    expect(checkInProblem('retired', 'Cracked')).toBeNull();
-    expect(checkInProblem('retired', 'x'.repeat(201))).toBe('Keep each note to 200 characters.');
   });
 
   it('lists the loan due soonest first and counts the overdue ones', () => {

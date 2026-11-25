@@ -29,7 +29,7 @@ type HistoryRow = UnitStatusChange & { changed_by_staff: StaffRef | null };
 // MARK: - UnitRow
 //
 // One frame: its barcode and status, Sell while it's in stock, moving it to
-// demo, retiring it or putting it back with a reason, and its history (0067).
+// demo, retiring it or putting it back (a reason is optional), and its history (0067).
 // A demo frame can be lent; one out on demo shows who has it and checks in
 // (0071).
 export function UnitRow({
@@ -69,7 +69,7 @@ export function UnitRow({
     const { error: err } = await supabase.rpc('set_unit_status', {
       p_unit_id: unit.id,
       p_status: move.to,
-      p_reason: reason.trim(),
+      p_reason: reason.trim() || null,
     });
     setSaving(false);
     if (err) {
@@ -209,7 +209,7 @@ export function UnitRow({
       {move && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-2">
           <label className="flex min-w-[14rem] flex-1 items-center gap-2">
-            <span className="text-xs font-medium text-slate-600">{move.label}: why?</span>
+            <span className="text-xs font-medium text-slate-600">{move.label}: why? (optional)</span>
             <input
               autoFocus
               value={reason}

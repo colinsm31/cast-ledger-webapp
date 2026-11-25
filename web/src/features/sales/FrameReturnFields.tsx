@@ -1,7 +1,7 @@
 import type { FrameReturn } from './returnable';
 
 // What happens to a frame being returned (0070): back in stock, or retired
-// because it's damaged, which needs a reason.
+// because it's damaged (a reason is optional).
 export function FrameReturnFields({
   frame,
   problem,
@@ -35,7 +35,7 @@ export function FrameReturnFields({
         <input
           value={frame.reason}
           onChange={(e) => onChange({ ...frame, reason: e.target.value })}
-          placeholder="What's wrong with it? e.g. cracked throat"
+          placeholder="What's wrong with it? (optional) e.g. cracked throat"
           aria-label="Why the frame is retired"
           className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
         />

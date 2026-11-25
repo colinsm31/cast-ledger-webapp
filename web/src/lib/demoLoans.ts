@@ -40,12 +40,6 @@ export function demoNoteProblem(text: string): string | null {
   return text.trim().length > DEMO_NOTE_MAX ? `Keep each note to ${DEMO_NOTE_MAX} characters.` : null;
 }
 
-/** What's wrong with checking a demo in this way, or null. */
-export function checkInProblem(to: 'demo' | 'retired', reason: string): string | null {
-  if (to === 'retired' && !reason.trim()) return 'Say why the frame is retired.';
-  return demoNoteProblem(reason);
-}
-
 /** Loans still out, the one due back soonest first. */
 export function sortOpenLoans<T extends Pick<DemoLoan, 'due_back_at' | 'loan_number'>>(loans: readonly T[]): T[] {
   return [...loans].sort(

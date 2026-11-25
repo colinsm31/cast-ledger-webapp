@@ -145,7 +145,6 @@ const FRAME_REASON_MAX = 200;
 /** What's missing from a returned frame's details, or null. */
 export function frameReturnProblem(frame: FrameReturn): string | null {
   const reason = frame.reason.trim();
-  if (frame.status === 'retired' && !reason) return 'Say why the returned frame is retired.';
   if (reason.length > FRAME_REASON_MAX) return `Keep the reason to ${FRAME_REASON_MAX} characters.`;
   return null;
 }

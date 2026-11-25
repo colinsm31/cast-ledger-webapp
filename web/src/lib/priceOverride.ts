@@ -1,6 +1,6 @@
 // Price overrides at the register: a line sold at a price other than its list
-// price (the catalog price, or the string job's price) needs a reason. The
-// server (quote_sale, record_sale) applies the same rule and keeps both prices.
+// price (the catalog price, or the string job's price). A reason is optional
+// (0093); the server (record_sale) keeps both prices and any reason given.
 import { fromCents, toCents } from './saleMath';
 
 /** The lookup list the quick-pick reasons come from. */
@@ -32,13 +32,6 @@ export function isPriceChanged(line: OverridableLine): boolean {
 export function priceReasonOf(line: { priceReason?: string }): string | undefined {
   const reason = line.priceReason?.trim();
   return reason ? reason : undefined;
-}
-
-/** "Give a reason …" for each changed line without one, in ticket order. */
-export function missingPriceReasons(lines: OverridableLine[]): string[] {
-  return lines
-    .filter((line) => isPriceChanged(line) && !priceReasonOf(line))
-    .map((line) => `${line.label}: the price changed from ${dollars(line.listPrice ?? 0)}, so give a reason.`);
 }
 
 /**
@@ -82,10 +75,4 @@ export function priceChangeNote(
   if (listPrice == null || toCents(listPrice) === toCents(unitPrice)) return null;
   const change = `List ${dollars(Number(listPrice))} → ${dollars(Number(unitPrice))}`;
   return reason ? `${change} · ${reason}` : change;
-}
-
-/** record_sale refused a changed price with no reason (the list price moved after the quote). */
-export function isPriceReasonError(error: unknown): boolean {
-  if (!error || typeof error !== 'object' || !('message' in error)) return false;
-  return /^Price changed from .*give a reason/.test(String((error as { message: unknown }).message));
 }

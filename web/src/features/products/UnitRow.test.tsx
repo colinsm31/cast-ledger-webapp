@@ -112,13 +112,13 @@ describe('UnitRow', () => {
     expect(screen.queryByText('Sell')).toBeNull();
   });
 
-  it('moves a frame with a reason', async () => {
+  it('moves a frame, with a reason if one is typed', async () => {
     const onChanged = renderRow(unit);
     expect(screen.getByText('Sell')).toBeTruthy();
     fireEvent.click(screen.getByText('Move to demo'));
 
     const confirm = screen.getAllByText('Move to demo').find((el) => el.tagName === 'BUTTON' && el.className.includes('bg-blue'));
-    expect((confirm as HTMLButtonElement).disabled).toBe(true); // no reason yet
+    expect((confirm as HTMLButtonElement).disabled).toBe(false); // a reason is optional
     fireEvent.change(screen.getByPlaceholderText('e.g. demo fleet'), { target: { value: ' Demo fleet ' } });
     fireEvent.click(confirm as HTMLButtonElement);
 
