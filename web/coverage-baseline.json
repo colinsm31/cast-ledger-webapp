@@ -4,8 +4,8 @@
     "overall": {
       "lines": 42.08,
       "statements": 42.39,
-      "functions": 45.32,
-      "branches": 39.48
+      "functions": 45.36,
+      "branches": 39.45
     },
     "byFolder": {
       "src": {
@@ -30,7 +30,7 @@
         "lines": 0
       },
       "src/features/customers": {
-        "lines": 1.22
+        "lines": 1.21
       },
       "src/features/demos": {
         "lines": 97.44
@@ -48,7 +48,7 @@
         "lines": 100
       },
       "src/features/sales": {
-        "lines": 28.06
+        "lines": 27.98
       },
       "src/features/scan": {
         "lines": 61.7

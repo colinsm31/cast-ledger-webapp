@@ -8,6 +8,7 @@ import { errorMessage } from '../../lib/errors';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
 import { useBack } from '../../app/BackContext';
+import { useAuth } from '../../auth/AuthContext';
 import { formatDateTime } from '../../lib/dates';
 
 interface CardTxn {
@@ -35,6 +36,7 @@ function txnLabel(t: CardTxn): string {
 
 
 export function GiftCardLookupPage() {
+  const { isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
   useBack('/');
   const [code, setCode] = useState(searchParams.get('code') ?? '');
@@ -114,7 +116,12 @@ export function GiftCardLookupPage() {
     if (!result) return;
     const amt = Number(adjAmount);
     if (!amt) {
-      setError('Enter a non-zero adjustment (use − to remove).');
+      setError(isAdmin ? 'Enter a non-zero adjustment (use − to remove).' : 'Enter the amount to take off, like -5.00.');
+      return;
+    }
+    // Adding value is an admin's to give (0104); staff can take value off.
+    if (amt > 0 && !isAdmin) {
+      setError('Only an admin can add value to a gift card. Enter a negative amount to take value off.');
       return;
     }
     if (adjHasSubCent) {
@@ -202,7 +209,7 @@ export function GiftCardLookupPage() {
           {adjusting && (
             <div className="mt-3 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
               <label className="w-28 space-y-1">
-                <span className="text-xs font-medium text-slate-500">Amount (± )</span>
+                <span className="text-xs font-medium text-slate-500">{isAdmin ? 'Amount (± )' : 'Amount to take off (−)'}</span>
                 <input
                   autoFocus
                   value={adjAmount}

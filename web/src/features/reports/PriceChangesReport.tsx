@@ -12,6 +12,7 @@ const KIND_LABEL: Record<PriceChangeKind, string> = {
   price_change: 'Price change',
   line_discount: 'Line discount',
   ticket_discount: 'Ticket discount',
+  payment_type_change: 'Refund paid differently',
 };
 
 const PERSON_COLUMNS: ReportColumn<PersonTotals>[] = [
@@ -22,10 +23,11 @@ const PERSON_COLUMNS: ReportColumn<PersonTotals>[] = [
   { label: 'Discount total', kind: 'money', value: (row) => row.discount_total, total: 'sum' },
   { label: 'Discounts approved', kind: 'count', value: (row) => row.approvals },
   { label: 'Approved total', kind: 'money', value: (row) => row.approved_total },
+  { label: 'Refunds paid differently', kind: 'count', value: (row) => row.payment_type_changes, total: 'sum' },
 ];
 
 const DETAIL_COLUMNS: ReportColumn<PriceChangeRow>[] = [
-  { label: 'Sold at', kind: 'text', value: (row) => localDateTimeString(row.sold_at) },
+  { label: 'When', kind: 'text', value: (row) => localDateTimeString(row.sold_at) },
   { label: 'Type', kind: 'text', value: (row) => KIND_LABEL[row.kind] },
   { label: 'Item', kind: 'text', value: (row) => row.item },
   { label: 'Qty', kind: 'count', value: (row) => row.qty },
@@ -63,8 +65,8 @@ export function PriceChangesReport({ range }: { range: DateRange | null }) {
           columns={PERSON_COLUMNS}
           csvName="discounts-by-person"
           range={range}
-          emptyMessage="No discounts or price changes in this period."
-          note="Price changes and discounts count for the person who rang the sale; approvals for the admin who approved the ticket's discount. A negative price change total means prices were raised."
+          emptyMessage="No discounts, price changes or refunds paid differently in this period."
+          note="Price changes and discounts count for the person who rang the sale; approvals for the admin who approved the ticket's discount; refunds paid differently (back to another payment type than the sale was paid by) for the person who made the refund. A negative price change total means prices were raised."
         />
       ) : (
         <ReportTable
@@ -72,7 +74,7 @@ export function PriceChangesReport({ range }: { range: DateRange | null }) {
           columns={DETAIL_COLUMNS}
           csvName="discounts-and-price-changes"
           range={range}
-          emptyMessage="No discounts or price changes in this period."
+          emptyMessage="No discounts, price changes or refunds paid differently in this period."
           note='"(none)" means no reason was typed; reasons are optional. An admin approves a ticket’s discounts together, so "Ticket approved by" shows on each discount on that ticket.'
         />
       )}
