@@ -35,6 +35,12 @@ export function parseLocalDate(text: string): Date | null {
   return date.getMonth() === Number(match[2]) - 1 ? date : null;
 }
 
+/** The moment a chosen day ends (the next local midnight); null for no valid day. */
+export function endOfLocalDay(day: string): Date | null {
+  const date = parseLocalDate(day);
+  return date ? addDays(date, 1) : null;
+}
+
 /**
  * The range a period covers at `now`. A custom range includes its end day,
  * and is null until both days are chosen, or if they're the wrong way round.

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { browserTimeZone, parseLocalDate, periodRange, usePeriodRange } from './reportPeriod';
+import { browserTimeZone, endOfLocalDay, parseLocalDate, periodRange, usePeriodRange } from './reportPeriod';
 
 // Wednesday 25 November 2026, 3:30 PM local.
 const now = new Date(2026, 10, 25, 15, 30);
@@ -59,5 +59,12 @@ describe('usePeriodRange', () => {
       result.current.setCustomTo('2026-11-01');
     });
     expect(result.current.range).toEqual({ from: new Date(2026, 10, 1), to: new Date(2026, 10, 2) });
+  });
+});
+
+describe('endOfLocalDay', () => {
+  it('is the next local midnight', () => {
+    expect(endOfLocalDay('2026-11-30')).toEqual(new Date(2026, 11, 1));
+    expect(endOfLocalDay('')).toBeNull();
   });
 });
