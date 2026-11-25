@@ -9,6 +9,7 @@ import { BestSellersReport, MarginReport, SalesReport } from './SalesReports';
 import { PriceChangesReport } from './PriceChangesReport';
 import { InventoryValueReport } from './InventoryValueReport';
 import { BalancesReport } from './BalancesReport';
+import { StringingReport } from './StringingReport';
 
 // The owner's reports (admin only): each one for a period, with a CSV download.
 
@@ -25,6 +26,7 @@ const REPORTS: ReportTab[] = [
   { key: 'best-sellers', label: 'Best-sellers', Report: BestSellersReport },
   { key: 'margin', label: 'Gross margin', Report: MarginReport },
   { key: 'discounts', label: 'Discounts & price changes', Report: PriceChangesReport },
+  { key: 'stringing', label: 'Stringing', Report: StringingReport },
   { key: 'inventory', label: 'Inventory value', Report: InventoryValueReport, usesPeriod: false },
   { key: 'balances', label: 'Gift card liability', Report: BalancesReport, usesPeriod: false },
 ];
