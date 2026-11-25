@@ -12,7 +12,7 @@ const rows: PriceChangeRow[] = [
     item: 'Stringing', qty: 1, from_price: 33, to_price: 30, amount: 3, reason: 'Loyal customer' },
 ];
 const rpc = vi.fn(async () => ({ data: rows, error: null }));
-vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => rpc(...(args as [])) } }));
+vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => ({ range: () => rpc(...(args as [])) }) } }));
 const download = vi.fn();
 vi.mock('../../lib/csv', async (original) => ({ ...(await original<typeof import('../../lib/csv')>()), downloadCsv: (...args: unknown[]) => download(...args) }));
 

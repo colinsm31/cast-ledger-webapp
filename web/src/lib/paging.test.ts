@@ -20,7 +20,7 @@ const query = {
 const from = vi.fn((_table: string) => query);
 vi.mock('./supabase', () => ({ supabase: { from: (table: string) => from(table) } }));
 
-const { fetchAllRows, fetchAllRowsResult } = await import('./paging');
+const { fetchAllPages, fetchAllRows, fetchAllRowsResult } = await import('./paging');
 
 describe('fetchAllRows', () => {
   beforeEach(() => {
@@ -78,5 +78,20 @@ describe('fetchAllRowsResult', () => {
   it('returns the failure instead of throwing', async () => {
     failure = { message: 'timeout' };
     await expect(fetchAllRowsResult('products', 'id', 'id')).resolves.toEqual({ data: null, error: failure });
+  });
+});
+
+describe('fetchAllPages', () => {
+  it('asks for page after page until one comes back short', async () => {
+    const asked: [number, number][] = [];
+    const all = await fetchAllPages<number>(async (start, end) => {
+      asked.push([start, end]);
+      return { data: Array.from({ length: start === 0 ? 1000 : 3 }, (_, i) => start + i), error: null };
+    });
+    expect(asked).toEqual([[0, 999], [1000, 1999]]);
+    expect(all).toHaveLength(1003);
+  });
+  it('throws the first error', async () => {
+    await expect(fetchAllPages(async () => ({ data: null, error: new Error('cut off') }))).rejects.toThrow('cut off');
   });
 });

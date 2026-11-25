@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
 import { useLatestRequest } from '../../lib/latestRequest';
+import { fetchAllPages } from '../../lib/paging';
 
 export interface ReportState<Row> {
   rows: Row[] | null;
@@ -10,9 +11,10 @@ export interface ReportState<Row> {
 }
 
 /**
- * Runs a report function and keeps its rows. `args` null means "not ready"
- * (e.g. a custom range without both days). A slow answer for earlier
- * arguments never replaces a newer one.
+ * Runs a report function and keeps all its rows, page by page (PostgREST
+ * returns at most 1000 at a time). `args` null means "not ready" (e.g. a
+ * custom range without both days). A slow answer for earlier arguments never
+ * replaces a newer one.
  */
 export function useReport<Row>(fn: string, args: Record<string, unknown> | null): ReportState<Row> {
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -26,11 +28,14 @@ export function useReport<Row>(fn: string, args: Record<string, unknown> | null)
     setError(null);
     if (argsKey === null) return;
     const isLatest = startRequest();
+    const parsedArgs = JSON.parse(argsKey);
     void (async () => {
-      const { data, error: rpcError } = await supabase.rpc(fn, JSON.parse(argsKey));
-      if (!isLatest()) return;
-      if (rpcError) setError(`Couldn't load the report: ${errorMessage(rpcError)}`);
-      else setRows((data ?? []) as Row[]);
+      try {
+        const all = await fetchAllPages<Row>((from, to) => supabase.rpc(fn, parsedArgs).range(from, to));
+        if (isLatest()) setRows(all);
+      } catch (rpcError) {
+        if (isLatest()) setError(`Couldn't load the report: ${errorMessage(rpcError)}`);
+      }
     })();
   }, [fn, argsKey, loadCount, startRequest]);
 

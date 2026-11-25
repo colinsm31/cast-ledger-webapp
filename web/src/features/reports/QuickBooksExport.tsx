@@ -5,17 +5,21 @@ import { Spinner } from '../../components/Spinner';
 import { csvFileName, downloadCsv } from '../../lib/csv';
 import { browserTimeZone, type DateRange } from '../../lib/reportPeriod';
 import { formatReportValue } from './reportColumns';
-import { dayTotals, journalCsv, journalNumber, type JournalLine } from './quickbooks';
+import { dayTotals, journalCsv, journalNumber, wholeDays, type JournalLine } from './quickbooks';
 import { rangeArgs, useReport } from './useReport';
 
 // The daily summary for QuickBooks: a balanced journal entry per day, to
 // download and import (report_daily_summary, 0101).
-export function QuickBooksExport({ range }: { range: DateRange | null }) {
+export function QuickBooksExport({ range: chosen }: { range: DateRange | null }) {
+  const range = wholeDays(chosen);
   const args = rangeArgs(range);
   const report = useReport<JournalLine>('report_daily_summary', args && { ...args, p_time_zone: browserTimeZone() });
   const totals = useMemo(() => (report.rows ? dayTotals(report.rows) : []), [report.rows]);
   const unbalanced = totals.filter((day) => day.debits !== day.credits);
 
+  if (chosen && !range) {
+    return <p className="text-sm text-slate-600">Today isn&rsquo;t over yet. Export it tomorrow, once the day is closed.</p>;
+  }
   if (report.error) return <LoadError message={report.error} onRetry={report.retry} />;
   if (report.rows === null) return <Spinner label="Loading…" />;
   const lines = report.rows;
@@ -63,7 +67,7 @@ export function QuickBooksExport({ range }: { range: DateRange | null }) {
         </div>
       )}
       <p className="text-xs text-slate-500">
-        Days are counted in this computer&rsquo;s time zone ({browserTimeZone()}). Import the file in QuickBooks as journal
+        Days are counted in this computer&rsquo;s time zone ({browserTimeZone()}), and only whole days are exported, up to the end of yesterday, so a day is never sent in part. Import the file in QuickBooks as journal
         entries, with dates as YYYY-MM-DD. Account names come from Settings. Gift card and store credit adjustments made
         outside a sale aren&rsquo;t included.
       </p>

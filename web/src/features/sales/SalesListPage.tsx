@@ -10,6 +10,7 @@ import { Spinner } from '../../components/Spinner';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { formatDateTime } from '../../lib/dates';
 import { usePeriodRange } from '../../lib/reportPeriod';
+import { fetchAllPages } from '../../lib/paging';
 import { PeriodPicker } from '../../components/PeriodPicker';
 import { TabButton } from '../../components/TabButton';
 import { CsvButton } from '../../components/CsvButton';
@@ -54,14 +55,22 @@ export function SalesListPage() {
     // A slow answer for an earlier period never replaces the one chosen since (#37).
     const isLatest = startRequest();
     void (async () => {
+      // Every ticket, page by page: a long period has more than one page.
       const [sumRes, tixRes] = await Promise.all([
         supabase.rpc('sales_summary', { p_from: fromISO, p_to: toISO }),
-        supabase
-          .from('sales')
-          .select('id, sold_at, subtotal, tax, customers ( first_name, last_name )')
-          .gte('sold_at', fromISO)
-          .lt('sold_at', toISO)
-          .order('sold_at', { ascending: false }),
+        fetchAllPages<TicketRow>((from, to) =>
+          supabase
+            .from('sales')
+            .select('id, sold_at, subtotal, tax, customers ( first_name, last_name )')
+            .gte('sold_at', fromISO)
+            .lt('sold_at', toISO)
+            .order('sold_at', { ascending: false })
+            .order('id', { ascending: false })
+            .range(from, to),
+        ).then(
+          (data) => ({ data, error: null }),
+          (error: unknown) => ({ data: null, error }),
+        ),
       ]);
       if (!isLatest()) return;
       if (sumRes.error) setSummaryError(`Couldn't load the summary: ${errorMessage(sumRes.error)}`);
@@ -70,7 +79,7 @@ export function SalesListPage() {
         setSummary(row ? normalizeSummary(row) : null);
       }
       if (tixRes.error) setTicketsError(`Couldn't load the tickets: ${errorMessage(tixRes.error)}`);
-      else setTickets((tixRes.data ?? []) as unknown as TicketRow[]);
+      else setTickets(tixRes.data ?? []);
     })();
   }, [range, loadCount, startRequest]);
 

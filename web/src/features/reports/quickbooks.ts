@@ -3,6 +3,7 @@
 // its account, debit or credit, and a memo.
 
 import { toCsv } from '../../lib/csv';
+import { startOfLocalDay, type DateRange } from '../../lib/reportPeriod';
 
 export interface JournalLine {
   day: string; // YYYY-MM-DD
@@ -39,4 +40,15 @@ export function dayTotals(lines: JournalLine[]): { day: string; debits: number; 
     days.set(line.day, totals);
   }
   return [...days.values()];
+}
+
+/**
+ * The days that can be exported: a journal entry is for a whole day, so the
+ * period stops at the start of today. Null when nothing's left (today only).
+ */
+export function wholeDays(range: DateRange | null, now: Date = new Date()): DateRange | null {
+  if (!range) return null;
+  const today = startOfLocalDay(now);
+  const to = range.to > today ? today : range.to;
+  return to > range.from ? { from: range.from, to } : null;
 }

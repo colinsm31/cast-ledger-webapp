@@ -21,7 +21,7 @@ const byGroup: Record<string, unknown[]> = {
   staff: [row({ group_key: 'u1', label: 'pat@shop.test', tickets: 4 })],
 };
 const rpc = vi.fn();
-vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => rpc(...args) } }));
+vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => ({ range: () => rpc(...args) }) } }));
 vi.mock('../../app/BackContext', () => ({ useBack: () => {} }));
 vi.mock('../../lib/settings', () => ({ useSettings: () => ({ settings: { week_starts_monday: false }, error: null, reload: () => {} }) }));
 const download = vi.fn();

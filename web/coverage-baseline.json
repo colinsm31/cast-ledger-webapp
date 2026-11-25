@@ -2,10 +2,10 @@
   "updated": "2026-11-25",
   "web": {
     "overall": {
-      "lines": 41.95,
-      "statements": 42.23,
-      "functions": 45.07,
-      "branches": 39.32
+      "lines": 42.09,
+      "statements": 42.4,
+      "functions": 45.32,
+      "branches": 39.48
     },
     "byFolder": {
       "src": {
@@ -48,7 +48,7 @@
         "lines": 100
       },
       "src/features/sales": {
-        "lines": 27.95
+        "lines": 28.12
       },
       "src/features/scan": {
         "lines": 61.7
@@ -57,7 +57,7 @@
         "lines": 22.35
       },
       "src/lib": {
-        "lines": 94.42
+        "lines": 94.43
       },
       "src/types": {
         "lines": 75
@@ -329,7 +329,7 @@
         "lines": 0
       },
       "src/features/sales/SalesListPage.tsx": {
-        "lines": 95.83
+        "lines": 96.07
       },
       "src/features/sales/SoldRacketsPanel.tsx": {
         "lines": 100

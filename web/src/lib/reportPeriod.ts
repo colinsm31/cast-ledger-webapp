@@ -1,6 +1,8 @@
 // The period a report or list covers: today, week/month/year to date, or a
 // custom range of whole days. Days are the browser's local days, and every
-// range is [from, to): `to` itself isn't included.
+// range is [from, to): `to` itself isn't included. A period "to date" runs to
+// the end of today, so reloading a report picks up sales made since it was
+// opened (the server only has what's happened so far).
 
 import { useMemo, useState } from 'react';
 
@@ -52,18 +54,24 @@ export function periodRange(
   weekStartsMonday: boolean,
   now: Date = new Date(),
 ): DateRange | null {
-  if (period === 'today') return { from: startOfDay(now), to: now };
+  const endOfToday = addDays(startOfDay(now), 1);
+  if (period === 'today') return { from: startOfDay(now), to: endOfToday };
   if (period === 'wtd') {
     const dayOfWeek = now.getDay(); // 0 = Sunday
     const daysBack = weekStartsMonday ? (dayOfWeek + 6) % 7 : dayOfWeek;
-    return { from: addDays(startOfDay(now), -daysBack), to: now };
+    return { from: addDays(startOfDay(now), -daysBack), to: endOfToday };
   }
-  if (period === 'mtd') return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: now };
-  if (period === 'ytd') return { from: new Date(now.getFullYear(), 0, 1), to: now };
+  if (period === 'mtd') return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: endOfToday };
+  if (period === 'ytd') return { from: new Date(now.getFullYear(), 0, 1), to: endOfToday };
   const from = parseLocalDate(customFrom);
   const to = parseLocalDate(customTo);
   if (!from || !to || to < from) return null;
   return { from, to: addDays(to, 1) };
+}
+
+/** Local midnight at the start of the day `date` falls on. */
+export function startOfLocalDay(date: Date): Date {
+  return startOfDay(date);
 }
 
 /** The browser's time zone name, e.g. "America/Chicago" (UTC if unknown). */

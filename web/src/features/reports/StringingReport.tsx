@@ -50,8 +50,8 @@ const SUMMARY_TILES: { key: keyof StringingSummary; label: string; kind: 'count'
   { key: 'jobs_cancelled', label: 'Jobs cancelled', kind: 'count' },
   { key: 'jobs_waiting', label: 'Waiting now', kind: 'count' },
   { key: 'revenue', label: 'Stringing charged', kind: 'money' },
-  { key: 'strings_revenue', label: 'Of it strings', kind: 'money' },
-  { key: 'labor_revenue', label: 'Of it labor', kind: 'money' },
+  { key: 'strings_revenue', label: 'Net strings', kind: 'money' },
+  { key: 'labor_revenue', label: 'Net labor', kind: 'money' },
   { key: 'refunds', label: 'Refunded', kind: 'money' },
   { key: 'net_revenue', label: 'Net stringing revenue', kind: 'money' },
 ];
@@ -94,7 +94,7 @@ export function StringingReport({ range }: { range: DateRange | null }) {
         csvName="stringing-by-stringer"
         range={range}
         emptyMessage="No jobs completed in this period."
-        note="Jobs taken in, completed, picked up and cancelled count by when each happened; waiting now is today. Strings are each charge's string price (never more than the charge); labor is the rest. Revenue counts stringing charged on sales in the period, refunds those made in it."
+        note="Jobs taken in, completed, picked up and cancelled count by when each happened; waiting now is today. Strings are each charge's string price without the labor charge (never more than the charge; a customer's own string is labor only, a string change is strings); labor is the rest. Net strings and net labor take off refunds made in the period, each split the way its charge was."
       />
     </div>
   );

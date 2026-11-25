@@ -14,7 +14,8 @@ const tickets = [
 ];
 const rpc = vi.fn();
 const lt = vi.fn();
-const query = { select: () => query, gte: () => query, lt: (...args: unknown[]) => (lt(...args), query), order: async () => ({ data: tickets, error: null }) };
+const query = { select: () => query, gte: () => query, lt: (...args: unknown[]) => (lt(...args), query), order: () => query, range: async () => ticketsResult() };
+let ticketsResult = () => ({ data: tickets as unknown, error: null as unknown });
 vi.mock('../../lib/supabase', () => ({ supabase: { from: () => query, rpc: (...args: unknown[]) => rpc(...args) } }));
 vi.mock('../../app/BackContext', () => ({ useBack: () => {} }));
 vi.mock('../../lib/settings', () => ({ useSettings: () => ({ settings: { week_starts_monday: false }, error: null, reload: () => {} }) }));
@@ -73,6 +74,16 @@ describe('SalesListPage', () => {
     expect(screen.getByText('The end date is before the start date.')).toBeTruthy();
     fireEvent.change(to, { target: { value: '2026-11-06' } });
     await waitFor(() => expect(lt).toHaveBeenLastCalledWith('sold_at', new Date(2026, 10, 7).toISOString()));
+  });
+
+  it('shows a failed tickets load with Retry', async () => {
+    ticketsResult = () => ({ data: null, error: { message: 'offline' } });
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Tickets' }));
+    expect(await screen.findByText(/Couldn't load the tickets: offline/)).toBeTruthy();
+    ticketsResult = () => ({ data: tickets, error: null });
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Tester, Pat')).toBeTruthy();
   });
 
   it('shows a failed summary with Retry', async () => {

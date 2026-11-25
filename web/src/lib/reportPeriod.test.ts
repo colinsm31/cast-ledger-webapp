@@ -7,8 +7,13 @@ import { browserTimeZone, endOfLocalDay, parseLocalDate, periodRange, usePeriodR
 const now = new Date(2026, 10, 25, 15, 30);
 
 describe('periodRange', () => {
-  it('today runs from local midnight to now', () => {
-    expect(periodRange('today', '', '', false, now)).toEqual({ from: new Date(2026, 10, 25), to: now });
+  it('today runs from local midnight to the end of the day, so a reload sees later sales', () => {
+    expect(periodRange('today', '', '', false, now)).toEqual({ from: new Date(2026, 10, 25), to: new Date(2026, 10, 26) });
+    const midnight = new Date(2026, 10, 25);
+    expect(periodRange('today', '', '', false, midnight)).toEqual({ from: midnight, to: new Date(2026, 10, 26) });
+  });
+  it('a period to date ends with today too', () => {
+    expect(periodRange('mtd', '', '', false, now)?.to).toEqual(new Date(2026, 10, 26));
   });
   it('week to date starts Sunday, or Monday when the shop says so', () => {
     expect(periodRange('wtd', '', '', false, now)?.from).toEqual(new Date(2026, 10, 22));

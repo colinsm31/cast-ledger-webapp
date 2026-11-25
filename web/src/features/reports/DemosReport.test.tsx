@@ -9,7 +9,7 @@ const rows = [
     avg_days_out: 1.5, out_now: 0, overdue_now: 0 },
 ];
 const rpc = vi.fn(async () => ({ data: rows, error: null }));
-vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => rpc(...(args as [])) } }));
+vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => ({ range: () => rpc(...(args as [])) }) } }));
 const download = vi.fn();
 vi.mock('../../lib/csv', async (original) => ({ ...(await original<typeof import('../../lib/csv')>()), downloadCsv: (...args: unknown[]) => download(...args) }));
 
