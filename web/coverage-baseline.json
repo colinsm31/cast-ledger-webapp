@@ -1,11 +1,11 @@
 {
-  "updated": "2026-11-25",
+  "updated": "2026-11-26",
   "web": {
     "overall": {
-      "lines": 42.07,
-      "statements": 42.39,
-      "functions": 45.39,
-      "branches": 39.52
+      "lines": 42.1,
+      "statements": 42.46,
+      "functions": 45.42,
+      "branches": 39.7
     },
     "byFolder": {
       "src": {
@@ -48,7 +48,7 @@
         "lines": 100
       },
       "src/features/sales": {
-        "lines": 27.89
+        "lines": 27.79
       },
       "src/features/scan": {
         "lines": 61.7
@@ -57,7 +57,7 @@
         "lines": 22.39
       },
       "src/lib": {
-        "lines": 94.47
+        "lines": 94.5
       },
       "src/types": {
         "lines": 75

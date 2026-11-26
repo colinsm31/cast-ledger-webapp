@@ -91,6 +91,22 @@ export function optInsGivenAgain(
   return Object.keys(again).length ? again : null;
 }
 
+/** A box on the edit form, and whether an edit to its address unticked it. */
+export interface OptInBox {
+  ticked: boolean;
+  untickedByEdit: boolean;
+}
+
+/**
+ * The box after its address or number is edited. A new one unticks it (the
+ * customer agreed for the old one); typing the saved one back ticks it again,
+ * but only if the edit was what unticked it, so an opt-out staff made stays.
+ */
+export function boxAfterContactEdit(box: OptInBox, contactIsNew: boolean): OptInBox {
+  if (contactIsNew) return { ticked: false, untickedByEdit: box.untickedByEdit || box.ticked };
+  return box.untickedByEdit ? { ticked: true, untickedByEdit: false } : box;
+}
+
 /** e.g. "Ready messages: email and text", or null when they've opted in to none. */
 export function optInLabel(customer: OptInState): string | null {
   const channels = [customer.email_opt_in && 'email', customer.sms_opt_in && 'text'].filter(Boolean);

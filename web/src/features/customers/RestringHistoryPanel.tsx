@@ -4,6 +4,7 @@ import type { StringJob } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { stringSummary } from '../stringjobs/stringSummary';
+import { formatDate } from '../../lib/dates';
 
 // Delivered string jobs for a customer's rackets, newest first.
 interface DeliveredJob extends StringJob {
@@ -78,8 +79,3 @@ export function RestringHistoryPanel({ customerId }: { customerId: string }) {
   );
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
-}

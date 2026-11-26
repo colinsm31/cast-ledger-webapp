@@ -1,12 +1,8 @@
 import type { Receipt } from '../../lib/receipt';
 import type { ReceiptLayout } from '../../lib/receiptLayout';
+import { formatDateTime } from '../../lib/dates';
 
 const dollars = (amount: number) => `$${amount.toFixed(2)}`;
-
-function formatSoldAt(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
-}
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
@@ -39,7 +35,7 @@ export function ReceiptView({ receipt, layout }: { receipt: Receipt; layout: Rec
         </div>
         <div className={thermal ? 'mt-2' : 'text-right'}>
           <p>Receipt {receipt.number}</p>
-          <p>{formatSoldAt(receipt.soldAt)}</p>
+          <p>{formatDateTime(receipt.soldAt)}</p>
           {receipt.servedBy && <p>Served by {receipt.servedBy}</p>}
           {receipt.customer && <p>Customer: {receipt.customer}</p>}
         </div>
