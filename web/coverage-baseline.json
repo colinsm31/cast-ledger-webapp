@@ -2,10 +2,10 @@
   "updated": "2026-11-27",
   "web": {
     "overall": {
-      "lines": 44.2,
-      "statements": 44.5,
-      "functions": 47.24,
-      "branches": 41.07
+      "lines": 44.66,
+      "statements": 44.95,
+      "functions": 47.61,
+      "branches": 41.36
     },
     "byFolder": {
       "src": {
@@ -36,7 +36,7 @@
         "lines": 97.44
       },
       "src/features/drawer": {
-        "lines": 93.2
+        "lines": 95.52
       },
       "src/features/home": {
         "lines": 0
@@ -60,7 +60,7 @@
         "lines": 22.39
       },
       "src/lib": {
-        "lines": 94.79
+        "lines": 94.85
       },
       "src/types": {
         "lines": 75
@@ -196,8 +196,11 @@
       "src/features/demos/demoLoansCsv.ts": {
         "lines": 100
       },
+      "src/features/drawer/DrawerMovements.tsx": {
+        "lines": 100
+      },
       "src/features/drawer/DrawerPage.tsx": {
-        "lines": 92.47
+        "lines": 93.81
       },
       "src/features/drawer/RegisterDrawerNotice.tsx": {
         "lines": 100
@@ -446,7 +449,7 @@
         "lines": 100
       },
       "src/lib/drawers.ts": {
-        "lines": 97.61
+        "lines": 98.11
       },
       "src/lib/edgeFunctions.ts": {
         "lines": 100

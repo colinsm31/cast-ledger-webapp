@@ -11,6 +11,7 @@ import {
   closeDrawer,
   fetchCashSummary,
   fetchDrawers,
+  fetchMovements,
   fetchOpenSessions,
   fetchSession,
   openDrawer,
@@ -20,11 +21,13 @@ import {
   rememberedDrawerId,
   type Drawer,
   type DrawerCashSummary,
+  type DrawerMovement,
   type DrawerSession,
 } from '../../lib/drawers';
 import { errorMessage } from '../../lib/errors';
 import { formatMoney } from '../../lib/money';
 import { useSettings } from '../../lib/settings';
+import { DrawerMovements } from './DrawerMovements';
 
 const buttonClass =
   'rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50';
@@ -194,6 +197,7 @@ function OpenDrawerForm({ drawer, onOpened }: { drawer: Drawer; onOpened: () => 
 function CloseDrawerForm({ session, onClosed }: { session: DrawerSession; onClosed: () => void }) {
   const { confirm } = useDialog();
   const [summary, setSummary] = useState<DrawerCashSummary | null>(null);
+  const [movements, setMovements] = useState<DrawerMovement[]>([]);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [count, setCount] = useState(emptyCount);
   const [note, setNote] = useState('');
@@ -203,7 +207,9 @@ function CloseDrawerForm({ session, onClosed }: { session: DrawerSession; onClos
   const loadSummary = useCallback(async () => {
     setSummaryError(null);
     try {
-      setSummary(await fetchCashSummary(session.id));
+      const [loadedSummary, loadedMovements] = await Promise.all([fetchCashSummary(session.id), fetchMovements(session.id)]);
+      setSummary(loadedSummary);
+      setMovements(loadedMovements);
     } catch (err) {
       setSummaryError(errorMessage(err));
     }
@@ -249,6 +255,7 @@ function CloseDrawerForm({ session, onClosed }: { session: DrawerSession; onClos
       <p className="text-sm text-slate-600">Opened {formatDateTime(session.opened_at)}.</p>
       {summaryError && <LoadError message={summaryError} onRetry={() => void loadSummary()} />}
       {summary && <CashSummaryTable summary={summary} />}
+      <DrawerMovements sessionId={session.id} movements={movements} onRecorded={() => void loadSummary()} />
       <DenominationCounter label="Count the drawer" value={count} onChange={setCount} />
       {difference !== null && (
         <p className={difference === 0 ? 'text-sm font-semibold text-green-700' : 'text-sm font-semibold text-amber-700'}>
@@ -272,6 +279,8 @@ function CashSummaryTable({ summary }: { summary: DrawerCashSummary }) {
     ['Starting float', summary.float_amount],
     ['Cash taken', summary.cash_sales],
     ['Cash given back', -summary.cash_refunds],
+    ['Paid in', summary.paid_in],
+    ['Paid out', -summary.paid_out],
   ];
   const checks = summary.check_sales - summary.check_refunds;
   return (

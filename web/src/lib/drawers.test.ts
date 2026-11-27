@@ -82,15 +82,38 @@ describe('drawer data', () => {
 describe('expected cash', () => {
   it('loads what an open drawer should hold, as numbers', async () => {
     rpc.mockReturnValueOnce({ single: async () => ({
-      data: { float_amount: '100', cash_sales: '43.30', cash_refunds: '21.65', expected_cash: '121.65', check_sales: '21.65', check_refunds: '0' },
+      data: { float_amount: '100', cash_sales: '43.30', cash_refunds: '21.65', paid_in: '25', paid_out: '6.50', expected_cash: '140.15', check_sales: '21.65', check_refunds: '0' },
       error: null,
     }) } as never);
     await expect(drawers.fetchCashSummary('s-1')).resolves.toEqual({
-      float_amount: 100, cash_sales: 43.3, cash_refunds: 21.65, expected_cash: 121.65, check_sales: 21.65, check_refunds: 0,
+      float_amount: 100, cash_sales: 43.3, cash_refunds: 21.65, paid_in: 25, paid_out: 6.5, expected_cash: 140.15, check_sales: 21.65, check_refunds: 0,
     });
     expect(rpc).toHaveBeenCalledWith('drawer_cash_summary', { p_session_id: 's-1' });
     rpc.mockReturnValueOnce({ single: async () => ({ data: null, error: { message: 'offline' } }) } as never);
     await expect(drawers.fetchCashSummary('s-1')).rejects.toThrow("Couldn't work out the drawer's cash: offline");
+  });
+
+  it('loads and records paid-ins and paid-outs', async () => {
+    result = { data: [{ id: 'm1', kind: 'paid_in', amount: '25.00', reason: null, created_at: '2026-11-27T16:00:00Z' }], error: null };
+    await expect(drawers.fetchMovements('s-1')).resolves.toEqual([
+      { id: 'm1', kind: 'paid_in', amount: 25, reason: null, created_at: '2026-11-27T16:00:00Z' },
+    ]);
+    expect(query.eq).toHaveBeenCalledWith('drawer_session_id', 's-1');
+    result = { data: null, error: { message: 'offline' } };
+    await expect(drawers.fetchMovements('s-1')).rejects.toThrow("Couldn't load the paid-ins and paid-outs: offline");
+
+    result = { data: 'm2', error: null };
+    await drawers.recordMovement('s-1', 'paid_out', 6.5, '  ');
+    expect(rpc).toHaveBeenCalledWith('record_drawer_movement', { p_session_id: 's-1', p_kind: 'paid_out', p_amount: 6.5, p_reason: null });
+    result = { data: null, error: { message: 'The drawer should only hold $10.00' } };
+    await expect(drawers.recordMovement('s-1', 'paid_out', 99, 'Stamps')).rejects.toThrow('The drawer should only hold $10.00');
+  });
+
+  it('checks a paid-in or paid-out amount', () => {
+    expect(drawers.parseMovementAmount(' 6.50 ')).toEqual({ amount: 6.5 });
+    expect(drawers.parseMovementAmount('0')).toEqual({ error: 'Amount: enter an amount over $0, like 20.00.' });
+    expect(drawers.parseMovementAmount('$5')).toEqual({ error: 'Amount: enter an amount over $0, like 20.00.' });
+    expect(drawers.parseMovementAmount('1.005')).toEqual({ error: 'Amount: use at most 2 decimal places.' });
   });
 
   it('says over, short or even', () => {

@@ -20,8 +20,11 @@ vi.mock('../../lib/drawers', async (original) => ({
   openDrawer: (...args: unknown[]) => openDrawer(...(args as [])),
   closeDrawer: (...args: unknown[]) => closeDrawer(...(args as [])),
   fetchCashSummary: vi.fn(async () => ({
-    float_amount: 110, cash_sales: 30, cash_refunds: 10, expected_cash: 130, check_sales: 25, check_refunds: 0,
+    float_amount: 110, cash_sales: 30, cash_refunds: 10, paid_in: 5, paid_out: 5, expected_cash: 130, check_sales: 25, check_refunds: 0,
   })),
+  fetchMovements: vi.fn(async () => [
+    { id: 'm1', kind: 'paid_out', amount: 5, reason: 'Stamps', created_at: '2026-11-27T16:00:00Z' },
+  ]),
   fetchSession: vi.fn(async () => ({ ...session, closed_at: '2026-11-28T01:00:00Z', counted_cash: 120.5, expected_cash: 130 })),
 }));
 
@@ -90,6 +93,7 @@ describe('DrawerPage', () => {
     expect(screen.getByText('$130.00')).toBeTruthy();
     expect(screen.getByText('-$10.00')).toBeTruthy();
     expect(screen.getByText('Checks (not counted)')).toBeTruthy();
+    expect(screen.getByText('Stamps')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('How many $20'), { target: { value: '6' } });
     fireEvent.change(screen.getByLabelText('Other cash'), { target: { value: '0.50' } });
     expect(screen.getByText('Short $9.50')).toBeTruthy();
@@ -110,6 +114,16 @@ describe('DrawerPage', () => {
     expect(await screen.findByText(/set the shop's time zone in Settings before drawers can be opened/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Open drawer' }));
     expect(await screen.findByText('An admin needs to set the shop\'s time zone in Settings first')).toBeTruthy();
+  });
+
+  it('says when the expected cash can\'t be worked out, and tries again', async () => {
+    openSessions = [session];
+    const drawersModule = await import('../../lib/drawers');
+    vi.mocked(drawersModule.fetchCashSummary).mockRejectedValueOnce(new Error("Couldn't work out the drawer's cash: offline"));
+    render(<DrawerPage />);
+    expect(await screen.findByText("Couldn't work out the drawer's cash: offline")).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /try again|retry/i }));
+    expect(await screen.findByText('Expected in drawer')).toBeTruthy();
   });
 
   it('says when no drawer is in use', async () => {

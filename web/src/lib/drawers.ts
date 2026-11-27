@@ -4,7 +4,7 @@
 
 import { supabase } from './supabase';
 import { errorMessage } from './errors';
-import { formatMoney, roundCents } from './money';
+import { formatMoney, hasSubCent, roundCents } from './money';
 
 /** A drawer name's longest length, matching the database's (0108). */
 export const DRAWER_NAME_MAX = 50;
@@ -34,10 +34,27 @@ export interface DrawerCashSummary {
   float_amount: number;
   cash_sales: number;
   cash_refunds: number;
+  /** Cash put in or taken out outside a sale (0110). */
+  paid_in: number;
+  paid_out: number;
   expected_cash: number;
   check_sales: number;
   check_refunds: number;
 }
+
+export type DrawerMovementKind = 'paid_in' | 'paid_out';
+
+/** Cash paid into or out of a drawer outside a sale (0110). */
+export interface DrawerMovement {
+  id: string;
+  kind: DrawerMovementKind;
+  amount: number;
+  reason: string | null;
+  created_at: string;
+}
+
+/** A paid-in or paid-out reason's longest length, matching the database's (0110). */
+export const MOVEMENT_REASON_MAX = 200;
 
 const SESSION_COLUMNS =
   'id, drawer_id, business_day, opened_at, opened_by, float_amount, closed_at, counted_cash, expected_cash, close_note';
@@ -75,6 +92,8 @@ export async function fetchCashSummary(sessionId: string): Promise<DrawerCashSum
     float_amount: Number(row.float_amount),
     cash_sales: Number(row.cash_sales),
     cash_refunds: Number(row.cash_refunds),
+    paid_in: Number(row.paid_in),
+    paid_out: Number(row.paid_out),
     expected_cash: Number(row.expected_cash),
     check_sales: Number(row.check_sales),
     check_refunds: Number(row.check_refunds),
@@ -108,6 +127,41 @@ export async function openDrawer(drawerId: string, counts: Record<string, number
 
 export async function closeDrawer(sessionId: string, counts: Record<string, number>, note: string): Promise<void> {
   const { error } = await supabase.rpc('close_drawer', { p_session_id: sessionId, p_counts: counts, p_note: note });
+  if (error) throw new Error(errorMessage(error));
+}
+
+export async function fetchMovements(sessionId: string): Promise<DrawerMovement[]> {
+  const { data, error } = await supabase
+    .from('drawer_movements')
+    .select('id, kind, amount, reason, created_at')
+    .eq('drawer_session_id', sessionId)
+    .order('created_at');
+  if (error) throw new Error(`Couldn't load the paid-ins and paid-outs: ${errorMessage(error)}`);
+  return (data ?? []).map((row) => ({ ...(row as DrawerMovement), amount: Number(row.amount) }));
+}
+
+const AMOUNT = /^\d+(\.\d+)?$/;
+
+/** The amount to record, or what's wrong with what was typed. */
+export function parseMovementAmount(text: string): { amount: number } | { error: string } {
+  const trimmed = text.trim();
+  if (!AMOUNT.test(trimmed) || Number(trimmed) <= 0) return { error: 'Amount: enter an amount over $0, like 20.00.' };
+  if (hasSubCent(trimmed)) return { error: 'Amount: use at most 2 decimal places.' };
+  return { amount: Number(trimmed) };
+}
+
+export async function recordMovement(
+  sessionId: string,
+  kind: DrawerMovementKind,
+  amount: number,
+  reason: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('record_drawer_movement', {
+    p_session_id: sessionId,
+    p_kind: kind,
+    p_amount: amount,
+    p_reason: reason.trim() || null,
+  });
   if (error) throw new Error(errorMessage(error));
 }
 
