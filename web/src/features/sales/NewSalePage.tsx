@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { withRegisterDrawer } from '../../lib/drawers';
+import { RegisterDrawerNotice } from '../drawer/RegisterDrawerNotice';
 import type { Customer, ProductUnitStatus } from '../../types/domain';
 import { unitUnavailableMessage } from '../../lib/unitStatus';
 import { customerName, customerNameLastFirst, inactiveGiftCardMessage } from '../../types/domain';
@@ -770,7 +772,7 @@ export function NewSalePage() {
   async function completeSale(tenders: Tender[]) {
     setSaving(true);
     setError(null);
-    const { data, error: err } = await supabase.rpc('record_sale', {
+    const { data, error: err } = await withRegisterDrawer(supabase.rpc('record_sale', {
       ...saleQuoteArgs(lines, customer?.id ?? null, quoteOptions()),
       p_payments: tenders.map((t) => ({
         method: t.method,
@@ -779,7 +781,7 @@ export function NewSalePage() {
         check_number: t.checkNumber ?? null,
       })),
       p_note: null,
-    });
+    }));
     if (err) {
       setSaving(false);
       if (isTotalMismatchError(err)) {
@@ -857,6 +859,7 @@ export function NewSalePage() {
       )}
 
       {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
+      <RegisterDrawerNotice cashNeedsDrawer={settings?.cash_needs_drawer ?? false} />
 
       <CustomerBar customer={customer} onChange={setCustomer} />
 

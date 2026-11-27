@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { withRegisterDrawer } from '../../lib/drawers';
 import { fetchAllRowsResult } from '../../lib/paging';
 import type { Customer, CustomerRacket, StringJob, StringJobStatus } from '../../types/domain';
 import { customerName } from '../../types/domain';
@@ -295,7 +296,7 @@ export function StringJobDetailPage() {
     if (!jobId) return;
     setBusy(true);
     setError(null);
-    const { error: err } = await supabase.rpc('change_paid_string_job', {
+    const { error: err } = await withRegisterDrawer(supabase.rpc('change_paid_string_job', {
       p_job_id: jobId,
       p_main_product_id: change.mainProductId,
       p_cross_product_id: change.crossProductId,
@@ -303,7 +304,7 @@ export function StringJobDetailPage() {
       p_cross_tension: change.crossTension,
       p_payments: tenders.map((t) => ({ method: t.method, amount: t.amount })),
       p_reason: changeReason.trim() || null,
-    });
+    }));
     let notesError: unknown = null;
     if (!err && change.notes !== (job?.notes ?? null)) {
       ({ error: notesError } = await supabase.from('string_jobs').update({ notes: change.notes }).eq('id', jobId));

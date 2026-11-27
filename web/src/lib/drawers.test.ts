@@ -35,6 +35,7 @@ const row = {
   float_amount: '110.00',
   closed_at: null,
   counted_cash: null,
+  expected_cash: null,
   close_note: null,
 };
 
@@ -54,8 +55,8 @@ describe('drawer data', () => {
     await expect(drawers.fetchOpenSessions()).resolves.toEqual([{ ...row, float_amount: 110 }]);
     expect(query.is).toHaveBeenCalledWith('closed_at', null);
 
-    result = { data: { ...row, closed_at: '2026-11-28T01:00:00Z', counted_cash: '132.50' }, error: null };
-    await expect(drawers.fetchSession('s-1')).resolves.toMatchObject({ float_amount: 110, counted_cash: 132.5 });
+    result = { data: { ...row, closed_at: '2026-11-28T01:00:00Z', counted_cash: '132.50', expected_cash: '132.65' }, error: null };
+    await expect(drawers.fetchSession('s-1')).resolves.toMatchObject({ float_amount: 110, counted_cash: 132.5, expected_cash: 132.65 });
   });
 
   it('says what failed to load', async () => {
@@ -78,6 +79,29 @@ describe('drawer data', () => {
   });
 });
 
+describe('expected cash', () => {
+  it('loads what an open drawer should hold, as numbers', async () => {
+    rpc.mockReturnValueOnce({ single: async () => ({
+      data: { float_amount: '100', cash_sales: '43.30', cash_refunds: '21.65', expected_cash: '121.65', check_sales: '21.65', check_refunds: '0' },
+      error: null,
+    }) } as never);
+    await expect(drawers.fetchCashSummary('s-1')).resolves.toEqual({
+      float_amount: 100, cash_sales: 43.3, cash_refunds: 21.65, expected_cash: 121.65, check_sales: 21.65, check_refunds: 0,
+    });
+    expect(rpc).toHaveBeenCalledWith('drawer_cash_summary', { p_session_id: 's-1' });
+    rpc.mockReturnValueOnce({ single: async () => ({ data: null, error: { message: 'offline' } }) } as never);
+    await expect(drawers.fetchCashSummary('s-1')).rejects.toThrow("Couldn't work out the drawer's cash: offline");
+  });
+
+  it('says over, short or even', () => {
+    expect(drawers.overShort(121.5, 121.65)).toBe(-0.15);
+    expect(drawers.overShort(null, 10)).toBeNull();
+    expect(drawers.overShortLabel(-0.15)).toBe('Short $0.15');
+    expect(drawers.overShortLabel(1)).toBe('Over $1.00');
+    expect(drawers.overShortLabel(0)).toBe('Even');
+  });
+});
+
 describe('this device\'s drawer', () => {
   const main = { id: 'd-1', name: 'Main drawer', is_active: true };
   const back = { id: 'd-2', name: 'Back counter', is_active: true };
@@ -86,6 +110,26 @@ describe('this device\'s drawer', () => {
     expect(drawers.chooseDeviceDrawer([main, back], 'd-2')).toBe(back);
     expect(drawers.chooseDeviceDrawer([main, back], null)).toBeNull();
     expect(drawers.chooseDeviceDrawer([main, { ...back, is_active: false }], 'd-2')).toBe(main);
+  });
+
+  it('is open, closed, or still to be chosen at the register', () => {
+    expect(drawers.registerDrawerState([main], ['d-1'], null)).toBe('open');
+    expect(drawers.registerDrawerState([main], [], null)).toBe('closed');
+    expect(drawers.registerDrawerState([main, back], ['d-2'], null)).toBe('open');
+    expect(drawers.registerDrawerState([main, back], ['d-1', 'd-2'], null)).toBe('choose');
+    expect(drawers.registerDrawerState([main, back], [], null)).toBe('closed');
+    expect(drawers.registerDrawerState([main, back], ['d-1'], 'd-2')).toBe('closed');
+  });
+
+  it('marks money requests with the remembered drawer, when the request can carry it', () => {
+    const request = { setHeader: vi.fn(function (this: unknown) { return this; }) };
+    expect(drawers.withRegisterDrawer(request)).toBe(request);
+    expect(request.setHeader).not.toHaveBeenCalled();
+    drawers.rememberDrawer('d-2');
+    drawers.withRegisterDrawer(request);
+    expect(request.setHeader).toHaveBeenCalledWith('x-acestock-drawer', 'd-2');
+    const plainPromise = Promise.resolve();
+    expect(drawers.withRegisterDrawer(plainPromise)).toBe(plainPromise);
   });
 
   it('is remembered on the device', () => {

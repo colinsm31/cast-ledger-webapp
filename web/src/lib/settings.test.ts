@@ -36,6 +36,7 @@ const saved: Settings = {
   qb_sales_account: 'Sales',
   qb_stringing_account: 'Stringing Income',
   time_zone: 'America/Chicago',
+  cash_needs_drawer: true,
 };
 
 function form(changes: Partial<SettingsForm>): SettingsForm {

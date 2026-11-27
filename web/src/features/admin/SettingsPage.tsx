@@ -164,6 +164,14 @@ export function SettingsPage() {
           Offers Check at payment, with its check number. Sales already paid by check can still be refunded by check
           when this is off.
         </p>
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={form.cashNeedsDrawer} onChange={(e) => update({ cashNeedsDrawer: e.target.checked })} />
+          Cash needs an open drawer
+        </label>
+        <p className="text-xs text-slate-400">
+          Cash can only be taken or given back while the register&apos;s drawer is open, so every drawer&apos;s count
+          can be checked against what it should hold. Card, check, gift card and store credit work either way.
+        </p>
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">

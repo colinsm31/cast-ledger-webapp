@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { withRegisterDrawer } from '../../lib/drawers';
+import { RegisterDrawerNotice } from '../drawer/RegisterDrawerNotice';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
@@ -210,7 +212,7 @@ export function ExchangePage() {
           ? frameReturnLine(l.id, frameReturns[l.id] ?? DEFAULT_FRAME_RETURN)
           : { sale_line_id: l.id, qty: returnQty[l.id] },
       );
-    const { data, error: err } = await supabase.rpc('record_exchange', {
+    const { data, error: err } = await withRegisterDrawer(supabase.rpc('record_exchange', {
       p_sale_id: sale.id,
       p_return_lines: returnLines,
       p_new_lines: saleLines.map(toSaleLinePayload),
@@ -219,7 +221,7 @@ export function ExchangePage() {
       p_refund_payments: refundPayments.map(toPaymentPayload),
       p_reason: reason.trim() || null,
       p_method_change_reason: (changedTypes.length > 0 && methodChangeReason.trim()) || null,
-    });
+    }));
     setSaving(false);
     if (err) {
       setError(errorMessage(err));
@@ -293,6 +295,8 @@ export function ExchangePage() {
           {sale.customers ? customerNameLastFirst(sale.customers) : 'Unidentified Customer'}
         </p>
       </div>
+
+      <RegisterDrawerNotice cashNeedsDrawer={settings?.cash_needs_drawer ?? false} />
 
       {saleCustomerInactive(sale) && (
         <p className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">

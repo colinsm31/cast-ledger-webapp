@@ -19,6 +19,10 @@ vi.mock('../../lib/drawers', async (original) => ({
   fetchOpenSessions: vi.fn(async () => openSessions),
   openDrawer: (...args: unknown[]) => openDrawer(...(args as [])),
   closeDrawer: (...args: unknown[]) => closeDrawer(...(args as [])),
+  fetchCashSummary: vi.fn(async () => ({
+    float_amount: 110, cash_sales: 30, cash_refunds: 10, expected_cash: 130, check_sales: 25, check_refunds: 0,
+  })),
+  fetchSession: vi.fn(async () => ({ ...session, closed_at: '2026-11-28T01:00:00Z', counted_cash: 120.5, expected_cash: 130 })),
 }));
 
 const { DrawerPage } = await import('./DrawerPage');
@@ -34,6 +38,7 @@ const session: DrawerSession = {
   float_amount: 110,
   closed_at: null,
   counted_cash: null,
+  expected_cash: null,
   close_note: null,
 };
 
@@ -78,16 +83,24 @@ describe('DrawerPage', () => {
     expect(screen.getByText('Which drawer is at this register?')).toBeTruthy();
   });
 
-  it('closes an open drawer with a count and an optional note', async () => {
+  it('shows what the drawer should hold and closes it with a count and an optional note', async () => {
     openSessions = [session];
     render(<DrawerPage />);
-    expect(await screen.findByText(/with a \$110\.00 float/)).toBeTruthy();
+    expect(await screen.findByText('Expected in drawer')).toBeTruthy();
+    expect(screen.getByText('$130.00')).toBeTruthy();
+    expect(screen.getByText('-$10.00')).toBeTruthy();
+    expect(screen.getByText('Checks (not counted)')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('How many $20'), { target: { value: '6' } });
     fireEvent.change(screen.getByLabelText('Other cash'), { target: { value: '0.50' } });
+    expect(screen.getByText('Short $9.50')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Note (optional)'), { target: { value: 'Short a roll' } });
     fireEvent.click(screen.getByRole('button', { name: 'Close drawer' }));
     await waitFor(() => expect(closeDrawer).toHaveBeenCalledWith('s-1', { '20': 6, other: 0.5 }, 'Short a roll'));
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Counted $120.50') }));
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('Counted $120.50 (short $9.50)') }),
+    );
+    expect(await screen.findByText('Drawer closed.')).toBeTruthy();
+    expect(screen.getByText('Counted $120.50, expected $130.00.')).toBeTruthy();
   });
 
   it('shows the server\'s refusal and the time zone reminder', async () => {

@@ -5,16 +5,21 @@ import { DenominationCounter } from '../../components/DenominationCounter';
 import { LoadError } from '../../components/LoadError';
 import { Spinner } from '../../components/Spinner';
 import { formatDateTime } from '../../lib/dates';
-import { emptyCount, parseCount } from '../../lib/denominations';
+import { countTotal, emptyCount, parseCount } from '../../lib/denominations';
 import {
   chooseDeviceDrawer,
   closeDrawer,
+  fetchCashSummary,
   fetchDrawers,
   fetchOpenSessions,
+  fetchSession,
   openDrawer,
+  overShort,
+  overShortLabel,
   rememberDrawer,
   rememberedDrawerId,
   type Drawer,
+  type DrawerCashSummary,
   type DrawerSession,
 } from '../../lib/drawers';
 import { errorMessage } from '../../lib/errors';
@@ -40,6 +45,7 @@ export function DrawerPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [drawerId, setDrawerId] = useState<string | null>(rememberedDrawerId());
   const [choosing, setChoosing] = useState(false);
+  const [lastClosed, setLastClosed] = useState<DrawerSession | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -65,6 +71,16 @@ export function DrawerPage() {
     rememberDrawer(id);
     setDrawerId(id);
     setChoosing(false);
+    setLastClosed(null);
+  }
+
+  async function afterClose(sessionId: string) {
+    await load();
+    try {
+      setLastClosed(await fetchSession(sessionId));
+    } catch {
+      // The drawer is closed either way; the summary is only a convenience.
+    }
   }
 
   return (
@@ -75,6 +91,7 @@ export function DrawerPage() {
           An admin needs to set the shop&apos;s time zone in Settings before drawers can be opened.
         </p>
       )}
+      {lastClosed && <ClosedDrawerResult session={lastClosed} />}
       {activeDrawers.length === 0 ? (
         <p className="text-sm text-slate-500">No drawers are in use. An admin can add one in Settings.</p>
       ) : !drawer ? (
@@ -95,7 +112,11 @@ export function DrawerPage() {
           session={loaded.openSessions.find((s) => s.drawer_id === drawer.id) ?? null}
           canChange={activeDrawers.length > 1}
           onChange={() => setChoosing(true)}
-          onDone={() => void load()}
+          onOpened={() => {
+            setLastClosed(null);
+            void load();
+          }}
+          onClosed={(sessionId) => void afterClose(sessionId)}
         />
       )}
     </div>
@@ -107,13 +128,15 @@ function DrawerPanel({
   session,
   canChange,
   onChange,
-  onDone,
+  onOpened,
+  onClosed,
 }: {
   drawer: Drawer;
   session: DrawerSession | null;
   canChange: boolean;
   onChange: () => void;
-  onDone: () => void;
+  onOpened: () => void;
+  onClosed: (sessionId: string) => void;
 }) {
   return (
     <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
@@ -126,12 +149,16 @@ function DrawerPanel({
           </button>
         )}
       </div>
-      {session ? <CloseDrawerForm session={session} onDone={onDone} /> : <OpenDrawerForm drawer={drawer} onDone={onDone} />}
+      {session ? (
+        <CloseDrawerForm session={session} onClosed={() => onClosed(session.id)} />
+      ) : (
+        <OpenDrawerForm drawer={drawer} onOpened={onOpened} />
+      )}
     </section>
   );
 }
 
-function OpenDrawerForm({ drawer, onDone }: { drawer: Drawer; onDone: () => void }) {
+function OpenDrawerForm({ drawer, onOpened }: { drawer: Drawer; onOpened: () => void }) {
   const [count, setCount] = useState(emptyCount);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +173,7 @@ function OpenDrawerForm({ drawer, onDone }: { drawer: Drawer; onDone: () => void
     setError(null);
     try {
       await openDrawer(drawer.id, parsed.counts);
-      onDone();
+      onOpened();
     } catch (err) {
       setError(errorMessage(err));
       setSaving(false);
@@ -164,12 +191,29 @@ function OpenDrawerForm({ drawer, onDone }: { drawer: Drawer; onDone: () => void
   );
 }
 
-function CloseDrawerForm({ session, onDone }: { session: DrawerSession; onDone: () => void }) {
+function CloseDrawerForm({ session, onClosed }: { session: DrawerSession; onClosed: () => void }) {
   const { confirm } = useDialog();
+  const [summary, setSummary] = useState<DrawerCashSummary | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [count, setCount] = useState(emptyCount);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loadSummary = useCallback(async () => {
+    setSummaryError(null);
+    try {
+      setSummary(await fetchCashSummary(session.id));
+    } catch (err) {
+      setSummaryError(errorMessage(err));
+    }
+  }, [session.id]);
+
+  useEffect(() => {
+    void loadSummary();
+  }, [loadSummary]);
+
+  const difference = overShort(countTotal(count), summary?.expected_cash ?? null);
 
   async function close() {
     const parsed = parseCount(count);
@@ -177,9 +221,15 @@ function CloseDrawerForm({ session, onDone }: { session: DrawerSession; onDone: 
       setError(parsed.error);
       return;
     }
+    // The expected cash may have moved since the page loaded: check it again.
+    const latest = await fetchCashSummary(session.id).catch(() => summary);
+    const finalDifference = overShort(parsed.total, latest?.expected_cash ?? null);
     const ok = await confirm({
       title: 'Close the drawer?',
-      message: `Counted ${formatMoney(parsed.total)}. The count can't be changed after closing.`,
+      message:
+        `Counted ${formatMoney(parsed.total)}` +
+        (finalDifference === null ? '. ' : ` (${overShortLabel(finalDifference).toLowerCase()}). `) +
+        "The count can't be changed after closing.",
       confirmLabel: 'Close drawer',
     });
     if (!ok) return;
@@ -187,7 +237,7 @@ function CloseDrawerForm({ session, onDone }: { session: DrawerSession; onDone: 
     setError(null);
     try {
       await closeDrawer(session.id, parsed.counts, note);
-      onDone();
+      onClosed();
     } catch (err) {
       setError(errorMessage(err));
       setSaving(false);
@@ -195,11 +245,16 @@ function CloseDrawerForm({ session, onDone }: { session: DrawerSession; onDone: 
   }
 
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-slate-600">
-        Opened {formatDateTime(session.opened_at)} with a {formatMoney(session.float_amount)} float.
-      </p>
+    <div className="space-y-4">
+      <p className="text-sm text-slate-600">Opened {formatDateTime(session.opened_at)}.</p>
+      {summaryError && <LoadError message={summaryError} onRetry={() => void loadSummary()} />}
+      {summary && <CashSummaryTable summary={summary} />}
       <DenominationCounter label="Count the drawer" value={count} onChange={setCount} />
+      {difference !== null && (
+        <p className={difference === 0 ? 'text-sm font-semibold text-green-700' : 'text-sm font-semibold text-amber-700'}>
+          {overShortLabel(difference)}
+        </p>
+      )}
       <label className="block space-y-1">
         <span className="text-xs font-medium text-slate-500">Note (optional)</span>
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} className={inputClass} />
@@ -209,5 +264,47 @@ function CloseDrawerForm({ session, onDone }: { session: DrawerSession; onDone: 
         {saving ? 'Closing…' : 'Close drawer'}
       </button>
     </div>
+  );
+}
+
+function CashSummaryTable({ summary }: { summary: DrawerCashSummary }) {
+  const rows: [string, number][] = [
+    ['Starting float', summary.float_amount],
+    ['Cash taken', summary.cash_sales],
+    ['Cash given back', -summary.cash_refunds],
+  ];
+  const checks = summary.check_sales - summary.check_refunds;
+  return (
+    <dl className="max-w-sm space-y-1 text-sm">
+      {rows.map(([label, amount]) => (
+        <div key={label} className="flex justify-between text-slate-600">
+          <dt>{label}</dt>
+          <dd>{formatMoney(amount)}</dd>
+        </div>
+      ))}
+      <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-900">
+        <dt>Expected in drawer</dt>
+        <dd>{formatMoney(summary.expected_cash)}</dd>
+      </div>
+      {checks !== 0 && (
+        <div className="flex justify-between text-slate-500">
+          <dt>Checks (not counted)</dt>
+          <dd>{formatMoney(checks)}</dd>
+        </div>
+      )}
+    </dl>
+  );
+}
+
+function ClosedDrawerResult({ session }: { session: DrawerSession }) {
+  const difference = overShort(session.counted_cash, session.expected_cash);
+  return (
+    <section role="status" className="space-y-1 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-slate-700">
+      <p className="font-semibold text-green-800">Drawer closed.</p>
+      <p>
+        Counted {formatMoney(session.counted_cash ?? 0)}, expected {formatMoney(session.expected_cash ?? 0)}.
+      </p>
+      {difference !== null && <p className="font-semibold">{overShortLabel(difference)}</p>}
+    </section>
   );
 }
