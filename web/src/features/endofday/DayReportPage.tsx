@@ -3,19 +3,22 @@ import { useParams } from 'react-router-dom';
 import { LoadError } from '../../components/LoadError';
 import { PrintToolbar, usePrintLayout } from '../../components/PrintToolbar';
 import { Spinner } from '../../components/Spinner';
-import { fetchDayReport, type DayReport } from '../../lib/dayReport';
+import { fetchPrintableDayReport, type DayClose } from '../../lib/dayCloses';
+import type { DayReport } from '../../lib/dayReport';
 import { errorMessage } from '../../lib/errors';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { useSettings } from '../../lib/settings';
 import { DayReportView } from './DayReportView';
 
-// A business day's report, ready to print. Outside the app's frame, like a
-// receipt, so only the report prints.
+// A business day's report, ready to print: the Z report saved when the day
+// was closed, or the day so far (X). Outside the app's frame, like a receipt,
+// so only the report prints.
 export function DayReportPage() {
   const { day } = useParams<{ day: string }>();
   const { settings } = useSettings();
   const { layout, choose, print } = usePrintLayout();
   const [report, setReport] = useState<DayReport | null>(null);
+  const [close, setClose] = useState<DayClose | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadCount, setLoadCount] = useState(0);
   const startRequest = useLatestRequest();
@@ -24,9 +27,11 @@ export function DayReportPage() {
     if (!day) return;
     const isLatest = startRequest();
     setError(null);
-    fetchDayReport(day).then(
+    fetchPrintableDayReport(day).then(
       (loaded) => {
-        if (isLatest()) setReport(loaded);
+        if (!isLatest()) return;
+        setClose(loaded.close);
+        setReport(loaded.report);
       },
       (err: unknown) => {
         if (isLatest()) setError(errorMessage(err));
@@ -50,7 +55,13 @@ export function DayReportPage() {
         </div>
       ) : report ? (
         <div className="bg-white p-4 shadow print:p-0 print:shadow-none">
-          <DayReportView report={report} layout={layout} shopName={settings?.shop_name ?? null} />
+          <DayReportView
+            report={report}
+            layout={layout}
+            shopName={settings?.shop_name ?? null}
+            closedBy={close?.closed_by}
+            closedAt={close?.closed_at}
+          />
         </div>
       ) : (
         <Spinner label="Loading the daily report…" />

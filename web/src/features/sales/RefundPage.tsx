@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { withRegisterDrawer } from '../../lib/drawers';
 import { RegisterDrawerNotice } from '../drawer/RegisterDrawerNotice';
+import { DayClosedNotice } from '../endofday/DayClosedNotice';
 import type { PaymentMethod } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
@@ -313,6 +314,7 @@ export function RefundPage() {
         </button>
       </div>
 
+      <DayClosedNotice timeZone={settings?.time_zone ?? null} />
       <RegisterDrawerNotice cashNeedsDrawer={settings?.cash_needs_drawer ?? false} />
 
       {/* Items */}

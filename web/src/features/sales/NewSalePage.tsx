@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { withRegisterDrawer } from '../../lib/drawers';
 import { RegisterDrawerNotice } from '../drawer/RegisterDrawerNotice';
+import { DayClosedNotice } from '../endofday/DayClosedNotice';
 import type { Customer, ProductUnitStatus } from '../../types/domain';
 import { unitUnavailableMessage } from '../../lib/unitStatus';
 import { customerName, customerNameLastFirst, inactiveGiftCardMessage } from '../../types/domain';
@@ -859,6 +860,7 @@ export function NewSalePage() {
       )}
 
       {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
+      <DayClosedNotice timeZone={settings?.time_zone ?? null} />
       <RegisterDrawerNotice cashNeedsDrawer={settings?.cash_needs_drawer ?? false} />
 
       <CustomerBar customer={customer} onChange={setCustomer} />

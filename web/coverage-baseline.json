@@ -2,10 +2,10 @@
   "updated": "2026-11-27",
   "web": {
     "overall": {
-      "lines": 45.44,
-      "statements": 45.66,
-      "functions": 48.51,
-      "branches": 42.1
+      "lines": 45.94,
+      "statements": 46.18,
+      "functions": 49.14,
+      "branches": 42.55
     },
     "byFolder": {
       "src": {
@@ -39,7 +39,7 @@
         "lines": 95.52
       },
       "src/features/endofday": {
-        "lines": 98.11
+        "lines": 97.75
       },
       "src/features/home": {
         "lines": 0
@@ -63,7 +63,7 @@
         "lines": 22.39
       },
       "src/lib": {
-        "lines": 94.88
+        "lines": 94.96
       },
       "src/types": {
         "lines": 75
@@ -211,6 +211,9 @@
       "src/features/drawer/RegisterDrawerNotice.tsx": {
         "lines": 100
       },
+      "src/features/endofday/DayClosedNotice.tsx": {
+        "lines": 100
+      },
       "src/features/endofday/DayReportPage.tsx": {
         "lines": 100
       },
@@ -218,7 +221,7 @@
         "lines": 100
       },
       "src/features/endofday/EndOfDayPage.tsx": {
-        "lines": 96.15
+        "lines": 95.91
       },
       "src/features/endofday/dayReportFixture.ts": {
         "lines": 100
@@ -452,6 +455,9 @@
         "lines": 100
       },
       "src/lib/dates.ts": {
+        "lines": 100
+      },
+      "src/lib/dayCloses.ts": {
         "lines": 100
       },
       "src/lib/dayReport.ts": {

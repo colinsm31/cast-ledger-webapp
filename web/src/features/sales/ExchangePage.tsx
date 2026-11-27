@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { withRegisterDrawer } from '../../lib/drawers';
 import { RegisterDrawerNotice } from '../drawer/RegisterDrawerNotice';
+import { DayClosedNotice } from '../endofday/DayClosedNotice';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
@@ -296,6 +297,7 @@ export function ExchangePage() {
         </p>
       </div>
 
+      <DayClosedNotice timeZone={settings?.time_zone ?? null} />
       <RegisterDrawerNotice cashNeedsDrawer={settings?.cash_needs_drawer ?? false} />
 
       {saleCustomerInactive(sale) && (
