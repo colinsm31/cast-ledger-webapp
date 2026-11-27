@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countTotal, emptyCount, parseCount } from './denominations';
+import { countTotal, emptyCount, hasCountStarted, parseCount } from './denominations';
 
 describe('parseCount', () => {
   it('adds up bills, coins and other cash, skipping empty boxes', () => {
@@ -19,6 +19,11 @@ describe('parseCount', () => {
     expect(parseCount({ ...emptyCount(), '0.10': 'ten' })).toEqual({ error: '10¢: enter how many, as a whole number.' });
     expect(parseCount({ ...emptyCount(), other: '$5' })).toEqual({ error: 'Other cash: enter an amount, like 10.00.' });
     expect(parseCount({ ...emptyCount(), other: '1.005' })).toEqual({ error: 'Other cash: use at most 2 decimal places.' });
+  });
+
+  it('knows whether counting has started', () => {
+    expect(hasCountStarted(emptyCount())).toBe(false);
+    expect(hasCountStarted({ ...emptyCount(), '0.01': '0' })).toBe(true);
   });
 
   it('gives no running total while a box is wrong', () => {

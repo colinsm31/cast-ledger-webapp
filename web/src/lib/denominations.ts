@@ -58,6 +58,11 @@ export function parseCount(form: CountForm): { counts: Record<string, number>; t
   return { counts, total: roundCents(total) };
 }
 
+/** Whether anything has been typed into the count yet. */
+export function hasCountStarted(form: CountForm): boolean {
+  return Object.values(form).some((text) => text.trim() !== '');
+}
+
 /** A count's total for display while typing; null while something typed isn't valid. */
 export function countTotal(form: CountForm): number | null {
   const parsed = parseCount(form);

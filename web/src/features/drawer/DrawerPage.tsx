@@ -5,7 +5,7 @@ import { DenominationCounter } from '../../components/DenominationCounter';
 import { LoadError } from '../../components/LoadError';
 import { Spinner } from '../../components/Spinner';
 import { formatDateTime } from '../../lib/dates';
-import { countTotal, emptyCount, parseCount } from '../../lib/denominations';
+import { countTotal, emptyCount, hasCountStarted, parseCount } from '../../lib/denominations';
 import {
   chooseDeviceDrawer,
   closeDrawer,
@@ -219,7 +219,8 @@ function CloseDrawerForm({ session, onClosed }: { session: DrawerSession; onClos
     void loadSummary();
   }, [loadSummary]);
 
-  const difference = overShort(countTotal(count), summary?.expected_cash ?? null);
+  // Over/short shows once counting has started, not as "short" by everything before.
+  const difference = hasCountStarted(count) ? overShort(countTotal(count), summary?.expected_cash ?? null) : null;
 
   async function close() {
     const parsed = parseCount(count);

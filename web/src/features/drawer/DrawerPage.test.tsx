@@ -94,6 +94,7 @@ describe('DrawerPage', () => {
     expect(screen.getByText('-$10.00')).toBeTruthy();
     expect(screen.getByText('Checks (not counted)')).toBeTruthy();
     expect(screen.getByText('Stamps')).toBeTruthy();
+    expect(screen.queryByText(/^Short /)).toBeNull();
     fireEvent.change(screen.getByLabelText('How many $20'), { target: { value: '6' } });
     fireEvent.change(screen.getByLabelText('Other cash'), { target: { value: '0.50' } });
     expect(screen.getByText('Short $9.50')).toBeTruthy();
