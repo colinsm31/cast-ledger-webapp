@@ -33,6 +33,8 @@ const query = {
 };
 vi.mock('../../lib/supabase', () => ({ supabase: { from: () => query, rpc: vi.fn() } }));
 vi.mock('../../app/BackContext', () => ({ useBack: () => {} }));
+const download = vi.fn();
+vi.mock('../../lib/csv', async (original) => ({ ...(await original<typeof import('../../lib/csv')>()), downloadCsv: (...args: unknown[]) => download(...args) }));
 
 const { DemosPage } = await import('./DemosPage');
 
@@ -54,6 +56,10 @@ describe('DemosPage', () => {
     const numbers = screen.getAllByText(/^D100\d$/).map((el) => el.textContent);
     expect(numbers).toEqual(['D1002', 'D1001']);
     expect(screen.getByText(/Deposit: Card on file/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
+    expect(download.mock.calls.at(-1)?.[0]).toMatch(/^demos-out_/);
+    expect(download.mock.calls.at(-1)?.[1]).toContain('D1002,Head Speed MP,DM-2,"Tester, Sam"');
 
     fireEvent.change(screen.getByPlaceholderText(/Scan a frame/), { target: { value: 'dm-1' } });
     expect(screen.queryByText('D1002')).toBeNull();
@@ -87,6 +93,9 @@ describe('DemosPage', () => {
     expect(screen.getByText('Bought').getAttribute('href')).toBe('/sales/s1');
     expect(screen.getByText('Back, retired')).toBeTruthy();
     expect(screen.getByText(/Cracked/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
+    expect(download.mock.calls.at(-1)?.[0]).toMatch(/^demos-returned-latest-\d+_/);
+    expect(download.mock.calls.at(-1)?.[1]).toContain(',Retired,Cracked,');
     expect(screen.getByText('Tester, Sam')).toBeTruthy();
     fireEvent.click(screen.getByText('Out now'));
     expect(await screen.findByText('No demos are out')).toBeTruthy();

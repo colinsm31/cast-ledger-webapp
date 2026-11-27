@@ -20,6 +20,7 @@ import { CustomerRacketsPanel } from './CustomerRacketsPanel';
 import { RestringHistoryPanel } from './RestringHistoryPanel';
 import { CustomerDemosPanel } from '../demos/CustomerDemosPanel';
 import { useBack } from '../../app/BackContext';
+import { useAuth } from '../../auth/AuthContext';
 import { ScanFlowParams } from '../scan/scanFlow';
 
 // Filter sales by customer (top-level column), embedding each sale's lines up to
@@ -346,6 +347,8 @@ function AccountPanel({
   onChanged: () => Promise<void>;
   onError: (message: string | null) => void;
 }) {
+  // Store credit outside a refund is an admin's to give (0104).
+  const { isAdmin } = useAuth();
   const [adding, setAdding] = useState(false);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
@@ -388,7 +391,7 @@ function AccountPanel({
           <h2 className="text-sm font-semibold text-slate-700">Store credit</h2>
           <p className="text-lg font-bold text-slate-900">${storeCredit.toFixed(2)}</p>
         </div>
-        {!adding && customerActive && (
+        {!adding && customerActive && isAdmin && (
           <button
             onClick={() => setAdding(true)}
             className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"

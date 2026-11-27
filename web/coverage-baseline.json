@@ -2,10 +2,10 @@
   "updated": "2026-11-25",
   "web": {
     "overall": {
-      "lines": 36.18,
-      "statements": 36.46,
-      "functions": 36.4,
-      "branches": 34.83
+      "lines": 42.07,
+      "statements": 42.39,
+      "functions": 45.39,
+      "branches": 39.52
     },
     "byFolder": {
       "src": {
@@ -18,22 +18,22 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 96.77
+        "lines": 96.93
       },
       "src/features/account": {
         "lines": 0
       },
       "src/features/admin": {
-        "lines": 8.15
+        "lines": 8.03
       },
       "src/features/categories": {
         "lines": 0
       },
       "src/features/customers": {
-        "lines": 1.22
+        "lines": 1.21
       },
       "src/features/demos": {
-        "lines": 97.35
+        "lines": 97.44
       },
       "src/features/home": {
         "lines": 0
@@ -44,17 +44,20 @@
       "src/features/products": {
         "lines": 24.12
       },
+      "src/features/reports": {
+        "lines": 100
+      },
       "src/features/sales": {
-        "lines": 23.69
+        "lines": 27.89
       },
       "src/features/scan": {
         "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 22.14
+        "lines": 22.39
       },
       "src/lib": {
-        "lines": 93.96
+        "lines": 94.47
       },
       "src/types": {
         "lines": 75
@@ -88,6 +91,9 @@
       "src/components/Barcode.tsx": {
         "lines": 100
       },
+      "src/components/CsvButton.tsx": {
+        "lines": 100
+      },
       "src/components/Dialog.tsx": {
         "lines": 91.93
       },
@@ -100,7 +106,13 @@
       "src/components/NotificationLog.tsx": {
         "lines": 100
       },
+      "src/components/PeriodPicker.tsx": {
+        "lines": 100
+      },
       "src/components/Spinner.tsx": {
+        "lines": 100
+      },
+      "src/components/TabButton.tsx": {
         "lines": 100
       },
       "src/features/account/AccountPage.tsx": {
@@ -172,6 +184,9 @@
       "src/features/demos/demoLoanQueries.ts": {
         "lines": 100
       },
+      "src/features/demos/demoLoansCsv.ts": {
+        "lines": 100
+      },
       "src/features/home/ComingSoon.tsx": {
         "lines": 0
       },
@@ -226,6 +241,48 @@
       "src/features/products/variantLabel.ts": {
         "lines": 100
       },
+      "src/features/reports/BalancesReport.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/DemosReport.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/InventoryValueReport.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/PriceChangesReport.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/QuickBooksExport.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/ReportTable.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/ReportsPage.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/SalesReports.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/StringingReport.tsx": {
+        "lines": 100
+      },
+      "src/features/reports/inventoryValue.ts": {
+        "lines": 100
+      },
+      "src/features/reports/priceChanges.ts": {
+        "lines": 100
+      },
+      "src/features/reports/quickbooks.ts": {
+        "lines": 100
+      },
+      "src/features/reports/reportColumns.ts": {
+        "lines": 100
+      },
+      "src/features/reports/useReport.ts": {
+        "lines": 100
+      },
       "src/features/sales/CheckEntry.tsx": {
         "lines": 9.09
       },
@@ -272,7 +329,7 @@
         "lines": 0
       },
       "src/features/sales/SalesListPage.tsx": {
-        "lines": 0
+        "lines": 96.07
       },
       "src/features/sales/SoldRacketsPanel.tsx": {
         "lines": 100
@@ -281,6 +338,9 @@
         "lines": 100
       },
       "src/features/sales/saleForReturn.ts": {
+        "lines": 100
+      },
+      "src/features/sales/salesListData.ts": {
         "lines": 100
       },
       "src/features/sales/ticketJobQueries.ts": {
@@ -331,6 +391,9 @@
       "src/features/stringjobs/stringJobForm.tsx": {
         "lines": 12.5
       },
+      "src/features/stringjobs/stringJobsCsv.ts": {
+        "lines": 100
+      },
       "src/features/stringjobs/stringRow.ts": {
         "lines": 100
       },
@@ -344,6 +407,9 @@
         "lines": 100
       },
       "src/lib/code128.ts": {
+        "lines": 100
+      },
+      "src/lib/csv.ts": {
         "lines": 100
       },
       "src/lib/customerSearch.ts": {
@@ -418,6 +484,9 @@
       "src/lib/receiptLayout.ts": {
         "lines": 100
       },
+      "src/lib/reportPeriod.ts": {
+        "lines": 100
+      },
       "src/lib/saleLines.ts": {
         "lines": 75
       },
@@ -434,7 +503,7 @@
         "lines": 100
       },
       "src/lib/settings.ts": {
-        "lines": 74.24
+        "lines": 77.33
       },
       "src/lib/staff.ts": {
         "lines": 100

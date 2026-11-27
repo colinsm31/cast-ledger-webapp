@@ -22,7 +22,7 @@ type UpcResult =
 
 export function HomePage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const heldSale = useHeldSale(user?.id);
   const heldCount = heldSale?.lines.reduce((n, l) => n + l.qty, 0) ?? 0;
   const [query, setQuery] = useState('');
@@ -243,6 +243,7 @@ export function HomePage() {
         <NavCard to="/gift-cards" label="Gift Cards" />
         <NavCard to="/string-jobs/open" label="Open Re-Strings" />
         <NavCard to="/string-jobs/completed" label="Completed Re-Strings" />
+        {isAdmin && <NavCard to="/reports" label="Reports" />}
       </div>
 
       {user?.email && (

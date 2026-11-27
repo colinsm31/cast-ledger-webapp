@@ -79,6 +79,11 @@ export function AppShell() {
                 Demos
               </NavLink>
               {isAdmin && (
+                <NavLink to="/reports" className={navLinkClass}>
+                  Reports
+                </NavLink>
+              )}
+              {isAdmin && (
                 <NavLink to="/settings" className={navLinkClass}>
                   Settings
                 </NavLink>

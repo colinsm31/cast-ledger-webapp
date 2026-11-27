@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/errors';
@@ -9,59 +9,16 @@ import { useBack } from '../../app/BackContext';
 import { Spinner } from '../../components/Spinner';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { formatDateTime } from '../../lib/dates';
+import { usePeriodRange } from '../../lib/reportPeriod';
+import { fetchAllPages } from '../../lib/paging';
+import { PeriodPicker } from '../../components/PeriodPicker';
+import { TabButton } from '../../components/TabButton';
+import { CsvButton } from '../../components/CsvButton';
+import { csvFileName, downloadCsv } from '../../lib/csv';
+import { normalizeSummary, SUMMARY_ROWS, summaryCsv, ticketsCsv, type Summary, type TicketRow } from './salesListData';
 
-type Period = 'today' | 'wtd' | 'mtd' | 'ytd' | 'custom';
 type Tab = 'summary' | 'tickets';
 
-const PERIODS: { value: Period; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: 'wtd', label: 'Week to date' },
-  { value: 'mtd', label: 'Month to date' },
-  { value: 'ytd', label: 'Year to date' },
-  { value: 'custom', label: 'Custom range' },
-];
-
-interface Summary {
-  gross: number;
-  tax: number;
-  refunds: number;
-  net: number;
-  card: number;
-  cash: number;
-  check_amt: number;
-  store_credit: number;
-  gift_card: number;
-  num_customers: number;
-  num_tickets: number;
-  num_items: number;
-  gift_cards_sold: number;
-  price_changes: number;
-  price_change_total: number;
-  discounts: number;
-  discount_total: number;
-  exempt_tickets: number;
-  exempt_sales: number;
-}
-
-interface TicketRow {
-  id: string;
-  sold_at: string;
-  subtotal: number;
-  tax: number;
-  customers: { first_name: string; last_name: string } | null;
-}
-
-function startOfDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-function addDays(d: Date, n: number): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-}
-function parseLocalDate(s: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) return null;
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-}
 const money = (v: number) => `$${Number(v).toFixed(2)}`;
 
 export function SalesListPage() {
@@ -69,9 +26,8 @@ export function SalesListPage() {
   const { settings, error: settingsError, reload: reloadSettings } = useSettings();
   const weekStartsMonday = settings?.week_starts_monday ?? false;
   useBack('/');
-  const [period, setPeriod] = useState<Period>('today');
-  const [customFrom, setCustomFrom] = useState('');
-  const [customTo, setCustomTo] = useState('');
+  const periodState = usePeriodRange(weekStartsMonday);
+  const { range } = periodState;
   const [tab, setTab] = useState<Tab>('summary');
 
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -83,25 +39,6 @@ export function SalesListPage() {
   const [loadCount, setLoadCount] = useState(0);
   const retry = () => setLoadCount((count) => count + 1);
   const startRequest = useLatestRequest();
-
-  // Resolve the selected period to a [from, to) range.
-  const range = useMemo(() => {
-    const now = new Date();
-    if (period === 'today') return { from: startOfDay(now), to: now };
-    if (period === 'wtd') {
-      // Offset back to the start of the week (Sunday or Monday).
-      const dow = now.getDay(); // 0=Sun
-      const back = weekStartsMonday ? (dow + 6) % 7 : dow;
-      return { from: addDays(startOfDay(now), -back), to: now };
-    }
-    if (period === 'mtd') return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: now };
-    if (period === 'ytd') return { from: new Date(now.getFullYear(), 0, 1), to: now };
-    // custom
-    const f = parseLocalDate(customFrom);
-    const t = parseLocalDate(customTo);
-    if (!f || !t) return null;
-    return { from: f, to: addDays(t, 1) }; // end date inclusive
-  }, [period, customFrom, customTo, weekStartsMonday]);
 
   useEffect(() => {
     if (!range) {
@@ -118,14 +55,22 @@ export function SalesListPage() {
     // A slow answer for an earlier period never replaces the one chosen since (#37).
     const isLatest = startRequest();
     void (async () => {
+      // Every ticket, page by page: a long period has more than one page.
       const [sumRes, tixRes] = await Promise.all([
         supabase.rpc('sales_summary', { p_from: fromISO, p_to: toISO }),
-        supabase
-          .from('sales')
-          .select('id, sold_at, subtotal, tax, customers ( first_name, last_name )')
-          .gte('sold_at', fromISO)
-          .lt('sold_at', toISO)
-          .order('sold_at', { ascending: false }),
+        fetchAllPages<TicketRow>((from, to) =>
+          supabase
+            .from('sales')
+            .select('id, sold_at, subtotal, tax, customers ( first_name, last_name )')
+            .gte('sold_at', fromISO)
+            .lt('sold_at', toISO)
+            .order('sold_at', { ascending: false })
+            .order('id', { ascending: false })
+            .range(from, to),
+        ).then(
+          (data) => ({ data, error: null }),
+          (error: unknown) => ({ data: null, error }),
+        ),
       ]);
       if (!isLatest()) return;
       if (sumRes.error) setSummaryError(`Couldn't load the summary: ${errorMessage(sumRes.error)}`);
@@ -134,7 +79,7 @@ export function SalesListPage() {
         setSummary(row ? normalizeSummary(row) : null);
       }
       if (tixRes.error) setTicketsError(`Couldn't load the tickets: ${errorMessage(tixRes.error)}`);
-      else setTickets((tixRes.data ?? []) as unknown as TicketRow[]);
+      else setTickets(tixRes.data ?? []);
     })();
   }, [range, loadCount, startRequest]);
 
@@ -152,44 +97,26 @@ export function SalesListPage() {
 
       {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
 
-      {/* Period */}
-      <div className="flex flex-wrap gap-2">
-        {PERIODS.map((p) => (
-          <button
-            key={p.value}
-            onClick={() => setPeriod(p.value)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              period === p.value
-                ? 'bg-blue-600 text-white'
-                : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-      {period === 'custom' && (
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-slate-500">From</span>
-            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="block rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-slate-500">To</span>
-            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="block rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          </label>
-        </div>
-      )}
+      <PeriodPicker state={periodState} />
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-slate-200">
         <TabButton active={tab === 'summary'} onClick={() => setTab('summary')}>Summary</TabButton>
         <TabButton active={tab === 'tickets'} onClick={() => setTab('tickets')}>Tickets</TabButton>
+        <div className="ml-auto pb-1">
+          <CsvButton
+            disabled={!range || (tab === 'summary' ? !summary : !tickets || tickets.length === 0)}
+            onClick={() => {
+              if (!range) return;
+              if (tab === 'summary' && summary) {
+                downloadCsv(csvFileName('sales-summary', range), summaryCsv(summary));
+              } else if (tab === 'tickets' && tickets) {
+                downloadCsv(csvFileName('sales-tickets', range), ticketsCsv(tickets));
+              }
+            }}
+          />
+        </div>
       </div>
-
-      {period === 'custom' && !range && (
-        <p className="text-sm text-slate-500">Choose a start and end date.</p>
-      )}
 
       {tab === 'summary' && range && (
         summaryError ? (
@@ -198,25 +125,13 @@ export function SalesListPage() {
           <Spinner label="Loading…" />
         ) : summary ? (
           <section className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
-            <MoneyRow label="Gross sales" value={summary.gross} />
-            <MoneyRow label="Gift cards sold" value={summary.gift_cards_sold} />
-            <MoneyRow label="Sales tax collected" value={summary.tax} />
-            <MoneyRow label="Total refunds issued" value={summary.refunds} />
-            <MoneyRow label="Total net receipts" value={summary.net} strong />
-            <MoneyRow label="Net credit/debit card receipts" value={summary.card} />
-            <MoneyRow label="Net cash receipts" value={summary.cash} />
-            <MoneyRow label="Net receipts paid by check" value={summary.check_amt} />
-            <MoneyRow label="Net store credit issued (redeemed) in sales transactions" value={summary.store_credit} />
-            <MoneyRow label="Net purchases made with gift cards/certificates" value={summary.gift_card} />
-            <CountRow label="Number of customers" value={summary.num_customers} />
-            <CountRow label="Number of sales tickets" value={summary.num_tickets} />
-            <CountRow label="Number of items sold (net of returns)" value={summary.num_items} />
-            <CountRow label="Price changes at the register" value={summary.price_changes} />
-            <MoneyRow label="Net effect of price changes" value={summary.price_change_total} />
-            <CountRow label="Discounted lines at the register" value={summary.discounts} />
-            <MoneyRow label="Total discounts given" value={summary.discount_total} />
-            <CountRow label="Tax-exempt sales tickets" value={summary.exempt_tickets} />
-            <MoneyRow label="Tax-exempt sales (no tax charged)" value={summary.exempt_sales} />
+            {SUMMARY_ROWS.map((row) =>
+              row.kind === 'count' ? (
+                <CountRow key={row.key} label={row.label} value={summary[row.key]} />
+              ) : (
+                <MoneyRow key={row.key} label={row.label} value={summary[row.key]} strong={row.strong} />
+              ),
+            )}
             <p className="p-3 text-xs text-slate-500">
               Gift cards count as sales when they're spent, not when they're sold. Net receipts include
               gift cards sold, so they match the money taken in.
@@ -258,31 +173,6 @@ export function SalesListPage() {
   );
 }
 
-function normalizeSummary(r: Record<string, unknown>): Summary {
-  const n = (k: string) => Number(r[k] ?? 0);
-  return {
-    gross: n('gross'),
-    tax: n('tax'),
-    refunds: n('refunds'),
-    net: n('net'),
-    card: n('card'),
-    cash: n('cash'),
-    check_amt: n('check_amt'),
-    store_credit: n('store_credit'),
-    gift_card: n('gift_card'),
-    num_customers: n('num_customers'),
-    num_tickets: n('num_tickets'),
-    num_items: n('num_items'),
-    gift_cards_sold: n('gift_cards_sold'),
-    price_changes: n('price_changes'),
-    price_change_total: n('price_change_total'),
-    discounts: n('discounts'),
-    discount_total: n('discount_total'),
-    exempt_tickets: n('exempt_tickets'),
-    exempt_sales: n('exempt_sales'),
-  };
-}
-
 function MoneyRow({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-4 p-3">
@@ -299,17 +189,5 @@ function CountRow({ label, value }: { label: string; value: number }) {
       <span className="text-sm text-slate-600">{label}</span>
       <span className="font-medium tabular-nums text-slate-900">{value}</span>
     </div>
-  );
-}
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-        active ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-      }`}
-    >
-      {children}
-    </button>
   );
 }

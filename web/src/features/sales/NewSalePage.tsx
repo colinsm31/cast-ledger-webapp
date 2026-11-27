@@ -18,6 +18,7 @@ import {
   quoteChangeNotice,
   quoteProblemMessages,
   saleQuoteArgs,
+  isPriceMovedError,
   type SaleQuote,
   type SaleQuoteOptions,
 } from '../../lib/saleQuote';
@@ -783,6 +784,13 @@ export function NewSalePage() {
       setSaving(false);
       if (isTotalMismatchError(err)) {
         await requote();
+        return;
+      }
+      if (isPriceMovedError(err)) {
+        // A catalog price moved while payment was being taken: back to the
+        // ticket, which picks up the new price and says so (0105).
+        closePayment();
+        await openPayment();
         return;
       }
       if (isApprovalProblem({ line: null, message: errorMessage(err) })) {

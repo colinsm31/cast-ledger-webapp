@@ -16,6 +16,7 @@ import { isSupabaseConfigured } from './lib/supabase';
 import { HomePage } from './features/home/HomePage';
 import { NewSalePage } from './features/sales/NewSalePage';
 import { SalesListPage } from './features/sales/SalesListPage';
+import { ReportsPage } from './features/reports/ReportsPage';
 import { SaleDetailPage } from './features/sales/SaleDetailPage';
 import { ExchangePage } from './features/sales/ExchangePage';
 import { RefundPage } from './features/sales/RefundPage';
@@ -102,6 +103,7 @@ function Gate() {
         <Route path="/gift-cards" element={<GiftCardLookupPage />} />
         <Route path="/demos" element={<DemosPage />} />
         <Route path="/account" element={<AccountPage />} />
+        <Route path="/reports" element={<RequireAdmin><ReportsPage /></RequireAdmin>} />
         <Route element={<RequireAdmin><SettingsLayout /></RequireAdmin>}>
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/categories" element={<CategoriesPage />} />

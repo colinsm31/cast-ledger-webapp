@@ -1,6 +1,11 @@
 // Typed money amounts. The server refuses any amount with a fraction of a cent
 // (0046), so screens check what was typed before sending it.
 
+/** An amount rounded to whole cents. */
+export function roundCents(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 /** The message shown when a typed amount has a fraction of a cent. */
 export const SUB_CENT_MESSAGE = 'Use at most 2 decimal places';
 

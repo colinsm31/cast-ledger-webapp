@@ -5,6 +5,7 @@ vi.mock('./supabase', () => ({ supabase: { rpc: (...args: unknown[]) => rpc(...a
 
 const {
   fetchSaleQuote,
+  isPriceMovedError,
   isTotalMismatchError,
   parseSaleQuote,
   quoteChangeNotice,
@@ -83,6 +84,29 @@ describe('toSaleLinePayload discounts', () => {
       qty: 1,
       unit_price: 20,
     });
+  });
+});
+
+describe('toSaleLinePayload list price shown', () => {
+  it('sends the list price the register showed, so a moved price is caught (0105)', () => {
+    expect(toSaleLinePayload({ productId: 'p1', qty: 1, price: '18', listPrice: 20 })).toEqual({
+      product_id: 'p1',
+      qty: 1,
+      unit_price: 18,
+      list_price: 20,
+    });
+  });
+  it('leaves it off when none was shown', () => {
+    expect(toSaleLinePayload({ productId: 'p1', qty: 1, price: '18', listPrice: null })).not.toHaveProperty('list_price');
+    expect(toSaleLinePayload({ productId: 'p1', qty: 1, price: '18' })).not.toHaveProperty('list_price');
+  });
+});
+
+describe('isPriceMovedError', () => {
+  it('spots record_sale refusing a moved catalog price', () => {
+    expect(isPriceMovedError({ message: 'A price changed in the catalog while this ticket was open: check the ticket and take payment again' })).toBe(true);
+    expect(isPriceMovedError({ message: 'Something else' })).toBe(false);
+    expect(isPriceMovedError(null)).toBe(false);
   });
 });
 
