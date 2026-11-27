@@ -26,11 +26,13 @@ vi.mock('../../lib/dayReport', async (original) => ({
   fetchDayReport: (...args: unknown[]) => report(...args),
 }));
 let closes: DayClose[] = [];
+let unclosedDays: string[] = ['2026-11-27'];
 const closeDay = vi.fn(async () => {});
 const reopenDay = vi.fn(async () => {});
 vi.mock('../../lib/dayCloses', async (original) => ({
   ...(await original<typeof import('../../lib/dayCloses')>()),
   fetchRecentCloses: vi.fn(async () => closes),
+  fetchUnclosedDays: vi.fn(async () => unclosedDays),
   fetchPrintableDayReport: vi.fn(async (day: string) => {
     const close = closes.find((c) => c.business_day === day && !c.reopened_at) ?? null;
     return { close, report: close ? close.report : await report(day) };
@@ -72,6 +74,7 @@ beforeEach(() => {
   timeZone = 'America/Chicago';
   openSessions = [];
   closes = [];
+  unclosedDays = ['2026-11-27'];
   isAdmin = false;
   report.mockResolvedValue(sampleReport);
 });
@@ -107,6 +110,25 @@ describe('EndOfDayPage', () => {
     expect(report).not.toHaveBeenCalled();
   });
 
+  it('closes an earlier day by its date, after midnight, leaving today open', async () => {
+    unclosedDays = ['2026-11-26', '2026-11-27'];
+    openSessions = [{ id: 's-1', drawer_id: 'd-1', business_day: '2026-11-27' }];
+    renderAt('/end-of-day');
+    expect(await screen.findByText('Earlier days not closed')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Close the day' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Close this day' }));
+    await waitFor(() => expect(closeDay).toHaveBeenCalledWith('2026-11-26'));
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Close Thursday, November 26, 2026?' }));
+  });
+
+  it('waits for a drawer opened on an earlier day before closing it', async () => {
+    unclosedDays = ['2026-11-26', '2026-11-27'];
+    openSessions = [{ id: 's-1', drawer_id: 'd-1', business_day: '2026-11-26' }];
+    renderAt('/end-of-day');
+    expect(await screen.findByText('close Main drawer first')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Close this day' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('shows why the close was refused', async () => {
     closeDay.mockRejectedValueOnce(new Error('Count and close every drawer first (still open: Back counter)'));
     renderAt('/end-of-day');
@@ -121,6 +143,7 @@ describe('EndOfDayPage', () => {
     expect(await screen.findByText(/reopened .* by admin: Late sale/)).toBeTruthy();
     expect(screen.getAllByRole('button', { name: 'Reopen' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Reopen' }));
+    expect(screen.getByText(/nothing new is added to a past day/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Reason (optional)'), { target: { value: 'Forgot a refund' } });
     fireEvent.click(screen.getByRole('button', { name: 'Reopen the day' }));
     await waitFor(() => expect(reopenDay).toHaveBeenCalledWith('2026-11-26', 'Forgot a refund'));

@@ -2,10 +2,10 @@
   "updated": "2026-11-27",
   "web": {
     "overall": {
-      "lines": 46.08,
-      "statements": 46.38,
-      "functions": 49.47,
-      "branches": 42.61
+      "lines": 46.16,
+      "statements": 46.49,
+      "functions": 49.65,
+      "branches": 42.71
     },
     "byFolder": {
       "src": {
@@ -39,7 +39,7 @@
         "lines": 95.56
       },
       "src/features/endofday": {
-        "lines": 97.75
+        "lines": 97.87
       },
       "src/features/home": {
         "lines": 3.19
@@ -63,7 +63,7 @@
         "lines": 22.35
       },
       "src/lib": {
-        "lines": 95
+        "lines": 95.01
       },
       "src/types": {
         "lines": 75
@@ -221,7 +221,7 @@
         "lines": 100
       },
       "src/features/endofday/EndOfDayPage.tsx": {
-        "lines": 95.91
+        "lines": 96.29
       },
       "src/features/endofday/dayReportFixture.ts": {
         "lines": 100

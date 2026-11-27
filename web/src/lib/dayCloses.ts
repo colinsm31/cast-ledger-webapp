@@ -81,6 +81,13 @@ export async function fetchPrintableDayReport(day: string): Promise<{ report: Da
   return { report: close ? close.report : await fetchDayReport(day), close };
 }
 
+/** Days in the last month with activity and no close, plus today if open, oldest first (0115). */
+export async function fetchUnclosedDays(): Promise<string[]> {
+  const { data, error } = await supabase.rpc('unclosed_days');
+  if (error) throw new Error(`Couldn't load the days still open: ${errorMessage(error)}`);
+  return (data ?? []) as string[];
+}
+
 export async function closeDay(day: string): Promise<void> {
   const { error } = await supabase.rpc('close_day', { p_day: day });
   if (error) throw new Error(errorMessage(error));

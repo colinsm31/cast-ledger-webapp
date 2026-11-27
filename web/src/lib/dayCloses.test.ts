@@ -63,6 +63,14 @@ describe('day closes', () => {
     });
   });
 
+  it('lists the days still open', async () => {
+    result = { data: ['2026-11-26', '2026-11-27'], error: null };
+    await expect(closes.fetchUnclosedDays()).resolves.toEqual(['2026-11-26', '2026-11-27']);
+    expect(rpc).toHaveBeenCalledWith('unclosed_days');
+    result = { data: null, error: { message: 'offline' } };
+    await expect(closes.fetchUnclosedDays()).rejects.toThrow("Couldn't load the days still open: offline");
+  });
+
   it('closes and reopens a day through the server functions', async () => {
     await closes.closeDay('2026-11-27');
     expect(rpc).toHaveBeenCalledWith('close_day', { p_day: '2026-11-27' });

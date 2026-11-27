@@ -6,7 +6,14 @@ import { useDialog } from '../../components/Dialog';
 import { LoadError } from '../../components/LoadError';
 import { Spinner } from '../../components/Spinner';
 import { formatDateTimeShort } from '../../lib/dates';
-import { closeDay, fetchRecentCloses, reopenDay, REOPEN_REASON_MAX, type DayClose } from '../../lib/dayCloses';
+import {
+  closeDay,
+  fetchRecentCloses,
+  fetchUnclosedDays,
+  reopenDay,
+  REOPEN_REASON_MAX,
+  type DayClose,
+} from '../../lib/dayCloses';
 import { formatBusinessDay, shopToday } from '../../lib/dayReport';
 import { fetchDrawers, fetchOpenSessions, type Drawer, type DrawerSession } from '../../lib/drawers';
 import { errorMessage } from '../../lib/errors';
@@ -23,6 +30,8 @@ interface Loaded {
   drawers: Drawer[];
   openSessions: DrawerSession[];
   closes: DayClose[];
+  /** Days with activity and no close, oldest first; today included if open (0115). */
+  unclosedDays: string[];
 }
 
 // The end of the day: which drawers are still open, the daily report (X, the
@@ -42,8 +51,13 @@ export function EndOfDayPage() {
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const [drawers, openSessions, closes] = await Promise.all([fetchDrawers(), fetchOpenSessions(), fetchRecentCloses()]);
-      setLoaded({ drawers, openSessions, closes });
+      const [drawers, openSessions, closes, unclosedDays] = await Promise.all([
+        fetchDrawers(),
+        fetchOpenSessions(),
+        fetchRecentCloses(),
+        fetchUnclosedDays(),
+      ]);
+      setLoaded({ drawers, openSessions, closes, unclosedDays });
     } catch (err) {
       setLoadError(errorMessage(err));
     }
@@ -83,15 +97,19 @@ export function EndOfDayPage() {
     }
   }
 
-  async function closeToday() {
+  /** Drawers opened on or before a day that are still open: the day can't close until they do. */
+  const openThrough = (day: string) => loaded.openSessions.filter((session) => session.business_day <= day);
+  const earlierOpenDays = loaded.unclosedDays.filter((day) => day < today);
+
+  async function closeTheDay(day: string) {
     const ok = await confirm({
-      title: 'Close the day?',
+      title: `Close ${formatBusinessDay(day)}?`,
       message:
         'The daily (Z) report is saved as it stands now, and no more sales, refunds or drawer changes can be ' +
-        'made today unless an admin reopens the day.',
+        'dated that day unless an admin reopens it.',
       confirmLabel: 'Close the day',
     });
-    if (ok) await run(() => closeDay(today));
+    if (ok) await run(() => closeDay(day));
   }
 
   return (
@@ -135,8 +153,8 @@ export function EndOfDayPage() {
                 Print the day so far (X report)
               </Link>
               <button
-                onClick={() => void closeToday()}
-                disabled={busy || loaded.openSessions.length > 0}
+                onClick={() => void closeTheDay(today)}
+                disabled={busy || openThrough(today).length > 0}
                 className={primaryButtonClass}
               >
                 Close the day
@@ -146,6 +164,37 @@ export function EndOfDayPage() {
         )}
         {error && <p className="text-sm text-red-600">{error}</p>}
       </section>
+
+      {earlierOpenDays.length > 0 && (
+        <section className="space-y-2 rounded-xl border border-amber-200 bg-white p-4">
+          <h2 className="text-sm font-semibold text-slate-700">Earlier days not closed</h2>
+          <p className="text-xs text-slate-500">
+            Closing after midnight? Close the day you mean here; today stays open for sales.
+          </p>
+          <ul className="divide-y divide-slate-100">
+            {earlierOpenDays.map((day) => (
+              <li key={day} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+                <span className="font-medium text-slate-900">{formatBusinessDay(day)}</span>
+                <Link to={`/end-of-day/${day}/report`} className="text-blue-600 hover:underline">
+                  Daily report
+                </Link>
+                {openThrough(day).length > 0 && (
+                  <span className="text-amber-700">
+                    close {openThrough(day).map((session) => drawerName(session.drawer_id)).join(', ')} first
+                  </span>
+                )}
+                <button
+                  onClick={() => void closeTheDay(day)}
+                  disabled={busy || openThrough(day).length > 0}
+                  className="ml-auto rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Close this day
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-700">Another day</h2>
@@ -228,6 +277,10 @@ function PastClose({
       </div>
       {reopening && (
         <div className="flex flex-wrap items-end gap-2">
+          <p className="w-full text-xs text-slate-500">
+            Reopening lets the day be closed again. Sales, refunds and drawers are always dated today, so nothing new
+            is added to a past day.
+          </p>
           <label className="min-w-48 flex-1 space-y-1">
             <span className="text-xs font-medium text-slate-500">Reason (optional)</span>
             <input
