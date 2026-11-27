@@ -9,7 +9,15 @@ import { TaxExemptFields } from './TaxExemptFields';
 import { NotificationOptInFields } from './NotificationOptInFields';
 import { OptInHistory } from './OptInHistory';
 import { NotificationLog } from '../../components/NotificationLog';
-import { boxAfterContactEdit, contactChanged, optInLabel, optInsGivenAgain, optInsToSave, type OptInState } from '../../lib/notificationOptIn';
+import {
+  boxAfterContactEdit,
+  contactChanged,
+  optInLabel,
+  optInsGivenAgain,
+  optInsToSave,
+  untickedAfterChoice,
+  type OptInState,
+} from '../../lib/notificationOptIn';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { formatPhone } from '../../lib/phone';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
@@ -526,10 +534,11 @@ function EditCustomerForm({
     applyContactEdit('sms_opt_in', contactChanged('sms', customer.phone_number, value));
   }
 
-  // Staff ticking or unticking a box is their choice, which an edit never undoes.
+  // Staff ticking or unticking a box is their choice, which an edit never
+  // undoes; the other box keeps its mark.
   function chooseOptIns(value: OptInState) {
+    setUntickedByEdit((current) => untickedAfterChoice(optIns, value, current));
     setOptIns(value);
-    setUntickedByEdit({ email_opt_in: false, sms_opt_in: false });
   }
 
   return (

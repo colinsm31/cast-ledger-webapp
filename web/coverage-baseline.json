@@ -2,10 +2,10 @@
   "updated": "2026-11-27",
   "web": {
     "overall": {
-      "lines": 46.33,
-      "statements": 46.66,
-      "functions": 49.68,
-      "branches": 42.95
+      "lines": 46.45,
+      "statements": 46.78,
+      "functions": 49.81,
+      "branches": 43.03
     },
     "byFolder": {
       "src": {
@@ -54,7 +54,7 @@
         "lines": 100
       },
       "src/features/sales": {
-        "lines": 27.93
+        "lines": 28.53
       },
       "src/features/scan": {
         "lines": 61.7
@@ -335,7 +335,7 @@
         "lines": 100
       },
       "src/features/sales/ExchangePage.tsx": {
-        "lines": 88.79
+        "lines": 89.76
       },
       "src/features/sales/FrameReturnFields.tsx": {
         "lines": 100

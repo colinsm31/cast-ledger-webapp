@@ -107,6 +107,22 @@ export function boxAfterContactEdit(box: OptInBox, contactIsNew: boolean): OptIn
   return box.untickedByEdit ? { ticked: true, untickedByEdit: false } : box;
 }
 
+/**
+ * Which boxes stay marked as unticked by an edit after staff tick or untick
+ * one: only the box staff changed loses its mark, so typing the other box's
+ * saved address back still ticks it again (4B review 15).
+ */
+export function untickedAfterChoice(
+  before: OptInState,
+  chosen: OptInState,
+  untickedByEdit: OptInState,
+): OptInState {
+  return {
+    email_opt_in: untickedByEdit.email_opt_in && chosen.email_opt_in === before.email_opt_in,
+    sms_opt_in: untickedByEdit.sms_opt_in && chosen.sms_opt_in === before.sms_opt_in,
+  };
+}
+
 /** e.g. "Ready messages: email and text", or null when they've opted in to none. */
 export function optInLabel(customer: OptInState): string | null {
   const channels = [customer.email_opt_in && 'email', customer.sms_opt_in && 'text'].filter(Boolean);

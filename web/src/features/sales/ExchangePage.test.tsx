@@ -4,7 +4,13 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const rpc = vi.fn();
-vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => rpc(...args) } }));
+let catalogPrice = 30;
+vi.mock('../../lib/supabase', () => ({
+  supabase: {
+    rpc: (...args: unknown[]) => rpc(...args),
+    from: () => ({ select: () => ({ in: async () => ({ data: [{ id: 'p-grip', sell_price: catalogPrice }], error: null }) }) }),
+  },
+}));
 vi.mock('../../app/BackContext', () => ({ useBack: () => {} }));
 vi.mock('../../lib/settings', async (original) => ({
   ...(await original<typeof import('../../lib/settings')>()),
@@ -125,11 +131,26 @@ describe('ExchangePage', () => {
     expect(rpc).toHaveBeenCalledWith('record_exchange', expect.objectContaining({
       p_sale_id: 'sale-1',
       p_return_lines: [{ sale_line_id: 'line-grip', qty: 1 }],
-      p_new_lines: [{ product_id: 'p-grip', qty: 1, unit_price: 30 }],
+      p_new_lines: [{ product_id: 'p-grip', qty: 1, unit_price: 30, list_price: 30 }],
       p_customer_id: 'cust-1',
       p_payments: [],
       p_refund_payments: [],
     }));
+  });
+
+  it('picks up a catalog price that moved while the exchange was open', async () => {
+    quoteTotal = 32.48;
+    catalogPrice = 32;
+    rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'A price changed in the catalog while this ticket was open: Overgrip is now $32.00' },
+    });
+    await chooseOneGripBackAndOneNew();
+    await screen.findByText('Even swap');
+    fireEvent.click(screen.getByRole('button', { name: 'Complete exchange' }));
+    expect(await screen.findByText(/A catalog price changed while this exchange was open/)).toBeTruthy();
+    expect(await screen.findByText('$32.00 each')).toBeTruthy();
+    catalogPrice = 30;
   });
 
   it('collects what the customer owes on the payment screen', async () => {

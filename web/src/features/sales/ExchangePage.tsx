@@ -10,7 +10,13 @@ import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
 import { useSettings, cashNeedsOpenDrawer } from '../../lib/settings';
 import { refundMethodsFor, saleMethodsFor, toPaymentPayload } from '../../lib/paymentMethods';
-import { fetchSaleQuote, toSaleLinePayload, type SaleLineInput, type SaleQuote } from '../../lib/saleQuote';
+import {
+  fetchSaleQuote,
+  isPriceMovedError,
+  toSaleLinePayload,
+  type SaleLineInput,
+  type SaleQuote,
+} from '../../lib/saleQuote';
 import { paymentTypeChanges, refundSource } from '../../lib/saleMath';
 import type { ScannedProduct } from '../scan/resolveBarcode';
 import { ProductFinder } from './ProductFinder';
@@ -49,6 +55,9 @@ const INACTIVE_CUSTOMER_MESSAGE =
   'This customer is inactive, so they can’t exchange: make them active again on their page first, or refund the items.';
 
 const stepperClass = 'h-7 w-7 rounded border border-slate-300 hover:bg-slate-50';
+
+const MOVED_PRICE_MESSAGE =
+  'A catalog price changed while this exchange was open. The new price is shown; check the total and go on again.';
 
 interface NewLine {
   key: string;
@@ -97,7 +106,15 @@ export function ExchangePage() {
   const returnableLines = (sale?.sale_lines ?? []).filter((l) => l.product_id && (remaining[l.id] ?? 0) > 0);
 
   const saleLines: SaleLineInput[] = useMemo(
-    () => newLines.map((l) => ({ productId: l.product.id, qty: l.qty, price: Number(l.product.sell_price ?? 0) })),
+    // Each line carries the list price shown, so a catalog price that moves
+    // meanwhile is caught, as at the register (0105), not saved as a change.
+    () =>
+      newLines.map((l) => ({
+        productId: l.product.id,
+        qty: l.qty,
+        price: Number(l.product.sell_price ?? 0),
+        listPrice: Number(l.product.sell_price ?? 0),
+      })),
     [newLines],
   );
 
@@ -224,11 +241,27 @@ export function ExchangePage() {
       p_method_change_reason: (changedTypes.length > 0 && methodChangeReason.trim()) || null,
     }));
     setSaving(false);
+    if (err && isPriceMovedError(err)) {
+      await refreshNewLinePrices();
+      setStep('choose');
+      setError(MOVED_PRICE_MESSAGE);
+      return;
+    }
     if (err) {
       setError(errorMessage(err));
       return;
     }
     navigate(`/sales/${(data as { sale_id: string }).sale_id}`);
+  }
+
+  /** Picks up the catalog's current price for each new line (after a price moved). */
+  async function refreshNewLinePrices() {
+    const ids = newLines.map((l) => l.product.id);
+    const { data } = await supabase.from('products').select('id, sell_price').in('id', ids);
+    const prices = new Map((data ?? []).map((row) => [row.id as string, row.sell_price as number | null]));
+    setNewLines((current) =>
+      current.map((l) => (prices.has(l.product.id) ? { ...l, product: { ...l.product, sell_price: prices.get(l.product.id) ?? null } } : l)),
+    );
   }
 
   // MARK: - Render
