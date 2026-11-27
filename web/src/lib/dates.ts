@@ -1,10 +1,11 @@
 // How the screens write a moment in time, in the browser's own format and
-// time zone, so every list reads the same.
+// time zone (or the shop's, where a screen passes it), so every list reads the
+// same.
 
 /** e.g. "11/24/2026, 6:05:00 PM"; "—" for a value that isn't a date. */
-export function formatDateTime(iso: string): string {
+export function formatDateTime(iso: string, timeZone?: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString([], timeZone ? { timeZone } : undefined);
 }
 
 /** e.g. "11/24/2026"; "—" for nothing or a value that isn't a date. */
@@ -15,7 +16,9 @@ export function formatDate(iso: string | null | undefined): string {
 }
 
 /** e.g. "Nov 24, 2026, 6:05 PM", for logs; "—" for a value that isn't a date. */
-export function formatDateTimeShort(iso: string): string {
+export function formatDateTimeShort(iso: string, timeZone?: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short', ...(timeZone ? { timeZone } : {}) });
 }

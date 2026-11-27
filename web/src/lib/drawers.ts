@@ -5,6 +5,7 @@
 import { supabase } from './supabase';
 import { errorMessage } from './errors';
 import { formatMoney, hasSubCent, roundCents } from './money';
+import { parseNumberField } from './numberInput';
 
 /** A drawer name's longest length, matching the database's (0108). */
 export const DRAWER_NAME_MAX = 50;
@@ -140,14 +141,16 @@ export async function fetchMovements(sessionId: string): Promise<DrawerMovement[
   return (data ?? []).map((row) => ({ ...(row as DrawerMovement), amount: Number(row.amount) }));
 }
 
-const AMOUNT = /^\d+(\.\d+)?$/;
+/** The largest paid-in or paid-out the database takes (0116). */
+export const MOVEMENT_MAX = 999_999.99;
 
 /** The amount to record, or what's wrong with what was typed. */
 export function parseMovementAmount(text: string): { amount: number } | { error: string } {
-  const trimmed = text.trim();
-  if (!AMOUNT.test(trimmed) || Number(trimmed) <= 0) return { error: 'Amount: enter an amount over $0, like 20.00.' };
-  if (hasSubCent(trimmed)) return { error: 'Amount: use at most 2 decimal places.' };
-  return { amount: Number(trimmed) };
+  const parsed = parseNumberField(text, 'Amount', 'decimal', { max: MOVEMENT_MAX });
+  if ('error' in parsed) return parsed;
+  if (parsed.value === null || parsed.value <= 0) return { error: 'Amount: enter an amount over $0, like 20.00.' };
+  if (hasSubCent(text)) return { error: 'Amount: use at most 2 decimal places.' };
+  return { amount: parsed.value };
 }
 
 export async function recordMovement(

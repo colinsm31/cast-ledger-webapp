@@ -10,8 +10,15 @@ vi.mock('../../auth/AuthContext', () => ({ useAuth: () => ({ isAdmin }) }));
 const confirm = vi.fn(async () => true);
 vi.mock('../../components/Dialog', () => ({ useDialog: () => ({ confirm }) }));
 let timeZone: string | null = 'America/Chicago';
+let settingsLoaded = true;
+let settingsError: string | null = null;
+const reloadSettings = vi.fn();
 vi.mock('../../lib/settings', () => ({
-  useSettings: () => ({ settings: { time_zone: timeZone, shop_name: 'Ace Racquets' } }),
+  useSettings: () => ({
+    settings: settingsLoaded ? { time_zone: timeZone, shop_name: 'Ace Racquets' } : null,
+    error: settingsError,
+    reload: reloadSettings,
+  }),
 }));
 let openSessions: { id: string; drawer_id: string; business_day: string }[] = [];
 vi.mock('../../lib/drawers', async (original) => ({
@@ -72,6 +79,8 @@ function renderAt(path: string) {
 
 beforeEach(() => {
   timeZone = 'America/Chicago';
+  settingsLoaded = true;
+  settingsError = null;
   openSessions = [];
   closes = [];
   unclosedDays = ['2026-11-27'];
@@ -145,8 +154,12 @@ describe('EndOfDayPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reopen' }));
     expect(screen.getByText(/nothing new is added to a past day/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Reason (optional)'), { target: { value: 'Forgot a refund' } });
+    reopenDay.mockRejectedValueOnce(new Error('offline'));
     fireEvent.click(screen.getByRole('button', { name: 'Reopen the day' }));
-    await waitFor(() => expect(reopenDay).toHaveBeenCalledWith('2026-11-26', 'Forgot a refund'));
+    expect(await screen.findByText('offline')).toBeTruthy();
+    expect((screen.getByLabelText('Reason (optional)') as HTMLInputElement).value).toBe('Forgot a refund');
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen the day' }));
+    await waitFor(() => expect(reopenDay).toHaveBeenLastCalledWith('2026-11-26', 'Forgot a refund'));
   });
 
   it('shows staff past closes without a Reopen button', async () => {
@@ -161,8 +174,18 @@ describe('EndOfDayPage', () => {
     expect(await screen.findByText('Every drawer is closed.')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Day to report'), { target: { value: '2026-11-20' } });
     fireEvent.click(screen.getByRole('link', { name: 'Daily report' }));
-    await screen.findByText('Day so far (X report)');
+    await screen.findByText('Not closed (X report)');
     expect(report).toHaveBeenCalledWith('2026-11-20');
+  });
+
+  it('shows a Settings load error with Retry', async () => {
+    settingsError = "Couldn't load the shop settings: offline";
+    timeZone = null;
+    settingsLoaded = false;
+    renderAt('/end-of-day');
+    expect(screen.getByText("Couldn't load the shop settings: offline")).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /try again|retry/i }));
+    expect(reloadSettings).toHaveBeenCalled();
   });
 
   it('needs the shop\'s time zone', () => {
@@ -173,6 +196,12 @@ describe('EndOfDayPage', () => {
 });
 
 describe('DayReportPage', () => {
+  it('says when the address isn\'t a day', async () => {
+    renderAt('/end-of-day/2026-13-40/report');
+    expect(await screen.findByText(/"2026-13-40" isn't a day/)).toBeTruthy();
+    expect(report).not.toHaveBeenCalled();
+  });
+
   it('shows a load error and tries again', async () => {
     report.mockRejectedValueOnce(new Error("Couldn't load the daily report: offline"));
     renderAt('/end-of-day/2026-11-27/report');

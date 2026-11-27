@@ -112,7 +112,8 @@ describe('expected cash', () => {
   it('checks a paid-in or paid-out amount', () => {
     expect(drawers.parseMovementAmount(' 6.50 ')).toEqual({ amount: 6.5 });
     expect(drawers.parseMovementAmount('0')).toEqual({ error: 'Amount: enter an amount over $0, like 20.00.' });
-    expect(drawers.parseMovementAmount('$5')).toEqual({ error: 'Amount: enter an amount over $0, like 20.00.' });
+    expect(drawers.parseMovementAmount('$5')).toEqual({ error: 'Amount: enter a number, like 52 or 52.5.' });
+    expect(drawers.parseMovementAmount('10000000')).toEqual({ error: 'Amount is too large (the most is 999,999.99).' });
     expect(drawers.parseMovementAmount('1.005')).toEqual({ error: 'Amount: use at most 2 decimal places.' });
   });
 

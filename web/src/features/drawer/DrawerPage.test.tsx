@@ -72,7 +72,7 @@ describe('DrawerPage', () => {
     render(<DrawerPage />);
     fireEvent.change(await screen.findByLabelText('How many $5'), { target: { value: '2.5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Open drawer' }));
-    expect(screen.getByText('$5: enter how many, as a whole number.')).toBeTruthy();
+    expect(screen.getByText('$5: enter a whole number, like 3.')).toBeTruthy();
     expect(openDrawer).not.toHaveBeenCalled();
   });
 

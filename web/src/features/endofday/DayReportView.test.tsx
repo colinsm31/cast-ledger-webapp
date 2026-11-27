@@ -37,6 +37,23 @@ describe('DayReportView', () => {
     expect(screen.getByText('No drawer was opened this day.')).toBeTruthy();
   });
 
+  it('labels an earlier day left open, and writes times in the shop\'s time zone', () => {
+    render(
+      <DayReportView
+        report={{ ...sampleReport, time_zone: 'UTC' }}
+        layout="thermal"
+        shopName={null}
+        isToday={false}
+      />,
+    );
+    expect(screen.getByText('Not closed (X report)')).toBeTruthy();
+    cleanup();
+    render(
+      <DayReportView report={{ ...sampleReport, time_zone: 'UTC' }} layout="letter" shopName={null} closedAt="2026-11-28T03:00:00Z" />,
+    );
+    expect(screen.getByText(/Closed .*3:00/)).toBeTruthy();
+  });
+
   it('marks a drawer still open', () => {
     const open = { ...sampleReport.drawers[0], closed_at: null, counted: null, over_short: null };
     render(<DayReportView report={{ ...sampleReport, drawers: [open] }} layout="thermal" shopName={null} />);

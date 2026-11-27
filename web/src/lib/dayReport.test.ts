@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const rpc = vi.fn();
 vi.mock('./supabase', () => ({ supabase: { rpc: (...args: unknown[]) => rpc(...args) } }));
 
-const { fetchDayReport, formatBusinessDay, shopToday, sideTotal } = await import('./dayReport');
+const { fetchDayReport, formatBusinessDay, shopToday } = await import('./dayReport');
 
 afterEach(() => vi.clearAllMocks());
 
@@ -14,10 +14,6 @@ describe('dayReport', () => {
     expect(rpc).toHaveBeenCalledWith('report_day', { p_day: '2026-11-27' });
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'offline' } });
     await expect(fetchDayReport('2026-11-27')).rejects.toThrow("Couldn't load the daily report: offline");
-  });
-
-  it('adds up a side to the cent', () => {
-    expect(sideTotal({ count: 2, items: 50.1, gift_cards: 25.2, tax: 4.13 })).toBe(79.43);
   });
 
   it('finds today in the shop\'s time zone, not the computer\'s', () => {

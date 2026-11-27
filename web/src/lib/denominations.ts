@@ -3,6 +3,7 @@
 // the total out again from the same list (drawer_count_total, 0108).
 
 import { hasSubCent, roundCents } from './money';
+import { parseNumberField } from './numberInput';
 
 export interface Denomination {
   /** The key the server expects, e.g. "20" or "0.25". */
@@ -34,27 +35,29 @@ export function emptyCount(): CountForm {
   return Object.fromEntries([...DENOMINATIONS.map((d) => [d.key, '']), [OTHER_CASH_KEY, '']]);
 }
 
-const WHOLE_NUMBER = /^\d+$/;
-const AMOUNT = /^\d+(\.\d+)?$/;
+/** The most a drawer count can come to, matching the database's (0108). */
+export const COUNT_MAX = 999_999;
 
 /** The count to send, or what's wrong with what was typed. Empty boxes count as none. */
 export function parseCount(form: CountForm): { counts: Record<string, number>; total: number } | { error: string } {
   const counts: Record<string, number> = {};
   let total = 0;
   for (const denomination of DENOMINATIONS) {
-    const text = (form[denomination.key] ?? '').trim();
-    if (!text) continue;
-    if (!WHOLE_NUMBER.test(text)) return { error: `${denomination.label}: enter how many, as a whole number.` };
-    counts[denomination.key] = Number(text);
-    total += denomination.value * Number(text);
+    const parsed = parseNumberField(form[denomination.key] ?? '', denomination.label, 'whole', { max: COUNT_MAX });
+    if ('error' in parsed) return parsed;
+    if (parsed.value === null) continue;
+    counts[denomination.key] = parsed.value;
+    total += denomination.value * parsed.value;
   }
-  const other = (form[OTHER_CASH_KEY] ?? '').trim();
-  if (other) {
-    if (!AMOUNT.test(other)) return { error: 'Other cash: enter an amount, like 10.00.' };
-    if (hasSubCent(other)) return { error: 'Other cash: use at most 2 decimal places.' };
-    counts[OTHER_CASH_KEY] = Number(other);
-    total += Number(other);
+  const otherText = form[OTHER_CASH_KEY] ?? '';
+  const other = parseNumberField(otherText, 'Other cash', 'decimal', { max: COUNT_MAX });
+  if ('error' in other) return other;
+  if (other.value !== null) {
+    if (hasSubCent(otherText)) return { error: 'Other cash: use at most 2 decimal places.' };
+    counts[OTHER_CASH_KEY] = other.value;
+    total += other.value;
   }
+  if (total > COUNT_MAX) return { error: 'That count is too large.' };
   return { counts, total: roundCents(total) };
 }
 

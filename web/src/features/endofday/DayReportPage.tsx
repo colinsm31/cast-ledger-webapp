@@ -4,9 +4,10 @@ import { LoadError } from '../../components/LoadError';
 import { PrintToolbar, usePrintLayout } from '../../components/PrintToolbar';
 import { Spinner } from '../../components/Spinner';
 import { fetchPrintableDayReport, type DayClose } from '../../lib/dayCloses';
-import type { DayReport } from '../../lib/dayReport';
+import { shopToday, type DayReport } from '../../lib/dayReport';
 import { errorMessage } from '../../lib/errors';
 import { useLatestRequest } from '../../lib/latestRequest';
+import { parseLocalDate } from '../../lib/reportPeriod';
 import { useSettings } from '../../lib/settings';
 import { DayReportView } from './DayReportView';
 
@@ -27,6 +28,10 @@ export function DayReportPage() {
     if (!day) return;
     const isLatest = startRequest();
     setError(null);
+    if (!parseLocalDate(day)) {
+      setError(`"${day}" isn't a day. Choose one on the End of Day screen.`);
+      return;
+    }
     fetchPrintableDayReport(day).then(
       (loaded) => {
         if (!isLatest()) return;
@@ -61,6 +66,7 @@ export function DayReportPage() {
             shopName={settings?.shop_name ?? null}
             closedBy={close?.closed_by}
             closedAt={close?.closed_at}
+            isToday={!settings?.time_zone || day === shopToday(settings.time_zone)}
           />
         </div>
       ) : (

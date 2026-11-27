@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { formatDateTimeShort } from '../../lib/dates';
-import { formatBusinessDay, sideTotal, type DayReport } from '../../lib/dayReport';
+import { formatBusinessDay, type DayReport } from '../../lib/dayReport';
 import { overShortLabel } from '../../lib/drawers';
 import { formatMoney } from '../../lib/money';
 import type { ReceiptLayout } from '../../lib/receiptLayout';
@@ -32,6 +32,7 @@ export function DayReportView({
   shopName,
   closedBy,
   closedAt,
+  isToday = true,
 }: {
   report: DayReport;
   layout: ReceiptLayout;
@@ -39,11 +40,14 @@ export function DayReportView({
   /** Set once the day is closed: this is then the Z report. */
   closedBy?: string | null;
   closedAt?: string | null;
+  /** Whether the day is today (the day so far) or an earlier day left open. */
+  isToday?: boolean;
 }) {
   const thermal = layout === 'thermal';
   const closed = Boolean(closedAt);
-  const salesTotal = sideTotal(report.sales);
-  const refundsTotal = sideTotal(report.refunds);
+  // Times are written in the shop's time zone, whatever the printing device's.
+  const shopTime = (iso: string) => formatDateTimeShort(iso, report.time_zone);
+  const title = closed ? 'Daily close (Z report)' : isToday ? 'Day so far (X report)' : 'Not closed (X report)';
   return (
     <article
       aria-label="Daily report"
@@ -55,17 +59,15 @@ export function DayReportView({
     >
       <header className={thermal ? 'text-center' : ''}>
         {shopName && <p className={thermal ? 'font-bold' : 'text-lg font-bold'}>{shopName}</p>}
-        <h1 className={thermal ? 'font-bold' : 'text-2xl font-bold'}>
-          {closed ? 'Daily close (Z report)' : 'Day so far (X report)'}
-        </h1>
+        <h1 className={thermal ? 'font-bold' : 'text-2xl font-bold'}>{title}</h1>
         <p>{formatBusinessDay(report.day)}</p>
         {closed && closedAt && (
           <p>
-            Closed {formatDateTimeShort(closedAt)}
+            Closed {shopTime(closedAt)}
             {closedBy ? ` by ${closedBy}` : ''}
           </p>
         )}
-        {!closed && <p>Printed {formatDateTimeShort(new Date().toISOString())}; not closed yet</p>}
+        {!closed && <p>Printed {shopTime(new Date().toISOString())}; not closed yet</p>}
       </header>
 
       <Section title="Sales" thermal={thermal}>
@@ -73,7 +75,7 @@ export function DayReportView({
         <Row label="Items and stringing" value={formatMoney(report.sales.items)} />
         {report.sales.gift_cards !== 0 && <Row label="Gift cards sold" value={formatMoney(report.sales.gift_cards)} />}
         <Row label="Tax" value={formatMoney(report.sales.tax)} />
-        <Row label="Sales total" value={formatMoney(salesTotal)} strong />
+        <Row label="Sales total" value={formatMoney(report.sales.total)} strong />
       </Section>
 
       <Section title="Refunds" thermal={thermal}>
@@ -81,13 +83,13 @@ export function DayReportView({
         <Row label="Items and stringing" value={formatMoney(report.refunds.items)} />
         {report.refunds.gift_cards !== 0 && <Row label="Gift card loads" value={formatMoney(report.refunds.gift_cards)} />}
         <Row label="Tax refunded" value={formatMoney(report.refunds.tax)} />
-        <Row label="Refunds total" value={formatMoney(refundsTotal)} strong />
+        <Row label="Refunds total" value={formatMoney(report.refunds.total)} strong />
       </Section>
 
       <Section title="Net" thermal={thermal}>
-        <Row label="Items and stringing" value={formatMoney(report.sales.items - report.refunds.items)} />
-        <Row label="Tax" value={formatMoney(report.sales.tax - report.refunds.tax)} />
-        <Row label="Net total" value={formatMoney(salesTotal - refundsTotal)} strong />
+        <Row label="Items and stringing" value={formatMoney(report.net.items)} />
+        <Row label="Tax" value={formatMoney(report.net.tax)} />
+        <Row label="Net total" value={formatMoney(report.net.total)} strong />
         {report.exchanges.count > 0 && (
           <Row
             label={`Exchange credit (${report.exchanges.count})`}

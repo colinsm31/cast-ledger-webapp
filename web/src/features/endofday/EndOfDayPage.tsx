@@ -17,6 +17,7 @@ import {
 import { formatBusinessDay, shopToday } from '../../lib/dayReport';
 import { fetchDrawers, fetchOpenSessions, type Drawer, type DrawerSession } from '../../lib/drawers';
 import { errorMessage } from '../../lib/errors';
+import { useLatestRequest } from '../../lib/latestRequest';
 import { useSettings } from '../../lib/settings';
 
 const inputClass =
@@ -39,8 +40,9 @@ interface Loaded {
 // and past closes, which an admin can reopen.
 export function EndOfDayPage() {
   useBack('/');
-  const { settings } = useSettings();
+  const { settings, error: settingsError, reload: reloadSettings } = useSettings();
   const { isAdmin } = useAuth();
+  const startRequest = useLatestRequest();
   const { confirm } = useDialog();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,6 +51,8 @@ export function EndOfDayPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // Only the latest load shows, so a slow answer can't put back older figures.
+    const isLatest = startRequest();
     setLoadError(null);
     try {
       const [drawers, openSessions, closes, unclosedDays] = await Promise.all([
@@ -57,11 +61,11 @@ export function EndOfDayPage() {
         fetchRecentCloses(),
         fetchUnclosedDays(),
       ]);
-      setLoaded({ drawers, openSessions, closes, unclosedDays });
+      if (isLatest()) setLoaded({ drawers, openSessions, closes, unclosedDays });
     } catch (err) {
-      setLoadError(errorMessage(err));
+      if (isLatest()) setLoadError(errorMessage(err));
     }
-  }, []);
+  }, [startRequest]);
 
   useEffect(() => {
     void load();
@@ -77,21 +81,27 @@ export function EndOfDayPage() {
       </div>
     );
   }
+  if (!settings && settingsError) return <LoadError message={settingsError} onRetry={reloadSettings} />;
   if (loadError) return <LoadError message={loadError} onRetry={() => void load()} />;
   if (!settings || !loaded) return <Spinner label="Loading…" />;
 
-  const today = shopToday(settings.time_zone as string);
+  const timeZone = settings.time_zone as string;
+  const today = shopToday(timeZone);
+  const shopTime = (iso: string) => formatDateTimeShort(iso, timeZone);
   const todayClose = loaded.closes.find((close) => close.business_day === today && !close.reopened_at) ?? null;
   const drawerName = (id: string) => loaded.drawers.find((d) => d.id === id)?.name ?? 'A drawer';
 
-  async function run(action: () => Promise<void>) {
+  /** Runs a close or reopen; true if it went through. */
+  async function run(action: () => Promise<void>): Promise<boolean> {
     setBusy(true);
     setError(null);
     try {
       await action();
       await load();
+      return true;
     } catch (err) {
       setError(errorMessage(err));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -121,7 +131,7 @@ export function EndOfDayPage() {
         {todayClose ? (
           <>
             <p className="text-sm text-green-800">
-              Closed {formatDateTimeShort(todayClose.closed_at)}
+              Closed {shopTime(todayClose.closed_at)}
               {todayClose.closed_by ? ` by ${todayClose.closed_by}` : ''}.
             </p>
             <Link to={`/end-of-day/${today}/report`} className={linkButtonClass}>
@@ -225,6 +235,7 @@ export function EndOfDayPage() {
                 close={close}
                 canReopen={isAdmin && !close.reopened_at}
                 busy={busy}
+                shopTime={shopTime}
                 onReopen={(reason) => run(() => reopenDay(close.business_day, reason))}
               />
             ))}
@@ -239,12 +250,15 @@ function PastClose({
   close,
   canReopen,
   busy,
+  shopTime,
   onReopen,
 }: {
   close: DayClose;
   canReopen: boolean;
   busy: boolean;
-  onReopen: (reason: string) => Promise<void>;
+  shopTime: (iso: string) => string;
+  /** Resolves true once reopened; the box stays open, reason kept, if not. */
+  onReopen: (reason: string) => Promise<boolean>;
 }) {
   const [reopening, setReopening] = useState(false);
   const [reason, setReason] = useState('');
@@ -254,12 +268,12 @@ function PastClose({
       <div className="flex flex-wrap items-baseline gap-x-3">
         <span className="font-medium text-slate-900">{formatBusinessDay(close.business_day)}</span>
         <span className="text-slate-500">
-          closed {formatDateTimeShort(close.closed_at)}
+          closed {shopTime(close.closed_at)}
           {close.closed_by ? ` by ${close.closed_by}` : ''}
         </span>
         {close.reopened_at && (
           <span className="text-amber-700">
-            reopened {formatDateTimeShort(close.reopened_at)}
+            reopened {shopTime(close.reopened_at)}
             {close.reopened_by ? ` by ${close.reopened_by}` : ''}
             {close.reopen_reason ? `: ${close.reopen_reason}` : ''}
           </span>
@@ -291,7 +305,7 @@ function PastClose({
             />
           </label>
           <button
-            onClick={() => void onReopen(reason).then(() => setReopening(false))}
+            onClick={() => void onReopen(reason).then((reopened) => reopened && setReopening(false))}
             disabled={busy}
             className={primaryButtonClass}
           >

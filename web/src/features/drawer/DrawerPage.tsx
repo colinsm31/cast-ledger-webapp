@@ -27,6 +27,7 @@ import {
 } from '../../lib/drawers';
 import { errorMessage } from '../../lib/errors';
 import { formatMoney } from '../../lib/money';
+import { useLatestRequest } from '../../lib/latestRequest';
 import { useSettings } from '../../lib/settings';
 import { DrawerMovements } from './DrawerMovements';
 
@@ -51,16 +52,21 @@ export function DrawerPage() {
   const [choosing, setChoosing] = useState(false);
   const [lastClosed, setLastClosed] = useState<DrawerSession | null>(null);
 
+  const startRequest = useLatestRequest();
+
   const load = useCallback(async () => {
+    // Only the latest load shows, so a slow answer can't put back older figures.
+    const isLatest = startRequest();
     setLoadError(null);
     try {
       const [drawers, openSessions] = await Promise.all([fetchDrawers(), fetchOpenSessions()]);
+      if (!isLatest()) return;
       setDrawerId(pruneRememberedDrawer(drawers));
       setLoaded({ drawers, openSessions });
     } catch (err) {
-      setLoadError(errorMessage(err));
+      if (isLatest()) setLoadError(errorMessage(err));
     }
-  }, []);
+  }, [startRequest]);
 
   useEffect(() => {
     void load();
@@ -122,6 +128,7 @@ export function DrawerPage() {
             void load();
           }}
           onClosed={(sessionId) => void afterClose(sessionId)}
+          timeZone={settings?.time_zone ?? null}
         />
       )}
     </div>
@@ -135,8 +142,10 @@ function DrawerPanel({
   onChange,
   onOpened,
   onClosed,
+  timeZone,
 }: {
   drawer: Drawer;
+  timeZone: string | null;
   session: DrawerSession | null;
   canChange: boolean;
   onChange: () => void;
@@ -155,7 +164,7 @@ function DrawerPanel({
         )}
       </div>
       {session ? (
-        <CloseDrawerForm session={session} onClosed={() => onClosed(session.id)} />
+        <CloseDrawerForm session={session} timeZone={timeZone} onClosed={() => onClosed(session.id)} />
       ) : (
         <OpenDrawerForm drawer={drawer} onOpened={onOpened} />
       )}
@@ -196,7 +205,16 @@ function OpenDrawerForm({ drawer, onOpened }: { drawer: Drawer; onOpened: () => 
   );
 }
 
-function CloseDrawerForm({ session, onClosed }: { session: DrawerSession; onClosed: () => void }) {
+function CloseDrawerForm({
+  session,
+  timeZone,
+  onClosed,
+}: {
+  session: DrawerSession;
+  /** The shop's time zone, for times on screen; the browser's until it's set. */
+  timeZone: string | null;
+  onClosed: () => void;
+}) {
   const { confirm } = useDialog();
   const [summary, setSummary] = useState<DrawerCashSummary | null>(null);
   const [movements, setMovements] = useState<DrawerMovement[]>([]);
@@ -206,16 +224,19 @@ function CloseDrawerForm({ session, onClosed }: { session: DrawerSession; onClos
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const startSummaryRequest = useLatestRequest();
   const loadSummary = useCallback(async () => {
+    const isLatest = startSummaryRequest();
     setSummaryError(null);
     try {
       const [loadedSummary, loadedMovements] = await Promise.all([fetchCashSummary(session.id), fetchMovements(session.id)]);
+      if (!isLatest()) return;
       setSummary(loadedSummary);
       setMovements(loadedMovements);
     } catch (err) {
-      setSummaryError(errorMessage(err));
+      if (isLatest()) setSummaryError(errorMessage(err));
     }
-  }, [session.id]);
+  }, [session.id, startSummaryRequest]);
 
   useEffect(() => {
     void loadSummary();
@@ -255,7 +276,7 @@ function CloseDrawerForm({ session, onClosed }: { session: DrawerSession; onClos
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-600">Opened {formatDateTime(session.opened_at)}.</p>
+      <p className="text-sm text-slate-600">Opened {formatDateTime(session.opened_at, timeZone ?? undefined)}.</p>
       {summaryError && <LoadError message={summaryError} onRetry={() => void loadSummary()} />}
       {summary && <CashSummaryTable summary={summary} />}
       <DrawerMovements sessionId={session.id} movements={movements} onRecorded={() => void loadSummary()} />

@@ -4,8 +4,9 @@ import type { DayReport } from '../../lib/dayReport';
 export const sampleReport: DayReport = {
   day: '2026-11-27',
   time_zone: 'America/Chicago',
-  sales: { count: 3, items: 80, gift_cards: 25, tax: 6.6 },
-  refunds: { count: 1, items: 20, gift_cards: 0, tax: 1.65 },
+  sales: { count: 3, items: 80, gift_cards: 25, tax: 6.6, total: 111.6 },
+  refunds: { count: 1, items: 20, gift_cards: 0, tax: 1.65, total: 21.65 },
+  net: { items: 60, tax: 4.95, total: 89.95 },
   exchanges: { count: 1, credit: 10 },
   payments: [
     { method: 'cash', label: 'Cash', taken: 54.13, given_back: 21.65, net: 32.48 },

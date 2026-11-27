@@ -36,8 +36,10 @@ export interface DayReportDrawer {
 export interface DayReport {
   day: string;
   time_zone: string;
-  sales: { count: number; items: number; gift_cards: number; tax: number };
-  refunds: { count: number; items: number; gift_cards: number; tax: number };
+  /** Totals are items + gift cards + tax, rounded on the server (0116). */
+  sales: { count: number; items: number; gift_cards: number; tax: number; total: number };
+  refunds: { count: number; items: number; gift_cards: number; tax: number; total: number };
+  net: { items: number; tax: number; total: number };
   exchanges: { count: number; credit: number };
   payments: DayReportPayment[];
   categories: DayReportCategory[];
@@ -48,11 +50,6 @@ export async function fetchDayReport(day: string): Promise<DayReport> {
   const { data, error } = await supabase.rpc('report_day', { p_day: day });
   if (error) throw new Error(`Couldn't load the daily report: ${errorMessage(error)}`);
   return data as DayReport;
-}
-
-/** A sale or refund side's total: items + gift cards + tax. */
-export function sideTotal(side: DayReport['sales']): number {
-  return Math.round((side.items + side.gift_cards + side.tax) * 100) / 100;
 }
 
 /** Today's date ("2026-11-27") in the shop's time zone. */

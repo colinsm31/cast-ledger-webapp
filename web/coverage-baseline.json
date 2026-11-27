@@ -2,10 +2,10 @@
   "updated": "2026-11-27",
   "web": {
     "overall": {
-      "lines": 46.16,
-      "statements": 46.49,
-      "functions": 49.65,
-      "branches": 42.71
+      "lines": 46.33,
+      "statements": 46.66,
+      "functions": 49.68,
+      "branches": 42.95
     },
     "byFolder": {
       "src": {
@@ -36,10 +36,10 @@
         "lines": 97.44
       },
       "src/features/drawer": {
-        "lines": 95.56
+        "lines": 95.74
       },
       "src/features/endofday": {
-        "lines": 97.87
+        "lines": 98.08
       },
       "src/features/home": {
         "lines": 3.19
@@ -63,7 +63,7 @@
         "lines": 22.35
       },
       "src/lib": {
-        "lines": 95.01
+        "lines": 95.02
       },
       "src/types": {
         "lines": 75
@@ -206,7 +206,7 @@
         "lines": 100
       },
       "src/features/drawer/DrawerPage.tsx": {
-        "lines": 93.87
+        "lines": 94.23
       },
       "src/features/drawer/RegisterDrawerNotice.tsx": {
         "lines": 100
@@ -221,7 +221,7 @@
         "lines": 100
       },
       "src/features/endofday/EndOfDayPage.tsx": {
-        "lines": 96.29
+        "lines": 96.72
       },
       "src/features/endofday/dayReportFixture.ts": {
         "lines": 100
@@ -479,7 +479,7 @@
         "lines": 100
       },
       "src/lib/drawers.ts": {
-        "lines": 98.3
+        "lines": 98.33
       },
       "src/lib/edgeFunctions.ts": {
         "lines": 100

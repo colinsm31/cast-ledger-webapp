@@ -14,11 +14,16 @@ describe('parseCount', () => {
     expect(parseCount(emptyCount())).toEqual({ counts: {}, total: 0 });
   });
 
-  it('refuses part of a bill, a word, or other cash with a fraction of a cent', () => {
-    expect(parseCount({ ...emptyCount(), '20': '1.5' })).toEqual({ error: '$20: enter how many, as a whole number.' });
-    expect(parseCount({ ...emptyCount(), '0.10': 'ten' })).toEqual({ error: '10¢: enter how many, as a whole number.' });
-    expect(parseCount({ ...emptyCount(), other: '$5' })).toEqual({ error: 'Other cash: enter an amount, like 10.00.' });
+  it('refuses part of a bill, a word, a negative count, or other cash with a fraction of a cent', () => {
+    expect(parseCount({ ...emptyCount(), '20': '1.5' })).toEqual({ error: '$20: enter a whole number, like 3.' });
+    expect(parseCount({ ...emptyCount(), '0.10': 'ten' })).toEqual({ error: '10¢: enter a number, like 3.' });
+    expect(parseCount({ ...emptyCount(), '5': '-2' })).toEqual({ error: "$5 can't be negative." });
+    expect(parseCount({ ...emptyCount(), other: '$5' })).toEqual({ error: 'Other cash: enter a number, like 52 or 52.5.' });
     expect(parseCount({ ...emptyCount(), other: '1.005' })).toEqual({ error: 'Other cash: use at most 2 decimal places.' });
+  });
+
+  it('refuses a count too large to store', () => {
+    expect(parseCount({ ...emptyCount(), '100': '20000' })).toEqual({ error: 'That count is too large.' });
   });
 
   it('knows whether counting has started', () => {
