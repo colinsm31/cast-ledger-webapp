@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from './supabase';
 import { errorMessage } from './errors';
 import { hasSubCent } from './money';
+import { browserTimeZone } from './reportPeriod';
 
 /** The QuickBooks account each daily-summary figure posts to (0101). */
 export const QB_ACCOUNT_FIELDS = [
@@ -46,6 +47,8 @@ export interface Settings extends QbAccounts {
   ready_email_subject: string;
   ready_email_body: string;
   ready_sms_body: string;
+  /** The shop's time zone, e.g. "America/Chicago" (0108); null until an admin sets it. */
+  time_zone: string | null;
 }
 
 interface SettingsRow extends QbAccounts {
@@ -67,6 +70,7 @@ interface SettingsRow extends QbAccounts {
   ready_email_subject: string;
   ready_email_body: string;
   ready_sms_body: string;
+  time_zone: string | null;
 }
 
 export const SETTINGS_LOAD_ERROR = "Couldn't load the shop settings";
@@ -97,6 +101,7 @@ export async function fetchSettings(): Promise<Settings> {
     ready_email_subject: r.ready_email_subject,
     ready_email_body: r.ready_email_body,
     ready_sms_body: r.ready_sms_body,
+    time_zone: r.time_zone ?? null,
     ...pickQbAccounts(r),
   };
 }
@@ -170,6 +175,7 @@ export interface SettingsForm {
   readyEmailSubject: string;
   readyEmailBody: string;
   readySmsBody: string;
+  timeZone: string;
   qbAccounts: QbAccounts;
 }
 
@@ -215,6 +221,8 @@ export function settingsToForm(settings: Settings): SettingsForm {
     readyEmailSubject: settings.ready_email_subject,
     readyEmailBody: settings.ready_email_body,
     readySmsBody: settings.ready_sms_body,
+    // Until it's set, suggest this browser's zone.
+    timeZone: settings.time_zone ?? browserTimeZone(),
     qbAccounts: pickQbAccounts(settings),
   };
 }
@@ -278,6 +286,9 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
     if (text.length > max) return { error: `${label}: use at most ${max} characters.` };
   }
 
+  const timeZone = form.timeZone.trim();
+  if (!timeZone) return { error: 'Shop time zone: choose the time zone the shop is in.' };
+
   const qbAccounts = {} as QbAccounts;
   for (const { key, label } of QB_ACCOUNT_FIELDS) {
     const name = form.qbAccounts[key].trim();
@@ -306,6 +317,7 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
       ready_email_subject: form.readyEmailSubject.trim(),
       ready_email_body: form.readyEmailBody.trim(),
       ready_sms_body: form.readySmsBody.trim(),
+      time_zone: timeZone,
       ...qbAccounts,
     },
   };

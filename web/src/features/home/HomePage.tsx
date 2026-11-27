@@ -243,6 +243,7 @@ export function HomePage() {
         <NavCard to="/gift-cards" label="Gift Cards" />
         <NavCard to="/string-jobs/open" label="Open Re-Strings" />
         <NavCard to="/string-jobs/completed" label="Completed Re-Strings" />
+        <NavCard to="/drawer" label="Cash Drawer" />
         {isAdmin && <NavCard to="/reports" label="Reports" />}
       </div>
 

@@ -1,11 +1,11 @@
 {
-  "updated": "2026-11-26",
+  "updated": "2026-11-27",
   "web": {
     "overall": {
-      "lines": 42.1,
-      "statements": 42.46,
-      "functions": 45.42,
-      "branches": 39.7
+      "lines": 43.66,
+      "statements": 43.95,
+      "functions": 46.78,
+      "branches": 40.57
     },
     "byFolder": {
       "src": {
@@ -18,13 +18,13 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 96.93
+        "lines": 97.04
       },
       "src/features/account": {
         "lines": 0
       },
       "src/features/admin": {
-        "lines": 8.03
+        "lines": 24.57
       },
       "src/features/categories": {
         "lines": 0
@@ -34,6 +34,9 @@
       },
       "src/features/demos": {
         "lines": 97.44
+      },
+      "src/features/drawer": {
+        "lines": 92.42
       },
       "src/features/home": {
         "lines": 0
@@ -57,7 +60,7 @@
         "lines": 22.39
       },
       "src/lib": {
-        "lines": 94.5
+        "lines": 94.69
       },
       "src/types": {
         "lines": 75
@@ -94,6 +97,9 @@
       "src/components/CsvButton.tsx": {
         "lines": 100
       },
+      "src/components/DenominationCounter.tsx": {
+        "lines": 100
+      },
       "src/components/Dialog.tsx": {
         "lines": 91.93
       },
@@ -117,6 +123,9 @@
       },
       "src/features/account/AccountPage.tsx": {
         "lines": 0
+      },
+      "src/features/admin/DrawersSettings.tsx": {
+        "lines": 94.11
       },
       "src/features/admin/ReadyTemplateFields.tsx": {
         "lines": 100
@@ -186,6 +195,9 @@
       },
       "src/features/demos/demoLoansCsv.ts": {
         "lines": 100
+      },
+      "src/features/drawer/DrawerPage.tsx": {
+        "lines": 92.42
       },
       "src/features/home/ComingSoon.tsx": {
         "lines": 0
@@ -421,11 +433,17 @@
       "src/lib/demoLoans.ts": {
         "lines": 100
       },
+      "src/lib/denominations.ts": {
+        "lines": 100
+      },
       "src/lib/discountApproval.ts": {
         "lines": 100
       },
       "src/lib/discounts.ts": {
         "lines": 100
+      },
+      "src/lib/drawers.ts": {
+        "lines": 96
       },
       "src/lib/edgeFunctions.ts": {
         "lines": 100
@@ -503,7 +521,7 @@
         "lines": 100
       },
       "src/lib/settings.ts": {
-        "lines": 77.33
+        "lines": 77.92
       },
       "src/lib/staff.ts": {
         "lines": 100

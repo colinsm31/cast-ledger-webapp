@@ -6,6 +6,12 @@ export function roundCents(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/** An amount as shown on screen: "$1,234.50", "-$5.00". */
+export function formatMoney(value: number): string {
+  const sign = value < 0 ? '-' : '';
+  return `${sign}$${Math.abs(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 /** The message shown when a typed amount has a fraction of a cent. */
 export const SUB_CENT_MESSAGE = 'Use at most 2 decimal places';
 

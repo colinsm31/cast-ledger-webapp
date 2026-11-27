@@ -17,6 +17,7 @@ import { HomePage } from './features/home/HomePage';
 import { NewSalePage } from './features/sales/NewSalePage';
 import { SalesListPage } from './features/sales/SalesListPage';
 import { ReportsPage } from './features/reports/ReportsPage';
+import { DrawerPage } from './features/drawer/DrawerPage';
 import { SaleDetailPage } from './features/sales/SaleDetailPage';
 import { ExchangePage } from './features/sales/ExchangePage';
 import { RefundPage } from './features/sales/RefundPage';
@@ -103,6 +104,7 @@ function Gate() {
         <Route path="/gift-cards" element={<GiftCardLookupPage />} />
         <Route path="/demos" element={<DemosPage />} />
         <Route path="/account" element={<AccountPage />} />
+        <Route path="/drawer" element={<DrawerPage />} />
         <Route path="/reports" element={<RequireAdmin><ReportsPage /></RequireAdmin>} />
         <Route element={<RequireAdmin><SettingsLayout /></RequireAdmin>}>
           <Route path="/settings" element={<SettingsPage />} />
