@@ -17,6 +17,7 @@ import {
   openDrawer,
   overShort,
   overShortLabel,
+  pruneRememberedDrawer,
   rememberDrawer,
   rememberedDrawerId,
   type Drawer,
@@ -54,6 +55,7 @@ export function DrawerPage() {
     setLoadError(null);
     try {
       const [drawers, openSessions] = await Promise.all([fetchDrawers(), fetchOpenSessions()]);
+      setDrawerId(pruneRememberedDrawer(drawers));
       setLoaded({ drawers, openSessions });
     } catch (err) {
       setLoadError(errorMessage(err));

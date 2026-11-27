@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { withRegisterDrawer } from '../../lib/drawers';
+import { useSettings } from '../../lib/settings';
+import { RegisterDrawerNotice } from '../drawer/RegisterDrawerNotice';
+import { DayClosedNotice } from '../endofday/DayClosedNotice';
 import { fetchAllRowsResult } from '../../lib/paging';
 import type { Customer, CustomerRacket, StringJob, StringJobStatus } from '../../types/domain';
 import { customerName } from '../../types/domain';
@@ -115,6 +118,7 @@ export function StringJobDetailPage() {
   // job: moving to another job while they send doesn't show it there.
   const [messageNotice, setMessageNotice] = useState<{ jobId: string; text: string } | null>(null);
   const [pendingChange, setPendingChange] = useState<PendingStringChange | null>(null);
+  const { settings } = useSettings();
   const [changeTenders, setChangeTenders] = useState<Tender[]>([]);
   const [changeReason, setChangeReason] = useState('');
 
@@ -521,6 +525,14 @@ export function StringJobDetailPage() {
           {racket?.barcode ? ` · ${racket.barcode}` : ''}
         </p>
       </div>
+
+      {/* A paid job's strings can change for a charge or give-back, which may be cash. */}
+      {job.paid_sale_id && status === 'entered' && (
+        <>
+          <DayClosedNotice timeZone={settings?.time_zone ?? null} />
+          <RegisterDrawerNotice cashNeedsDrawer={settings?.cash_needs_drawer ?? false} />
+        </>
+      )}
 
       {job.refunded_at && <ChargesStillToRefund charges={stringChangeChargesToRefund(job.job_sale_lines ?? [])} />}
 

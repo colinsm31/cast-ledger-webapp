@@ -185,6 +185,27 @@ export function rememberDrawer(drawerId: string) {
   }
 }
 
+export function forgetDrawer() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Nothing remembered to forget.
+  }
+}
+
+/**
+ * This device's remembered drawer, forgotten (and null) once it's out of use
+ * or gone, so the register stops sending it and can choose again (4B review 1).
+ */
+export function pruneRememberedDrawer(drawers: Drawer[]): string | null {
+  const remembered = rememberedDrawerId();
+  if (remembered && !drawers.some((drawer) => drawer.id === remembered && drawer.is_active)) {
+    forgetDrawer();
+    return null;
+  }
+  return remembered;
+}
+
 /** The request header that tells the server which drawer this register's cash goes to (0109). */
 export const DRAWER_HEADER = 'x-acestock-drawer';
 
@@ -212,7 +233,7 @@ export type RegisterDrawerState = 'open' | 'closed' | 'choose' | 'unknown';
 
 /**
  * Whether this register's drawer is open: the remembered (or only) drawer has
- * an open session; or, with several drawers open and none chosen, it must be
+ * an open session; with several drawers in use and none chosen, it must be
  * chosen first. 'unknown' while loading or if the check can't load.
  */
 export function registerDrawerState(
@@ -222,6 +243,6 @@ export function registerDrawerState(
 ): RegisterDrawerState {
   const drawer = chooseDeviceDrawer(drawers, remembered);
   if (drawer) return openDrawerIds.includes(drawer.id) ? 'open' : 'closed';
-  if (openDrawerIds.length === 1) return 'open';
-  return openDrawerIds.length === 0 ? 'closed' : 'choose';
+  // Several drawers in use and none chosen: the server won't guess (4B review 3).
+  return drawers.some((d) => d.is_active) ? 'choose' : 'closed';
 }

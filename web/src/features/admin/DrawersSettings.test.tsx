@@ -60,4 +60,16 @@ describe('DrawersSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add drawer' }));
     expect(await screen.findByText(/uq_drawers_name|already/)).toBeTruthy();
   });
+
+  it('shows the saved name again when a rename is refused', async () => {
+    render(<DrawersSettings />);
+    const name = await screen.findByLabelText('Name of Main drawer');
+    writeError = { message: 'Count and close Main drawer before taking it out of use' };
+    fireEvent.change(name, { target: { value: 'Front' } });
+    fireEvent.blur(name);
+    expect(await screen.findByText('Count and close Main drawer before taking it out of use')).toBeTruthy();
+    await waitFor(() =>
+      expect((screen.getByLabelText('Name of Main drawer') as HTMLInputElement).value).toBe('Main drawer'),
+    );
+  });
 });

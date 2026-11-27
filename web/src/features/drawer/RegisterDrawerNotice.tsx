@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import {
   fetchDrawers,
   fetchOpenSessions,
+  pruneRememberedDrawer,
   registerDrawerState,
-  rememberedDrawerId,
   type RegisterDrawerState,
 } from '../../lib/drawers';
 
@@ -18,7 +18,7 @@ export function RegisterDrawerNotice({ cashNeedsDrawer }: { cashNeedsDrawer: boo
     let active = true;
     Promise.all([fetchDrawers(), fetchOpenSessions()]).then(
       ([drawers, sessions]) => {
-        if (active) setState(registerDrawerState(drawers, sessions.map((s) => s.drawer_id), rememberedDrawerId()));
+        if (active) setState(registerDrawerState(drawers, sessions.map((s) => s.drawer_id), pruneRememberedDrawer(drawers)));
       },
       () => {
         // The server still refuses cash without a drawer; the reminder is only a convenience.

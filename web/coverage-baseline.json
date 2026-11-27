@@ -2,10 +2,10 @@
   "updated": "2026-11-27",
   "web": {
     "overall": {
-      "lines": 45.94,
-      "statements": 46.18,
-      "functions": 49.14,
-      "branches": 42.55
+      "lines": 46.04,
+      "statements": 46.34,
+      "functions": 49.41,
+      "branches": 42.58
     },
     "byFolder": {
       "src": {
@@ -24,7 +24,7 @@
         "lines": 0
       },
       "src/features/admin": {
-        "lines": 24.43
+        "lines": 25.7
       },
       "src/features/categories": {
         "lines": 0
@@ -36,7 +36,7 @@
         "lines": 97.44
       },
       "src/features/drawer": {
-        "lines": 95.52
+        "lines": 95.56
       },
       "src/features/endofday": {
         "lines": 97.75
@@ -60,10 +60,10 @@
         "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 22.39
+        "lines": 22.35
       },
       "src/lib": {
-        "lines": 94.96
+        "lines": 94.99
       },
       "src/types": {
         "lines": 75
@@ -131,7 +131,7 @@
         "lines": 0
       },
       "src/features/admin/DrawersSettings.tsx": {
-        "lines": 94.11
+        "lines": 94.59
       },
       "src/features/admin/ReadyTemplateFields.tsx": {
         "lines": 100
@@ -206,7 +206,7 @@
         "lines": 100
       },
       "src/features/drawer/DrawerPage.tsx": {
-        "lines": 93.81
+        "lines": 93.87
       },
       "src/features/drawer/RegisterDrawerNotice.tsx": {
         "lines": 100
@@ -476,7 +476,7 @@
         "lines": 100
       },
       "src/lib/drawers.ts": {
-        "lines": 98.11
+        "lines": 98.3
       },
       "src/lib/edgeFunctions.ts": {
         "lines": 100

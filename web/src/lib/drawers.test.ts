@@ -138,9 +138,10 @@ describe('this device\'s drawer', () => {
   it('is open, closed, or still to be chosen at the register', () => {
     expect(drawers.registerDrawerState([main], ['d-1'], null)).toBe('open');
     expect(drawers.registerDrawerState([main], [], null)).toBe('closed');
-    expect(drawers.registerDrawerState([main, back], ['d-2'], null)).toBe('open');
+    expect(drawers.registerDrawerState([main, back], ['d-2'], null)).toBe('choose');
     expect(drawers.registerDrawerState([main, back], ['d-1', 'd-2'], null)).toBe('choose');
-    expect(drawers.registerDrawerState([main, back], [], null)).toBe('closed');
+    expect(drawers.registerDrawerState([main, back], [], null)).toBe('choose');
+    expect(drawers.registerDrawerState([{ ...main, is_active: false }], [], null)).toBe('closed');
     expect(drawers.registerDrawerState([main, back], ['d-1'], 'd-2')).toBe('closed');
   });
 
@@ -153,6 +154,15 @@ describe('this device\'s drawer', () => {
     expect(request.setHeader).toHaveBeenCalledWith('x-acestock-drawer', 'd-2');
     const plainPromise = Promise.resolve();
     expect(drawers.withRegisterDrawer(plainPromise)).toBe(plainPromise);
+  });
+
+  it('is forgotten once it is out of use or gone', () => {
+    drawers.rememberDrawer('d-2');
+    expect(drawers.pruneRememberedDrawer([main, back])).toBe('d-2');
+    expect(drawers.pruneRememberedDrawer([main, { ...back, is_active: false }])).toBeNull();
+    expect(drawers.rememberedDrawerId()).toBeNull();
+    drawers.rememberDrawer('d-9');
+    expect(drawers.pruneRememberedDrawer([main])).toBeNull();
   });
 
   it('is remembered on the device', () => {

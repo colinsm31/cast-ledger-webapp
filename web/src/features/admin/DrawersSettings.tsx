@@ -14,6 +14,9 @@ export function DrawersSettings() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // Bumped after a failed write so the name boxes show the saved names again.
+  const [version, setVersion] = useState(0);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -28,15 +31,15 @@ export function DrawersSettings() {
     void load();
   }, [load]);
 
-  async function run(write: PromiseLike<{ error: unknown }>) {
+  async function run(write: () => PromiseLike<{ error: unknown }>) {
+    setBusy(true);
     setError(null);
-    const { error: err } = await write;
-    if (err) {
-      setError(errorMessage(err));
-      return false;
-    }
+    const { error: err } = await write();
+    if (err) setError(errorMessage(err));
     await load();
-    return true;
+    if (err) setVersion((count) => count + 1);
+    setBusy(false);
+    return !err;
   }
 
   async function add() {
@@ -45,26 +48,28 @@ export function DrawersSettings() {
       setError('Drawer name: enter a name, like "Front register".');
       return;
     }
-    if (await run(supabase.from('drawers').insert({ name }))) setNewName('');
+    if (await run(() => supabase.from('drawers').insert({ name }))) setNewName('');
   }
 
   async function rename(drawer: Drawer, name: string) {
     const trimmed = name.trim();
     if (!trimmed || trimmed === drawer.name) return;
-    await run(supabase.from('drawers').update({ name: trimmed }).eq('id', drawer.id));
+    await run(() => supabase.from('drawers').update({ name: trimmed }).eq('id', drawer.id));
   }
 
   return (
     <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <h2 className="text-sm font-semibold text-slate-700">Cash drawers</h2>
       <p className="text-xs text-slate-400">
-        Each register picks its drawer on the Cash drawer screen. A drawer out of use can&apos;t be opened.
+        Each register picks its drawer on the Cash drawer screen. A drawer out of use can&apos;t be opened, and an
+        open drawer has to be counted and closed before it&apos;s taken out of use.
       </p>
       {loadError && <LoadError message={loadError} onRetry={() => void load()} />}
       <ul className="space-y-2">
         {drawers?.map((drawer) => (
           <li key={drawer.id} className="flex items-center gap-2">
             <input
+              key={`${drawer.name}-${version}`}
               aria-label={`Name of ${drawer.name}`}
               defaultValue={drawer.name}
               maxLength={DRAWER_NAME_MAX}
@@ -75,7 +80,8 @@ export function DrawersSettings() {
               <input
                 type="checkbox"
                 checked={drawer.is_active}
-                onChange={(e) => void run(supabase.from('drawers').update({ is_active: e.target.checked }).eq('id', drawer.id))}
+                disabled={busy}
+                onChange={(e) => void run(() => supabase.from('drawers').update({ is_active: e.target.checked }).eq('id', drawer.id))}
               />
               In use
             </label>
@@ -91,8 +97,12 @@ export function DrawersSettings() {
           placeholder="New drawer name"
           className={inputClass}
         />
-        <button onClick={() => void add()} className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50">
-          Add drawer
+        <button
+          onClick={() => void add()}
+          disabled={busy}
+          className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+        >
+          {busy ? 'Saving…' : 'Add drawer'}
         </button>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
