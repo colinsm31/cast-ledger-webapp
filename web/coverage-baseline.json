@@ -2,10 +2,10 @@
   "updated": "2026-11-27",
   "web": {
     "overall": {
-      "lines": 44.66,
-      "statements": 44.95,
-      "functions": 47.61,
-      "branches": 41.36
+      "lines": 45.44,
+      "statements": 45.66,
+      "functions": 48.51,
+      "branches": 42.1
     },
     "byFolder": {
       "src": {
@@ -18,7 +18,7 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 97.04
+        "lines": 97.21
       },
       "src/features/account": {
         "lines": 0
@@ -38,6 +38,9 @@
       "src/features/drawer": {
         "lines": 95.52
       },
+      "src/features/endofday": {
+        "lines": 98.11
+      },
       "src/features/home": {
         "lines": 0
       },
@@ -51,7 +54,7 @@
         "lines": 100
       },
       "src/features/sales": {
-        "lines": 27.79
+        "lines": 27.93
       },
       "src/features/scan": {
         "lines": 61.7
@@ -60,7 +63,7 @@
         "lines": 22.39
       },
       "src/lib": {
-        "lines": 94.85
+        "lines": 94.88
       },
       "src/types": {
         "lines": 75
@@ -113,6 +116,9 @@
         "lines": 100
       },
       "src/components/PeriodPicker.tsx": {
+        "lines": 100
+      },
+      "src/components/PrintToolbar.tsx": {
         "lines": 100
       },
       "src/components/Spinner.tsx": {
@@ -203,6 +209,18 @@
         "lines": 93.81
       },
       "src/features/drawer/RegisterDrawerNotice.tsx": {
+        "lines": 100
+      },
+      "src/features/endofday/DayReportPage.tsx": {
+        "lines": 100
+      },
+      "src/features/endofday/DayReportView.tsx": {
+        "lines": 100
+      },
+      "src/features/endofday/EndOfDayPage.tsx": {
+        "lines": 96.15
+      },
+      "src/features/endofday/dayReportFixture.ts": {
         "lines": 100
       },
       "src/features/home/ComingSoon.tsx": {
@@ -434,6 +452,9 @@
         "lines": 100
       },
       "src/lib/dates.ts": {
+        "lines": 100
+      },
+      "src/lib/dayReport.ts": {
         "lines": 100
       },
       "src/lib/demoLoans.ts": {
