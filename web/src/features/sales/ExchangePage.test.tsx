@@ -6,7 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const rpc = vi.fn();
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => rpc(...args) } }));
 vi.mock('../../app/BackContext', () => ({ useBack: () => {} }));
-vi.mock('../../lib/settings', () => ({ useSettings: () => ({ settings: { accept_checks: false } }) }));
+vi.mock('../../lib/settings', async (original) => ({
+  ...(await original<typeof import('../../lib/settings')>()),
+  useSettings: () => ({ settings: { accept_checks: false } }),
+}));
 
 let quoteTotal = 32.48;
 let quoteFails = false;

@@ -8,7 +8,7 @@ import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
-import { useSettings } from '../../lib/settings';
+import { useSettings, cashNeedsOpenDrawer } from '../../lib/settings';
 import { refundMethodsFor, saleMethodsFor, toPaymentPayload } from '../../lib/paymentMethods';
 import { fetchSaleQuote, toSaleLinePayload, type SaleLineInput, type SaleQuote } from '../../lib/saleQuote';
 import { paymentTypeChanges, refundSource } from '../../lib/saleMath';
@@ -298,7 +298,7 @@ export function ExchangePage() {
       </div>
 
       <DayClosedNotice timeZone={settings?.time_zone ?? null} />
-      <RegisterDrawerNotice cashNeedsDrawer={settings?.cash_needs_drawer ?? false} />
+      <RegisterDrawerNotice cashNeedsDrawer={cashNeedsOpenDrawer(settings ?? null)} />
 
       {saleCustomerInactive(sale) && (
         <p className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">

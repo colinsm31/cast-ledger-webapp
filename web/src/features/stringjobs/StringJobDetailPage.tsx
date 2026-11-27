@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { withRegisterDrawer } from '../../lib/drawers';
-import { useSettings } from '../../lib/settings';
+import { useSettings, cashNeedsOpenDrawer } from '../../lib/settings';
 import { RegisterDrawerNotice } from '../drawer/RegisterDrawerNotice';
 import { DayClosedNotice } from '../endofday/DayClosedNotice';
 import { fetchAllRowsResult } from '../../lib/paging';
@@ -530,7 +530,7 @@ export function StringJobDetailPage() {
       {job.paid_sale_id && status === 'entered' && (
         <>
           <DayClosedNotice timeZone={settings?.time_zone ?? null} />
-          <RegisterDrawerNotice cashNeedsDrawer={settings?.cash_needs_drawer ?? false} />
+          <RegisterDrawerNotice cashNeedsDrawer={cashNeedsOpenDrawer(settings ?? null)} />
         </>
       )}
 

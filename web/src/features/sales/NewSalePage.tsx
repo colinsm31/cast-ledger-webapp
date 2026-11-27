@@ -12,7 +12,7 @@ import { useCustomerMatches } from '../../lib/customerSearch';
 import { createCustomer, newCustomerFormFrom, newCustomerRow, type NewCustomerForm } from '../../lib/newCustomer';
 import { formatPhone } from '../../lib/phone';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
-import { useSettings } from '../../lib/settings';
+import { useSettings, cashNeedsOpenDrawer } from '../../lib/settings';
 import { LoadError } from '../../components/LoadError';
 import { computeSaleTotals, fromCents, lineTotalCents, toCents } from '../../lib/saleMath';
 import {
@@ -861,7 +861,7 @@ export function NewSalePage() {
 
       {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
       <DayClosedNotice timeZone={settings?.time_zone ?? null} />
-      <RegisterDrawerNotice cashNeedsDrawer={settings?.cash_needs_drawer ?? false} />
+      <RegisterDrawerNotice cashNeedsDrawer={cashNeedsOpenDrawer(settings ?? null)} />
 
       <CustomerBar customer={customer} onChange={setCustomer} />
 

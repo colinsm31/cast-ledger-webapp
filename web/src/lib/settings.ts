@@ -76,6 +76,14 @@ interface SettingsRow extends QbAccounts {
   cash_needs_drawer: boolean;
 }
 
+/**
+ * Whether cash needs this register's drawer open: the shop's setting, once its
+ * time zone is set (drawers can't be opened before that, 0114).
+ */
+export function cashNeedsOpenDrawer(settings: Pick<Settings, 'cash_needs_drawer' | 'time_zone'> | null): boolean {
+  return Boolean(settings?.cash_needs_drawer && settings.time_zone);
+}
+
 export const SETTINGS_LOAD_ERROR = "Couldn't load the shop settings";
 
 // Throws if the settings can't be read: there are no defaults to fall back on,

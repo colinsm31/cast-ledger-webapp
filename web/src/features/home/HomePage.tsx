@@ -12,6 +12,7 @@ import { resolveBarcode, routeForMatch, type BarcodeMatch, type ScannedProduct }
 import { useScannerCapture } from '../scan/useScannerCapture';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { ScanFlowParams, sellProductPath, withParams } from '../scan/scanFlow';
+import { TimeZoneReminder } from './TimeZoneReminder';
 
 type UpcResult =
   | { kind: 'idle' }
@@ -155,6 +156,8 @@ export function HomePage() {
           Return to sale in progress{heldCount > 0 ? ` · ${heldCount} item${heldCount === 1 ? '' : 's'}` : ''}
         </button>
       )}
+
+      {isAdmin && <TimeZoneReminder />}
 
       <div className="space-y-2">
         <h1 className="text-xl font-bold text-slate-900">AceStock</h1>

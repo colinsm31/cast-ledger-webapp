@@ -10,7 +10,7 @@ import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
-import { useSettings } from '../../lib/settings';
+import { useSettings, cashNeedsOpenDrawer } from '../../lib/settings';
 import {
   PAYMENT_METHOD_LABEL as METHOD_LABEL,
   paymentLabel,
@@ -315,7 +315,7 @@ export function RefundPage() {
       </div>
 
       <DayClosedNotice timeZone={settings?.time_zone ?? null} />
-      <RegisterDrawerNotice cashNeedsDrawer={settings?.cash_needs_drawer ?? false} />
+      <RegisterDrawerNotice cashNeedsDrawer={cashNeedsOpenDrawer(settings ?? null)} />
 
       {/* Items */}
       <section className="rounded-xl border border-slate-200 bg-white">

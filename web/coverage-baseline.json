@@ -2,10 +2,10 @@
   "updated": "2026-11-27",
   "web": {
     "overall": {
-      "lines": 46.04,
-      "statements": 46.34,
-      "functions": 49.41,
-      "branches": 42.58
+      "lines": 46.08,
+      "statements": 46.38,
+      "functions": 49.47,
+      "branches": 42.61
     },
     "byFolder": {
       "src": {
@@ -42,7 +42,7 @@
         "lines": 97.75
       },
       "src/features/home": {
-        "lines": 0
+        "lines": 3.19
       },
       "src/features/lookups": {
         "lines": 0
@@ -63,7 +63,7 @@
         "lines": 22.35
       },
       "src/lib": {
-        "lines": 94.99
+        "lines": 95
       },
       "src/types": {
         "lines": 75
@@ -231,6 +231,9 @@
       },
       "src/features/home/HomePage.tsx": {
         "lines": 0
+      },
+      "src/features/home/TimeZoneReminder.tsx": {
+        "lines": 100
       },
       "src/features/lookups/PickOrAdd.tsx": {
         "lines": 0
@@ -554,7 +557,7 @@
         "lines": 100
       },
       "src/lib/settings.ts": {
-        "lines": 77.92
+        "lines": 78.2
       },
       "src/lib/staff.ts": {
         "lines": 100
