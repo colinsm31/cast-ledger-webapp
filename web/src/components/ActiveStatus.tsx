@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Deactivation } from '../types/domain';
 import { errorMessage } from '../lib/errors';
+import { formatDate } from '../lib/dates';
 
 // The database's limit on the reason (set_customer_active, set_gift_card_active, 0076).
 const REASON_MAX = 200;
@@ -65,7 +66,7 @@ export function ActiveStatusPanel({
         <p className="text-sm text-slate-700">
           <span className="font-semibold">Inactive</span>
           {deactivation.deactivated_reason ? `: ${deactivation.deactivated_reason}` : ''}
-          {deactivation.deactivated_at ? ` · since ${new Date(deactivation.deactivated_at).toLocaleDateString()}` : ''}
+          {deactivation.deactivated_at ? ` · since ${formatDate(deactivation.deactivated_at)}` : ''}
         </p>
         <p className="text-xs text-slate-500">Its history is kept, but it can&apos;t be used at the register.</p>
         {error && <p className="text-sm text-red-600">{error}</p>}

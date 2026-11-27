@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  boxAfterContactEdit,
   contactChanged,
   isValidEmail,
   optInChangeLabel,
@@ -111,5 +112,21 @@ describe('optInChangeLabel', () => {
   it('says what changed', () => {
     expect(optInChangeLabel({ channel: 'sms', opted_in: true })).toBe('Opted in to texts');
     expect(optInChangeLabel({ channel: 'email', opted_in: false })).toBe('Opted out of emails');
+  });
+});
+
+describe('boxAfterContactEdit', () => {
+  it('unticks a box when its address becomes new, remembering the edit did it', () => {
+    expect(boxAfterContactEdit({ ticked: true, untickedByEdit: false }, true)).toEqual({ ticked: false, untickedByEdit: true });
+  });
+  it('keeps it unticked while the address stays new', () => {
+    expect(boxAfterContactEdit({ ticked: false, untickedByEdit: true }, true)).toEqual({ ticked: false, untickedByEdit: true });
+  });
+  it('ticks it again when the saved address is typed back', () => {
+    expect(boxAfterContactEdit({ ticked: false, untickedByEdit: true }, false)).toEqual({ ticked: true, untickedByEdit: false });
+  });
+  it('leaves an opt-out staff chose alone', () => {
+    expect(boxAfterContactEdit({ ticked: false, untickedByEdit: false }, true)).toEqual({ ticked: false, untickedByEdit: false });
+    expect(boxAfterContactEdit({ ticked: false, untickedByEdit: false }, false)).toEqual({ ticked: false, untickedByEdit: false });
   });
 });

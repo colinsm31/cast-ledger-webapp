@@ -1,4 +1,5 @@
 import { stringSummary, type StringSetup } from './stringSummary';
+import { formatDate } from '../../lib/dates';
 
 export interface LastSetup {
   key: string;
@@ -19,7 +20,7 @@ export function LastSetupPanel({ setups, onUse }: { setups: LastSetup[]; onUse: 
           <li key={setup.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
             <div className="min-w-0">
               <p className="text-xs text-slate-500">
-                {setup.label} · {new Date(setup.job.entered_at).toLocaleDateString()}
+                {setup.label} · {formatDate(setup.job.entered_at)}
               </p>
               <p className="text-sm text-slate-800">{stringSummary(setup.job)}</p>
             </div>

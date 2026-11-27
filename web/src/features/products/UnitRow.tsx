@@ -13,6 +13,7 @@ import { customerNameLastFirst } from '../../types/domain';
 import { DemoLoanActions } from '../demos/DemoLoanActions';
 import { LendDemoForm } from '../demos/LendDemoForm';
 import type { LoanWithCustomer } from '../demos/demoLoanQueries';
+import { formatDateTime } from '../../lib/dates';
 
 // MARK: - Status styling
 
@@ -264,7 +265,7 @@ export function UnitRow({
             <li key={change.id}>
               <span className="font-medium text-slate-800">{unitChangeLabel(change)}</span>
               {' · '}
-              {new Date(change.changed_at).toLocaleString()}
+              {formatDateTime(change.changed_at)}
               {staffLabel(change.changed_by_staff) ? ` · ${staffLabel(change.changed_by_staff)}` : ''}
               {change.reason ? ` · “${change.reason}”` : ''}
               {change.sale_id && (

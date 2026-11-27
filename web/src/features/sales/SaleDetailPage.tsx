@@ -17,6 +17,7 @@ import { fromCents } from '../../lib/saleMath';
 import { SoldRacketsPanel } from './SoldRacketsPanel';
 import { EmailReceiptForm } from './EmailReceiptForm';
 import { NotificationLog } from '../../components/NotificationLog';
+import { formatDateTime } from '../../lib/dates';
 
 /** Passed by the register when a sale went through but delivering its racquet failed. */
 export interface SaleDeliveryWarning {
@@ -162,7 +163,7 @@ export function SaleDetailPage() {
             {sale.customers ? customerNameLastFirst(sale.customers) : 'Unidentified Customer'}
           </h1>
           <p className="text-sm text-slate-500">
-            {new Date(sale.sold_at).toLocaleString()}
+            {formatDateTime(sale.sold_at)}
             {staffLabel(sale.rung_by) && ` · Rung up by ${staffLabel(sale.rung_by)}`}
           </p>
         </div>
@@ -342,7 +343,7 @@ export function SaleDetailPage() {
             {sale.refunds.map((r) => (
               <li key={r.id} className="flex justify-between text-sm">
                 <span className="text-slate-600">
-                  {new Date(r.refunded_at).toLocaleString()}
+                  {formatDateTime(r.refunded_at)}
                   {staffLabel(r.refunded_by) && ` · by ${staffLabel(r.refunded_by)}`}
                   {` · ${returnedItemsLabel(r.refund_lines)}`}
                   {firstOf(r.exchanges) && (

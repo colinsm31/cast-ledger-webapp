@@ -49,6 +49,7 @@ import {
   promiseState,
   toLocalInput,
 } from '../../lib/stringJobPromise';
+import { formatDateTime } from '../../lib/dates';
 
 interface JobRow extends StringJob {
   customer_rackets:
@@ -791,7 +792,7 @@ function PromiseSection({ job, disabled, onSaved }: { job: JobRow; disabled: boo
             ? 'No promised time yet.'
             : waiting
               ? promiseLabel(job.promised_at, now)
-              : `Promised ${new Date(job.promised_at).toLocaleString()}`}
+              : `Promised ${formatDateTime(job.promised_at)}`}
           {waiting && job.is_rush ? ' · rush' : ''}
         </p>
       )}
@@ -824,7 +825,7 @@ function JobHistory({ job }: { job: JobRow }) {
       <h2 className="mb-1 text-sm font-semibold text-slate-700">History</h2>
       <dl className="divide-y divide-slate-100">
         {happened.map((step) => {
-          const value = [new Date(step.at as string).toLocaleString(), staffLabel(step.by)].filter(Boolean).join(' · ');
+          const value = [formatDateTime(step.at as string), staffLabel(step.by)].filter(Boolean).join(' · ');
           return step.href ? (
             <div key={`${step.label}-${step.at}`} className="flex justify-between py-1.5 text-sm">
               <dt className="text-slate-500">{step.label}</dt>

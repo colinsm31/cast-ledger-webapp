@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { demoLoanLabel, demoOutcome } from '../../lib/demoLoans';
 import { customerNameLastFirst } from '../../types/domain';
 import { frameRacquetName, type LoanWithFrame } from './demoLoanQueries';
+import { formatDate } from '../../lib/dates';
 
 // MARK: - DemoHistoryList
 //
@@ -45,8 +46,8 @@ export function DemoHistoryList({ loans, showCustomer }: { loans: LoanWithFrame[
               </>
             )}
             {'Out '}
-            {new Date(loan.out_at).toLocaleDateString()}
-            {loan.back_at ? ` · back ${new Date(loan.back_at).toLocaleDateString()}` : ' · still out'}
+            {formatDate(loan.out_at)}
+            {loan.back_at ? ` · back ${formatDate(loan.back_at)}` : ' · still out'}
             {/* "Bought" stands in for the outcome; say so if the demo came back damaged. */}
             {loan.sale_id && loan.back_status === 'retired' ? ' · retired' : ''}
             {loan.back_reason ? ` · “${loan.back_reason}”` : ''}

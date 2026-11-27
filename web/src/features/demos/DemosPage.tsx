@@ -21,6 +21,7 @@ import {
   RETURNED_LIMIT,
   type LoanWithFrame,
 } from './demoLoanQueries';
+import { formatDate } from '../../lib/dates';
 
 type DemosTab = 'out' | 'returned';
 
@@ -144,7 +145,7 @@ function OpenLoansView() {
                   )}
                   {loan.customers?.phone_number ? ` · ${loan.customers.phone_number}` : ''}
                   {' · out '}
-                  {new Date(loan.out_at).toLocaleDateString()}
+                  {formatDate(loan.out_at)}
                   {loan.deposit_note ? ` · Deposit: ${loan.deposit_note}` : ''}
                   {loan.note ? ` · “${loan.note}”` : ''}
                 </p>

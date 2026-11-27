@@ -9,7 +9,7 @@ import { TaxExemptFields } from './TaxExemptFields';
 import { NotificationOptInFields } from './NotificationOptInFields';
 import { OptInHistory } from './OptInHistory';
 import { NotificationLog } from '../../components/NotificationLog';
-import { contactChanged, optInLabel, optInsGivenAgain, optInsToSave } from '../../lib/notificationOptIn';
+import { boxAfterContactEdit, contactChanged, optInLabel, optInsGivenAgain, optInsToSave, type OptInState } from '../../lib/notificationOptIn';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { formatPhone } from '../../lib/phone';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
@@ -22,6 +22,7 @@ import { CustomerDemosPanel } from '../demos/CustomerDemosPanel';
 import { useBack } from '../../app/BackContext';
 import { useAuth } from '../../auth/AuthContext';
 import { ScanFlowParams } from '../scan/scanFlow';
+import { formatDate } from '../../lib/dates';
 
 // Filter sales by customer (top-level column), embedding each sale's lines up to
 // product + category. Flattened into PurchaseHistoryRow client-side.
@@ -438,10 +439,6 @@ function AccountPanel({
   );
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
-}
 
 // MARK: - Edit customer form
 
@@ -462,6 +459,9 @@ function EditCustomerForm({
   const [phone, setPhone] = useState(customer.phone_number ?? '');
   const [email, setEmail] = useState(customer.email ?? '');
   const [optIns, setOptIns] = useState({ email_opt_in: customer.email_opt_in, sms_opt_in: customer.sms_opt_in });
+  // Which boxes an edit to the address or number unticked (not staff), so
+  // typing the saved one back ticks them again.
+  const [untickedByEdit, setUntickedByEdit] = useState({ email_opt_in: false, sms_opt_in: false });
   const [taxExempt, setTaxExempt] = useState(customer.tax_exempt);
   const [taxExemptId, setTaxExemptId] = useState(customer.tax_exempt_id ?? '');
   const [saving, setSaving] = useState(false);
@@ -508,15 +508,28 @@ function EditCustomerForm({
     await onSaved();
   }
 
-  // A new address or number unticks its box: the customer agreed for the old one.
+  // A new address or number unticks its box: the customer agreed for the old
+  // one. Typing the saved one back ticks it again.
+  function applyContactEdit(key: keyof OptInState, contactIsNew: boolean) {
+    const box = boxAfterContactEdit({ ticked: optIns[key], untickedByEdit: untickedByEdit[key] }, contactIsNew);
+    setOptIns((current) => ({ ...current, [key]: box.ticked }));
+    setUntickedByEdit((current) => ({ ...current, [key]: box.untickedByEdit }));
+  }
+
   function editEmail(value: string) {
     setEmail(value);
-    if (contactChanged('email', customer.email, value)) setOptIns((current) => ({ ...current, email_opt_in: false }));
+    applyContactEdit('email_opt_in', contactChanged('email', customer.email, value));
   }
 
   function editPhone(value: string) {
     setPhone(value);
-    if (contactChanged('sms', customer.phone_number, value)) setOptIns((current) => ({ ...current, sms_opt_in: false }));
+    applyContactEdit('sms_opt_in', contactChanged('sms', customer.phone_number, value));
+  }
+
+  // Staff ticking or unticking a box is their choice, which an edit never undoes.
+  function chooseOptIns(value: OptInState) {
+    setOptIns(value);
+    setUntickedByEdit({ email_opt_in: false, sms_opt_in: false });
   }
 
   return (
@@ -532,7 +545,7 @@ function EditCustomerForm({
         value={optIns}
         email={email}
         phone={phone}
-        onChange={setOptIns}
+        onChange={chooseOptIns}
         askAgain={{
           email: customer.email_opt_in && contactChanged('email', customer.email, email),
           sms: customer.sms_opt_in && contactChanged('sms', customer.phone_number, phone),
