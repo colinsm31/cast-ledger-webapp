@@ -2,7 +2,7 @@
 // and how it adds up in the totals row.
 
 import { csvMoney, toCsv, type CsvCell } from '../../lib/csv';
-import { roundCents } from '../../lib/money';
+import { formatMoney, roundCents } from '../../lib/money';
 
 export type ReportValueKind = 'text' | 'money' | 'count' | 'percent';
 export type ReportValue = string | number | null;
@@ -20,10 +20,7 @@ export function formatReportValue(kind: ReportValueKind, value: ReportValue): st
   if (value === null || value === '') return kind === 'text' ? '' : '—';
   if (kind === 'text') return String(value);
   const number = Number(value);
-  if (kind === 'money') {
-    const sign = number < 0 ? '-' : '';
-    return `${sign}$${Math.abs(number).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
+  if (kind === 'money') return formatMoney(number);
   if (kind === 'percent') return `${number.toFixed(1)}%`;
   return number.toLocaleString('en-US');
 }

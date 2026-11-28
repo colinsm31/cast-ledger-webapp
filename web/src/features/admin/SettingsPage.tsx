@@ -8,6 +8,7 @@ import { Spinner } from '../../components/Spinner';
 import { LoadError } from '../../components/LoadError';
 import { useBack } from '../../app/BackContext';
 import { ReadyTemplateFields } from './ReadyTemplateFields';
+import { DrawersSettings } from './DrawersSettings';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -82,6 +83,21 @@ export function SettingsPage() {
       <h1 className="text-xl font-bold text-slate-900">Settings</h1>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-700">Shop</h2>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-slate-500">Time zone</span>
+          <select value={form.timeZone} onChange={(e) => update({ timeZone: e.target.value })} className={inputClass}>
+            {timeZoneOptions(form.timeZone).map((zone) => (
+              <option key={zone} value={zone}>
+                {zone}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-xs text-slate-400">Business days (cash drawers and the end-of-day close) follow this time zone.</p>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-700">Taxes</h2>
         <label className="block space-y-1">
           <span className="text-xs font-medium text-slate-500">Sales tax rate (%)</span>
@@ -147,6 +163,14 @@ export function SettingsPage() {
         <p className="text-xs text-slate-400">
           Offers Check at payment, with its check number. Sales already paid by check can still be refunded by check
           when this is off.
+        </p>
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={form.cashNeedsDrawer} onChange={(e) => update({ cashNeedsDrawer: e.target.checked })} />
+          Cash needs an open drawer
+        </label>
+        <p className="text-xs text-slate-400">
+          Cash can only be taken or given back while the register&apos;s drawer is open, so every drawer&apos;s count
+          can be checked against what it should hold. Card, check, gift card and store credit work either way.
         </p>
       </section>
 
@@ -230,6 +254,14 @@ export function SettingsPage() {
       >
         {saving ? 'Saving…' : 'Save settings'}
       </button>
+
+      <DrawersSettings />
     </div>
   );
+}
+
+/** The time zones this browser knows, with the current choice kept even if it doesn't know it. */
+function timeZoneOptions(current: string): string[] {
+  const zones = Intl.supportedValuesOf('timeZone');
+  return zones.includes(current) ? zones : [current, ...zones];
 }

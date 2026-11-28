@@ -35,6 +35,8 @@ const saved: Settings = {
   qb_sales_tax_account: 'Sales Tax Payable',
   qb_sales_account: 'Sales',
   qb_stringing_account: 'Stringing Income',
+  time_zone: 'America/Chicago',
+  cash_needs_drawer: true,
 };
 
 function form(changes: Partial<SettingsForm>): SettingsForm {
@@ -44,6 +46,15 @@ function form(changes: Partial<SettingsForm>): SettingsForm {
 describe('parseSettingsForm', () => {
   it('round-trips saved settings', () => {
     expect(parseSettingsForm(settingsToForm(saved))).toEqual({ settings: saved });
+  });
+
+  it('suggests the browser\'s time zone until one is set, and needs one to save', () => {
+    expect(settingsToForm({ ...saved, time_zone: null }).timeZone).toBe(
+      Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    );
+    expect(parseSettingsForm(form({ timeZone: ' ' }))).toEqual({
+      error: 'Shop time zone: choose the time zone the shop is in.',
+    });
   });
 
   it('refuses a tax rate that isn\'t a plain number from 0 to 100', () => {

@@ -9,6 +9,7 @@ import {
   optInsGivenAgain,
   optInsToSave,
   phoneE164,
+  untickedAfterChoice,
 } from './notificationOptIn';
 
 describe('phoneE164 (matches the database)', () => {
@@ -128,5 +129,29 @@ describe('boxAfterContactEdit', () => {
   it('leaves an opt-out staff chose alone', () => {
     expect(boxAfterContactEdit({ ticked: false, untickedByEdit: false }, true)).toEqual({ ticked: false, untickedByEdit: false });
     expect(boxAfterContactEdit({ ticked: false, untickedByEdit: false }, false)).toEqual({ ticked: false, untickedByEdit: false });
+  });
+});
+
+describe('untickedAfterChoice', () => {
+  it('keeps the other box\'s mark when staff change one box', () => {
+    const before = { email_opt_in: false, sms_opt_in: false };
+    const marks = { email_opt_in: true, sms_opt_in: false };
+    expect(untickedAfterChoice(before, { email_opt_in: false, sms_opt_in: true }, marks)).toEqual(marks);
+    expect(untickedAfterChoice(before, { email_opt_in: true, sms_opt_in: false }, marks)).toEqual({
+      email_opt_in: false,
+      sms_opt_in: false,
+    });
+  });
+
+  it('then typing the email back ticks the email box again', () => {
+    const marks = untickedAfterChoice(
+      { email_opt_in: false, sms_opt_in: false },
+      { email_opt_in: false, sms_opt_in: true },
+      { email_opt_in: true, sms_opt_in: false },
+    );
+    expect(boxAfterContactEdit({ ticked: false, untickedByEdit: marks.email_opt_in }, false)).toEqual({
+      ticked: true,
+      untickedByEdit: false,
+    });
   });
 });

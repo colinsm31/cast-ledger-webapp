@@ -22,3 +22,10 @@ describe('formatDate', () => {
     expect(formatDate('nope')).toBe('—');
   });
 });
+
+describe('times in the shop\'s time zone', () => {
+  it('writes a moment in the zone given', () => {
+    expect(formatDateTimeShort('2026-11-28T03:00:00Z', 'America/Chicago')).toContain('9:00');
+    expect(formatDateTime('2026-11-28T03:00:00Z', 'UTC')).toContain('3:00:00');
+  });
+});

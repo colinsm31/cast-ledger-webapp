@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { withRegisterDrawer } from '../../lib/drawers';
+import { RegisterDrawerNotice } from '../drawer/RegisterDrawerNotice';
+import { DayClosedNotice } from '../endofday/DayClosedNotice';
 import type { PaymentMethod } from '../../types/domain';
 import { customerNameLastFirst } from '../../types/domain';
 import { errorMessage } from '../../lib/errors';
 import { Spinner } from '../../components/Spinner';
 import { useBack } from '../../app/BackContext';
 import { hasSubCent, SUB_CENT_MESSAGE } from '../../lib/money';
-import { useSettings } from '../../lib/settings';
+import { useSettings, cashNeedsOpenDrawer } from '../../lib/settings';
 import {
   PAYMENT_METHOD_LABEL as METHOD_LABEL,
   paymentLabel,
@@ -266,7 +269,7 @@ export function RefundPage() {
           ? frameReturnLine(l.id, frameReturns[l.id] ?? DEFAULT_FRAME_RETURN)
           : { sale_line_id: l.id, qty: returnQty[l.id] },
       );
-    const { error: err } = await supabase.rpc('record_refund', {
+    const { error: err } = await withRegisterDrawer(supabase.rpc('record_refund', {
       p_sale_id: saleId,
       p_lines: lines,
       p_payments: tenders.map(toPaymentPayload),
@@ -274,7 +277,7 @@ export function RefundPage() {
       p_note: null,
       p_method_change_reason: (needsMethodChangeReason && methodChangeReason.trim()) || null,
       p_approval_id: approvalId,
-    });
+    }));
     setSaving(false);
     if (err) {
       const message = errorMessage(err);
@@ -310,6 +313,9 @@ export function RefundPage() {
           Void (full refund)
         </button>
       </div>
+
+      <DayClosedNotice timeZone={settings?.time_zone ?? null} />
+      <RegisterDrawerNotice cashNeedsDrawer={cashNeedsOpenDrawer(settings ?? null)} />
 
       {/* Items */}
       <section className="rounded-xl border border-slate-200 bg-white">

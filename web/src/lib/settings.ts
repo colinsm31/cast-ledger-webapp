@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from './supabase';
 import { errorMessage } from './errors';
 import { hasSubCent } from './money';
+import { browserTimeZone } from './reportPeriod';
 
 /** The QuickBooks account each daily-summary figure posts to (0101). */
 export const QB_ACCOUNT_FIELDS = [
@@ -46,6 +47,10 @@ export interface Settings extends QbAccounts {
   ready_email_subject: string;
   ready_email_body: string;
   ready_sms_body: string;
+  /** The shop's time zone, e.g. "America/Chicago" (0108); null until an admin sets it. */
+  time_zone: string | null;
+  /** Cash can only be taken or given back while the register's drawer is open (0109). */
+  cash_needs_drawer: boolean;
 }
 
 interface SettingsRow extends QbAccounts {
@@ -67,6 +72,16 @@ interface SettingsRow extends QbAccounts {
   ready_email_subject: string;
   ready_email_body: string;
   ready_sms_body: string;
+  time_zone: string | null;
+  cash_needs_drawer: boolean;
+}
+
+/**
+ * Whether cash needs this register's drawer open: the shop's setting, once its
+ * time zone is set (drawers can't be opened before that, 0114).
+ */
+export function cashNeedsOpenDrawer(settings: Pick<Settings, 'cash_needs_drawer' | 'time_zone'> | null): boolean {
+  return Boolean(settings?.cash_needs_drawer && settings.time_zone);
 }
 
 export const SETTINGS_LOAD_ERROR = "Couldn't load the shop settings";
@@ -97,6 +112,8 @@ export async function fetchSettings(): Promise<Settings> {
     ready_email_subject: r.ready_email_subject,
     ready_email_body: r.ready_email_body,
     ready_sms_body: r.ready_sms_body,
+    time_zone: r.time_zone ?? null,
+    cash_needs_drawer: r.cash_needs_drawer,
     ...pickQbAccounts(r),
   };
 }
@@ -170,6 +187,8 @@ export interface SettingsForm {
   readyEmailSubject: string;
   readyEmailBody: string;
   readySmsBody: string;
+  timeZone: string;
+  cashNeedsDrawer: boolean;
   qbAccounts: QbAccounts;
 }
 
@@ -215,6 +234,9 @@ export function settingsToForm(settings: Settings): SettingsForm {
     readyEmailSubject: settings.ready_email_subject,
     readyEmailBody: settings.ready_email_body,
     readySmsBody: settings.ready_sms_body,
+    // Until it's set, suggest this browser's zone.
+    timeZone: settings.time_zone ?? browserTimeZone(),
+    cashNeedsDrawer: settings.cash_needs_drawer,
     qbAccounts: pickQbAccounts(settings),
   };
 }
@@ -278,6 +300,9 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
     if (text.length > max) return { error: `${label}: use at most ${max} characters.` };
   }
 
+  const timeZone = form.timeZone.trim();
+  if (!timeZone) return { error: 'Shop time zone: choose the time zone the shop is in.' };
+
   const qbAccounts = {} as QbAccounts;
   for (const { key, label } of QB_ACCOUNT_FIELDS) {
     const name = form.qbAccounts[key].trim();
@@ -306,6 +331,8 @@ export function parseSettingsForm(form: SettingsForm): { settings: Settings } | 
       ready_email_subject: form.readyEmailSubject.trim(),
       ready_email_body: form.readyEmailBody.trim(),
       ready_sms_body: form.readySmsBody.trim(),
+      time_zone: timeZone,
+      cash_needs_drawer: form.cashNeedsDrawer,
       ...qbAccounts,
     },
   };

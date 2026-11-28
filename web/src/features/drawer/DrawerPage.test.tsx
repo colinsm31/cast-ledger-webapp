@@ -1,0 +1,135 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Drawer, DrawerSession } from '../../lib/drawers';
+
+vi.mock('../../app/BackContext', () => ({ useBack: () => {} }));
+let timeZone: string | null = 'America/Chicago';
+vi.mock('../../lib/settings', () => ({ useSettings: () => ({ settings: { time_zone: timeZone } }) }));
+const confirm = vi.fn(async () => true);
+vi.mock('../../components/Dialog', () => ({ useDialog: () => ({ confirm }) }));
+
+let drawers: Drawer[] = [];
+let openSessions: DrawerSession[] = [];
+const openDrawer = vi.fn(async () => 'session-1');
+const closeDrawer = vi.fn(async () => {});
+vi.mock('../../lib/drawers', async (original) => ({
+  ...(await original<typeof import('../../lib/drawers')>()),
+  fetchDrawers: vi.fn(async () => drawers),
+  fetchOpenSessions: vi.fn(async () => openSessions),
+  openDrawer: (...args: unknown[]) => openDrawer(...(args as [])),
+  closeDrawer: (...args: unknown[]) => closeDrawer(...(args as [])),
+  fetchCashSummary: vi.fn(async () => ({
+    float_amount: 110, cash_sales: 30, cash_refunds: 10, paid_in: 5, paid_out: 5, expected_cash: 130, check_sales: 25, check_refunds: 0,
+  })),
+  fetchMovements: vi.fn(async () => [
+    { id: 'm1', kind: 'paid_out', amount: 5, reason: 'Stamps', created_at: '2026-11-27T16:00:00Z' },
+  ]),
+  fetchSession: vi.fn(async () => ({ ...session, closed_at: '2026-11-28T01:00:00Z', counted_cash: 120.5, expected_cash: 130 })),
+}));
+
+const { DrawerPage } = await import('./DrawerPage');
+
+const main: Drawer = { id: 'd-main', name: 'Main drawer', is_active: true };
+const back: Drawer = { id: 'd-back', name: 'Back counter', is_active: true };
+const session: DrawerSession = {
+  id: 's-1',
+  drawer_id: 'd-main',
+  business_day: '2026-11-27',
+  opened_at: '2026-11-27T15:00:00Z',
+  opened_by: 'u1',
+  float_amount: 110,
+  closed_at: null,
+  counted_cash: null,
+  expected_cash: null,
+  close_note: null,
+};
+
+beforeEach(() => {
+  localStorage.clear();
+  drawers = [main];
+  openSessions = [];
+  timeZone = 'America/Chicago';
+});
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+describe('DrawerPage', () => {
+  it('opens the only drawer with a float counted by denomination', async () => {
+    render(<DrawerPage />);
+    expect(await screen.findByText('Main drawer')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('How many $20'), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText('How many $1'), { target: { value: '10' } });
+    expect(screen.getByText('$110.00')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Open drawer' }));
+    await waitFor(() => expect(openDrawer).toHaveBeenCalledWith('d-main', { '20': 5, '1': 10 }));
+  });
+
+  it('says what is wrong with a count instead of sending it', async () => {
+    render(<DrawerPage />);
+    fireEvent.change(await screen.findByLabelText('How many $5'), { target: { value: '2.5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Open drawer' }));
+    expect(screen.getByText('$5: enter a whole number, like 3.')).toBeTruthy();
+    expect(openDrawer).not.toHaveBeenCalled();
+  });
+
+  it('asks which drawer this register uses when there are several, and remembers it', async () => {
+    drawers = [back, main];
+    render(<DrawerPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Back counter' }));
+    expect(screen.getByRole('heading', { name: 'Back counter' })).toBeTruthy();
+    expect(localStorage.getItem('acestock.drawerId')).toBe('d-back');
+    fireEvent.click(screen.getByRole('button', { name: 'Use another drawer' }));
+    expect(screen.getByText('Which drawer is at this register?')).toBeTruthy();
+  });
+
+  it('shows what the drawer should hold and closes it with a count and an optional note', async () => {
+    openSessions = [session];
+    render(<DrawerPage />);
+    expect(await screen.findByText('Expected in drawer')).toBeTruthy();
+    expect(screen.getByText('$130.00')).toBeTruthy();
+    expect(screen.getByText('-$10.00')).toBeTruthy();
+    expect(screen.getByText('Checks (not counted)')).toBeTruthy();
+    expect(screen.getByText('Stamps')).toBeTruthy();
+    expect(screen.queryByText(/^Short /)).toBeNull();
+    fireEvent.change(screen.getByLabelText('How many $20'), { target: { value: '6' } });
+    fireEvent.change(screen.getByLabelText('Other cash'), { target: { value: '0.50' } });
+    expect(screen.getByText('Short $9.50')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Note (optional)'), { target: { value: 'Short a roll' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Close drawer' }));
+    await waitFor(() => expect(closeDrawer).toHaveBeenCalledWith('s-1', { '20': 6, other: 0.5 }, 'Short a roll'));
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('Counted $120.50 (short $9.50)') }),
+    );
+    expect(await screen.findByText('Drawer closed.')).toBeTruthy();
+    expect(screen.getByText('Counted $120.50, expected $130.00.')).toBeTruthy();
+  });
+
+  it('shows the server\'s refusal and the time zone reminder', async () => {
+    timeZone = null;
+    openDrawer.mockRejectedValueOnce(new Error('An admin needs to set the shop\'s time zone in Settings first'));
+    render(<DrawerPage />);
+    expect(await screen.findByText(/set the shop's time zone in Settings before drawers can be opened/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Open drawer' }));
+    expect(await screen.findByText('An admin needs to set the shop\'s time zone in Settings first')).toBeTruthy();
+  });
+
+  it('says when the expected cash can\'t be worked out, and tries again', async () => {
+    openSessions = [session];
+    const drawersModule = await import('../../lib/drawers');
+    vi.mocked(drawersModule.fetchCashSummary).mockRejectedValueOnce(new Error("Couldn't work out the drawer's cash: offline"));
+    render(<DrawerPage />);
+    expect(await screen.findByText("Couldn't work out the drawer's cash: offline")).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /try again|retry/i }));
+    expect(await screen.findByText('Expected in drawer')).toBeTruthy();
+  });
+
+  it('says when no drawer is in use', async () => {
+    drawers = [{ ...main, is_active: false }];
+    render(<DrawerPage />);
+    expect(await screen.findByText(/No drawers are in use/)).toBeTruthy();
+  });
+});

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { withRegisterDrawer } from '../../lib/drawers';
+import { RegisterDrawerNotice } from '../drawer/RegisterDrawerNotice';
+import { DayClosedNotice } from '../endofday/DayClosedNotice';
 import type { Customer, ProductUnitStatus } from '../../types/domain';
 import { unitUnavailableMessage } from '../../lib/unitStatus';
 import { customerName, customerNameLastFirst, inactiveGiftCardMessage } from '../../types/domain';
@@ -9,7 +12,7 @@ import { useCustomerMatches } from '../../lib/customerSearch';
 import { createCustomer, newCustomerFormFrom, newCustomerRow, type NewCustomerForm } from '../../lib/newCustomer';
 import { formatPhone } from '../../lib/phone';
 import { clearHeldSale, getHeldSale, setHeldSale } from '../../lib/heldSale';
-import { useSettings } from '../../lib/settings';
+import { useSettings, cashNeedsOpenDrawer } from '../../lib/settings';
 import { LoadError } from '../../components/LoadError';
 import { computeSaleTotals, fromCents, lineTotalCents, toCents } from '../../lib/saleMath';
 import {
@@ -770,7 +773,7 @@ export function NewSalePage() {
   async function completeSale(tenders: Tender[]) {
     setSaving(true);
     setError(null);
-    const { data, error: err } = await supabase.rpc('record_sale', {
+    const { data, error: err } = await withRegisterDrawer(supabase.rpc('record_sale', {
       ...saleQuoteArgs(lines, customer?.id ?? null, quoteOptions()),
       p_payments: tenders.map((t) => ({
         method: t.method,
@@ -779,7 +782,7 @@ export function NewSalePage() {
         check_number: t.checkNumber ?? null,
       })),
       p_note: null,
-    });
+    }));
     if (err) {
       setSaving(false);
       if (isTotalMismatchError(err)) {
@@ -857,6 +860,8 @@ export function NewSalePage() {
       )}
 
       {!settings && settingsError && <LoadError message={settingsError} onRetry={reloadSettings} />}
+      <DayClosedNotice timeZone={settings?.time_zone ?? null} />
+      <RegisterDrawerNotice cashNeedsDrawer={cashNeedsOpenDrawer(settings ?? null)} />
 
       <CustomerBar customer={customer} onChange={setCustomer} />
 

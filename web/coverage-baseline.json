@@ -1,11 +1,11 @@
 {
-  "updated": "2026-11-26",
+  "updated": "2026-11-27",
   "web": {
     "overall": {
-      "lines": 42.1,
-      "statements": 42.46,
-      "functions": 45.42,
-      "branches": 39.7
+      "lines": 46.45,
+      "statements": 46.78,
+      "functions": 49.81,
+      "branches": 43.03
     },
     "byFolder": {
       "src": {
@@ -18,13 +18,13 @@
         "lines": 0
       },
       "src/components": {
-        "lines": 96.93
+        "lines": 97.21
       },
       "src/features/account": {
         "lines": 0
       },
       "src/features/admin": {
-        "lines": 8.03
+        "lines": 25.7
       },
       "src/features/categories": {
         "lines": 0
@@ -35,8 +35,14 @@
       "src/features/demos": {
         "lines": 97.44
       },
+      "src/features/drawer": {
+        "lines": 95.74
+      },
+      "src/features/endofday": {
+        "lines": 98.08
+      },
       "src/features/home": {
-        "lines": 0
+        "lines": 3.19
       },
       "src/features/lookups": {
         "lines": 0
@@ -48,16 +54,16 @@
         "lines": 100
       },
       "src/features/sales": {
-        "lines": 27.79
+        "lines": 28.53
       },
       "src/features/scan": {
         "lines": 61.7
       },
       "src/features/stringjobs": {
-        "lines": 22.39
+        "lines": 22.35
       },
       "src/lib": {
-        "lines": 94.5
+        "lines": 95.02
       },
       "src/types": {
         "lines": 75
@@ -94,6 +100,9 @@
       "src/components/CsvButton.tsx": {
         "lines": 100
       },
+      "src/components/DenominationCounter.tsx": {
+        "lines": 100
+      },
       "src/components/Dialog.tsx": {
         "lines": 91.93
       },
@@ -109,6 +118,9 @@
       "src/components/PeriodPicker.tsx": {
         "lines": 100
       },
+      "src/components/PrintToolbar.tsx": {
+        "lines": 100
+      },
       "src/components/Spinner.tsx": {
         "lines": 100
       },
@@ -117,6 +129,9 @@
       },
       "src/features/account/AccountPage.tsx": {
         "lines": 0
+      },
+      "src/features/admin/DrawersSettings.tsx": {
+        "lines": 94.59
       },
       "src/features/admin/ReadyTemplateFields.tsx": {
         "lines": 100
@@ -187,11 +202,38 @@
       "src/features/demos/demoLoansCsv.ts": {
         "lines": 100
       },
+      "src/features/drawer/DrawerMovements.tsx": {
+        "lines": 100
+      },
+      "src/features/drawer/DrawerPage.tsx": {
+        "lines": 94.23
+      },
+      "src/features/drawer/RegisterDrawerNotice.tsx": {
+        "lines": 100
+      },
+      "src/features/endofday/DayClosedNotice.tsx": {
+        "lines": 100
+      },
+      "src/features/endofday/DayReportPage.tsx": {
+        "lines": 100
+      },
+      "src/features/endofday/DayReportView.tsx": {
+        "lines": 100
+      },
+      "src/features/endofday/EndOfDayPage.tsx": {
+        "lines": 96.72
+      },
+      "src/features/endofday/dayReportFixture.ts": {
+        "lines": 100
+      },
       "src/features/home/ComingSoon.tsx": {
         "lines": 0
       },
       "src/features/home/HomePage.tsx": {
         "lines": 0
+      },
+      "src/features/home/TimeZoneReminder.tsx": {
+        "lines": 100
       },
       "src/features/lookups/PickOrAdd.tsx": {
         "lines": 0
@@ -293,7 +335,7 @@
         "lines": 100
       },
       "src/features/sales/ExchangePage.tsx": {
-        "lines": 88.79
+        "lines": 89.76
       },
       "src/features/sales/FrameReturnFields.tsx": {
         "lines": 100
@@ -418,7 +460,16 @@
       "src/lib/dates.ts": {
         "lines": 100
       },
+      "src/lib/dayCloses.ts": {
+        "lines": 100
+      },
+      "src/lib/dayReport.ts": {
+        "lines": 100
+      },
       "src/lib/demoLoans.ts": {
+        "lines": 100
+      },
+      "src/lib/denominations.ts": {
         "lines": 100
       },
       "src/lib/discountApproval.ts": {
@@ -426,6 +477,9 @@
       },
       "src/lib/discounts.ts": {
         "lines": 100
+      },
+      "src/lib/drawers.ts": {
+        "lines": 98.33
       },
       "src/lib/edgeFunctions.ts": {
         "lines": 100
@@ -503,7 +557,7 @@
         "lines": 100
       },
       "src/lib/settings.ts": {
-        "lines": 77.33
+        "lines": 78.2
       },
       "src/lib/staff.ts": {
         "lines": 100

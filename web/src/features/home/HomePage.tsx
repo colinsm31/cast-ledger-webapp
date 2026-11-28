@@ -12,6 +12,7 @@ import { resolveBarcode, routeForMatch, type BarcodeMatch, type ScannedProduct }
 import { useScannerCapture } from '../scan/useScannerCapture';
 import { useLatestRequest } from '../../lib/latestRequest';
 import { ScanFlowParams, sellProductPath, withParams } from '../scan/scanFlow';
+import { TimeZoneReminder } from './TimeZoneReminder';
 
 type UpcResult =
   | { kind: 'idle' }
@@ -156,6 +157,8 @@ export function HomePage() {
         </button>
       )}
 
+      {isAdmin && <TimeZoneReminder />}
+
       <div className="space-y-2">
         <h1 className="text-xl font-bold text-slate-900">AceStock</h1>
         <p className="text-sm text-slate-600">
@@ -243,6 +246,8 @@ export function HomePage() {
         <NavCard to="/gift-cards" label="Gift Cards" />
         <NavCard to="/string-jobs/open" label="Open Re-Strings" />
         <NavCard to="/string-jobs/completed" label="Completed Re-Strings" />
+        <NavCard to="/drawer" label="Cash Drawer" />
+        <NavCard to="/end-of-day" label="End of Day" />
         {isAdmin && <NavCard to="/reports" label="Reports" />}
       </div>
 

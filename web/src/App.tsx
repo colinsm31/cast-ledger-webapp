@@ -17,6 +17,9 @@ import { HomePage } from './features/home/HomePage';
 import { NewSalePage } from './features/sales/NewSalePage';
 import { SalesListPage } from './features/sales/SalesListPage';
 import { ReportsPage } from './features/reports/ReportsPage';
+import { DrawerPage } from './features/drawer/DrawerPage';
+import { EndOfDayPage } from './features/endofday/EndOfDayPage';
+import { DayReportPage } from './features/endofday/DayReportPage';
 import { SaleDetailPage } from './features/sales/SaleDetailPage';
 import { ExchangePage } from './features/sales/ExchangePage';
 import { RefundPage } from './features/sales/RefundPage';
@@ -88,6 +91,7 @@ function Gate() {
       <Route path="/sales/:saleId/receipt" element={<ReceiptPage />} />
       <Route path="/string-jobs/:jobId/tag" element={<JobTagPage />} />
       <Route path="/units/labels" element={<UnitLabelsPage />} />
+      <Route path="/end-of-day/:day/report" element={<DayReportPage />} />
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
         {/* Retail screens — filled in over the next build steps. */}
@@ -103,6 +107,8 @@ function Gate() {
         <Route path="/gift-cards" element={<GiftCardLookupPage />} />
         <Route path="/demos" element={<DemosPage />} />
         <Route path="/account" element={<AccountPage />} />
+        <Route path="/drawer" element={<DrawerPage />} />
+        <Route path="/end-of-day" element={<EndOfDayPage />} />
         <Route path="/reports" element={<RequireAdmin><ReportsPage /></RequireAdmin>} />
         <Route element={<RequireAdmin><SettingsLayout /></RequireAdmin>}>
           <Route path="/settings" element={<SettingsPage />} />
